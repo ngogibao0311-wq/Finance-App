@@ -1,759 +1,254 @@
-/* =========================================================
-   FinDash - GIAO DIỆN ĐIỆN THOẠI
-   Thay toàn bộ nội dung file css/7-mobile.css bằng file này.
-   Chỉ tác động khi màn hình rộng tối đa 768px.
-   ========================================================= */
+/* =========================================
+   css/mobile.css - BẢN FIX LỖI LẪN LỘN GIAO DIỆN (NATURE / ZEN)
+========================================= */
 
+@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap');
+
+/* --- 1. CHỈ ÁP DỤNG TRÊN MÁY TÍNH --- */
+@media screen and (min-width: 769px) {
+    #mobile-header, 
+    .mobile-menu-container, 
+    .mobile-overlay { 
+        display: none !important; 
+    }
+}
+
+/* --- 2. CHỈ ÁP DỤNG TRÊN ĐIỆN THOẠI & TABLET NHỎ --- */
 @media screen and (max-width: 768px) {
-    :root {
-        --mobile-gap: 12px;
-        --mobile-radius: 18px;
-        --mobile-header-height: 68px;
-        --mobile-safe-bottom: env(safe-area-inset-bottom, 0px);
+    
+    /* ÉP BỘ KHUNG CHỐNG TRÀN NGANG */
+    *, *::before, *::after {
+        box-sizing: border-box !important;
+        max-width: 100vw !important; 
     }
 
-    /* ---------- NỀN TẢNG ---------- */
-    *,
-    *::before,
-    *::after {
-        box-sizing: border-box;
-    }
-
-    html {
-        width: 100%;
-        min-height: 100%;
-        overflow-x: hidden;
-        scroll-behavior: smooth;
-        -webkit-text-size-adjust: 100%;
-    }
-
-    body {
-        width: 100%;
-        min-height: 100dvh;
-        margin: 0;
-        overflow-x: hidden;
-        overflow-y: auto;
-        overscroll-behavior-y: contain;
-        -webkit-overflow-scrolling: touch;
-        background: var(--bg-main, #f4f6fb);
-    }
-
-    button,
-    input,
-    select,
-    textarea {
-        font: inherit;
-    }
-
-    button,
-    .btn,
-    .btn-ghost,
-    .menu-item,
-    .month-item {
-        -webkit-tap-highlight-color: transparent;
-        touch-action: manipulation;
-    }
-
-    img,
-    canvas,
-    svg {
-        max-width: 100%;
-    }
-
-    /* ---------- MENU TRƯỢT ---------- */
-    #sidebar {
-        position: fixed !important;
-        inset: 0 auto 0 0 !important;
-        z-index: 10010 !important;
-        display: flex !important;
-        flex-direction: column !important;
-        width: min(86vw, 330px) !important;
-        height: 100dvh !important;
-        max-height: 100dvh !important;
+    /* MỞ KHÓA TRỤC CUỘN DỌC TỪ GỐC */
+    html, body {
+        overflow-x: hidden !important; 
+        overflow-y: auto !important; 
+        height: auto !important;     
+        min-height: 100vh !important;
+        max-height: none !important;
         margin: 0 !important;
         padding: 0 !important;
+        background-color: #e3e8e4 !important; 
+        font-family: 'Quicksand', sans-serif !important;
+        -webkit-overflow-scrolling: touch; 
+    }
+
+    /* Ẩn Sidebar gốc */
+    #mySidebar { display: none !important; }
+
+    /* GIẢI PHÓNG KHUNG NỘI DUNG CHÍNH */
+    .content {
+        width: 100% !important;
+        max-width: 100vw !important;
+        height: auto !important; 
+        max-height: none !important;
+        overflow-y: visible !important; 
         overflow-x: hidden !important;
-        overflow-y: auto !important;
-        background: var(--bg-card, #ffffff) !important;
-        box-shadow: 18px 0 45px rgba(15, 23, 42, 0.22) !important;
-        transform: translateX(-105%) !important;
-        transition: transform 0.28s cubic-bezier(.22, 1, .36, 1) !important;
-        border-radius: 0 24px 24px 0 !important;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    #sidebar.active {
-        transform: translateX(0) !important;
-    }
-
-    #sidebar.collapsed {
-        width: min(86vw, 330px) !important;
-    }
-
-    #sidebar .brand-box {
-        position: sticky !important;
-        top: 0 !important;
-        z-index: 4 !important;
-        flex: 0 0 auto !important;
-        min-height: 68px !important;
-        padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 12px !important;
-        background: color-mix(in srgb, var(--bg-card, #fff) 94%, transparent) !important;
-        border-bottom: 1px solid var(--border-color, #e2e8f0) !important;
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-    }
-
-    #sidebar .brand-text {
-        display: inline !important;
-    }
-
-    #sidebar #btn-toggle-sidebar {
-        display: none !important;
-    }
-
-    #sidebar > div[style*="flex:1"],
-    #sidebar > div[style*="flex: 1"] {
-        flex: 1 1 auto !important;
-        overflow-y: visible !important;
-        padding: 10px 10px 18px !important;
-    }
-
-    #sidebar .section-label {
-        margin: 14px 8px 7px !important;
-        font-size: 0.72rem !important;
-        letter-spacing: 0.08em !important;
-    }
-
-    #sidebar .menu-item {
-        min-height: 48px !important;
-        margin: 5px 0 !important;
-        padding: 9px 10px !important;
-        border-radius: 14px !important;
-    }
-
-    #sidebar .menu-icon {
-        flex: 0 0 36px !important;
-        width: 36px !important;
-        height: 36px !important;
-        display: inline-flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-    }
-
-    #sidebar .menu-text {
-        display: inline !important;
-        white-space: normal !important;
-    }
-
-    #sidebar .zalo-widget {
-        flex: 0 0 auto !important;
-        margin: 12px 12px 4px !important;
-    }
-
-    #sidebar .config-panel {
-        position: static !important;
-        flex: 0 0 auto !important;
-        margin-top: auto !important;
-        padding: 16px !important;
-        padding-bottom: calc(18px + var(--mobile-safe-bottom)) !important;
-        border-top: 1px solid var(--border-color, #e2e8f0) !important;
-        background: var(--bg-card, #fff) !important;
-    }
-
-    #mobile-backdrop,
-    .mobile-backdrop {
-        position: fixed !important;
-        inset: 0 !important;
-        z-index: 10000 !important;
-        width: 100vw !important;
-        height: 100dvh !important;
-        margin: 0 !important;
-        background: rgba(15, 23, 42, 0.52) !important;
-        backdrop-filter: blur(3px);
-        -webkit-backdrop-filter: blur(3px);
-    }
-
-    #mobile-backdrop:not(.active),
-    .mobile-backdrop:not(.active) {
-        display: none !important;
-    }
-
-    #mobile-backdrop.active,
-    .mobile-backdrop.active {
-        display: block !important;
-    }
-
-    /* ---------- NỘI DUNG CHÍNH ---------- */
-    main {
-        width: 100% !important;
-        max-width: 100% !important;
-        min-height: 100dvh !important;
-        margin: 0 !important;
-        padding: 0 var(--mobile-gap) calc(90px + var(--mobile-safe-bottom)) !important;
-        overflow: visible !important;
-    }
-
-    .main-header {
-        position: sticky !important;
-        top: 0 !important;
-        z-index: 900 !important;
-        display: flex !important;
-        flex-wrap: wrap !important;
-        align-items: center !important;
-        gap: 10px !important;
-        min-height: var(--mobile-header-height) !important;
-        margin: 0 calc(var(--mobile-gap) * -1) 14px !important;
-        padding: calc(9px + env(safe-area-inset-top, 0px)) var(--mobile-gap) 10px !important;
-        background: color-mix(in srgb, var(--bg-card, #fff) 92%, transparent) !important;
-        border-bottom: 1px solid var(--border-color, #e2e8f0) !important;
-        box-shadow: 0 7px 22px rgba(15, 23, 42, 0.07) !important;
-        backdrop-filter: blur(18px);
-        -webkit-backdrop-filter: blur(18px);
-    }
-
-    .main-header > div:first-child {
-        flex: 1 1 calc(100% - 54px) !important;
-        min-width: 0 !important;
-        gap: 9px !important;
-    }
-
-    .mobile-menu-toggle {
-        display: inline-flex !important;
-        flex: 0 0 44px !important;
-        width: 44px !important;
-        height: 44px !important;
-        min-width: 44px !important;
-        min-height: 44px !important;
-        align-items: center !important;
-        justify-content: center !important;
-        padding: 0 !important;
-        border-radius: 14px !important;
-        background: var(--bg-card, #fff) !important;
-        border: 1px solid var(--border-color, #e2e8f0) !important;
-    }
-
-    .page-title {
-        max-width: 100% !important;
-        margin: 0 !important;
-        overflow: hidden !important;
-        font-size: clamp(1.05rem, 5vw, 1.35rem) !important;
-        line-height: 1.15 !important;
-        text-overflow: ellipsis !important;
-        white-space: nowrap !important;
-    }
-
-    .page-subtitle {
-        max-width: 100% !important;
-        margin: 3px 0 0 !important;
-        overflow: hidden !important;
-        font-size: 0.75rem !important;
-        line-height: 1.2 !important;
-        text-overflow: ellipsis !important;
-        white-space: nowrap !important;
-    }
-
-    .search-container {
-        order: 3 !important;
-        flex: 1 0 100% !important;
-        width: 100% !important;
-        max-width: none !important;
-        margin: 0 !important;
-    }
-
-    .search-input {
-        width: 100% !important;
-        min-height: 44px !important;
-        padding-right: 12px !important;
-        border-radius: 14px !important;
-        font-size: 16px !important;
-    }
-
-    /* ---------- BỐ CỤC CARD ---------- */
-    .grid-2,
-    .grid-3,
-    #report-summary.grid-3 {
-        display: grid !important;
-        grid-template-columns: minmax(0, 1fr) !important;
-        gap: var(--mobile-gap) !important;
-        width: 100% !important;
-    }
-
-    .glass-card,
-    .stat-card-pop,
-    .budget-widget-pop,
-    .weather-widget,
-    .ai-assistant-card,
-    .compact-chart-card {
-        width: 100% !important;
-        min-width: 0 !important;
-        max-width: 100% !important;
+        padding: 80px 10px 40px 10px !important; 
         margin-left: 0 !important;
-        margin-right: 0 !important;
-        border-radius: var(--mobile-radius) !important;
     }
 
-    .weather-widget {
-        display: flex !important;
-        gap: 12px !important;
-        margin-bottom: var(--mobile-gap) !important;
-        padding: 14px !important;
-    }
-
-    .weather-icon,
-    .weather-icon-box {
-        flex: 0 0 46px !important;
-        width: 46px !important;
-        height: 46px !important;
-    }
-
-    .stat-card-pop {
-        min-height: 0 !important;
-        padding: 15px !important;
-        overflow: hidden !important;
-    }
-
-    .stat-card-pop .stat-header {
-        margin-bottom: 8px !important;
-    }
-
-    .stat-icon-circle {
-        width: 38px !important;
-        height: 38px !important;
-        min-width: 38px !important;
-    }
-
-    .stat-value {
-        margin: 5px 0 !important;
-        font-size: clamp(1.45rem, 8vw, 2rem) !important;
-        line-height: 1.1 !important;
-        overflow-wrap: anywhere !important;
-    }
-
-    .stat-bg-icon {
-        right: -8px !important;
-        bottom: -14px !important;
-        font-size: 5rem !important;
-    }
-
-    .budget-widget-pop,
-    #upcoming-debt-box,
-    #daily-budget-box {
-        margin-bottom: var(--mobile-gap) !important;
-        padding: 14px !important;
-    }
-
-    .budget-header-pop,
-    .budget-info-pop {
-        gap: 10px !important;
-    }
-
-    .budget-info-pop {
-        display: grid !important;
-        grid-template-columns: 1fr 1fr !important;
-    }
-
-    .budget-info-pop .b-item {
-        min-width: 0 !important;
-    }
-
-    .budget-info-pop .value {
-        overflow-wrap: anywhere !important;
-        font-size: 0.9rem !important;
-    }
-
-    .compact-chart-card {
-        min-height: 290px !important;
-        padding: 14px !important;
-    }
-
-    .compact-chart-card > div:last-child {
-        min-height: 225px !important;
-    }
-
-    .ai-assistant-card {
-        min-height: 360px !important;
-        overflow: hidden !important;
-    }
-
-    .chat-log {
-        min-height: 220px !important;
-        max-height: 44vh !important;
-        overflow-y: auto !important;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    .chat-input-area {
-        position: sticky !important;
-        bottom: 0 !important;
-        gap: 8px !important;
-        padding-bottom: calc(10px + var(--mobile-safe-bottom)) !important;
-    }
-
-    .chat-input {
-        min-height: 44px !important;
-        font-size: 16px !important;
-    }
-
-    .btn-send-ai {
-        flex: 0 0 44px !important;
-        width: 44px !important;
-        height: 44px !important;
-    }
-
-    /* ---------- BẢNG GIAO DỊCH THÀNH THẺ ---------- */
-    main > .glass-card:last-of-type {
-        padding: 12px !important;
-    }
-
-    .table-wrapper {
-        width: 100% !important;
+    .tab-content {
+        height: auto !important;
+        max-height: none !important;
         overflow: visible !important;
-        border: 0 !important;
+        width: 100% !important;
     }
-
-    .table-wrapper table {
+    
+    .tab-content[style*="display: block"], 
+    .tab-content[style*="display: inline"],
+    .tab-content.active {
         display: block !important;
+    }
+
+    /* =========================================================
+       SỬA LỖI MẤT THANH AUDIO
+       ========================================================= */
+    audio {
+        display: block !important;
+        visibility: visible !important;
         width: 100% !important;
-        min-width: 0 !important;
-        border: 0 !important;
+        height: 54px !important; 
+        min-height: 54px !important;
+        outline: none !important;
+        margin: 5px 0 !important;
     }
-
-    .table-wrapper thead {
-        display: none !important;
-    }
-
-    .table-wrapper tbody {
-        display: grid !important;
-        gap: 10px !important;
-        width: 100% !important;
-    }
-
-    .table-wrapper tbody tr {
-        position: relative !important;
-        display: grid !important;
-        grid-template-columns: 1fr !important;
-        width: 100% !important;
-        padding: 12px !important;
-        overflow: hidden !important;
-        background: var(--bg-card, #fff) !important;
-        border: 1px solid var(--border-color, #e2e8f0) !important;
-        border-radius: 16px !important;
-        box-shadow: 0 5px 16px rgba(15, 23, 42, 0.06) !important;
-    }
-
-    .table-wrapper tbody td {
-        display: grid !important;
-        grid-template-columns: 78px minmax(0, 1fr) !important;
-        align-items: start !important;
-        gap: 8px !important;
-        width: 100% !important;
-        min-width: 0 !important;
-        padding: 6px 0 !important;
-        text-align: left !important;
-        border: 0 !important;
-        white-space: normal !important;
-        overflow-wrap: anywhere !important;
-    }
-
-    .table-wrapper tbody td::before {
-        color: var(--text-muted, #64748b) !important;
-        font-size: 0.7rem !important;
-        font-weight: 800 !important;
-        letter-spacing: 0.02em !important;
-        text-transform: uppercase !important;
-    }
-
-    .table-wrapper tbody td:nth-child(1)::before { content: "Thời gian"; }
-    .table-wrapper tbody td:nth-child(2)::before { content: "Nội dung"; }
-    .table-wrapper tbody td:nth-child(3)::before { content: "Nguồn tiền"; }
-    .table-wrapper tbody td:nth-child(4)::before { content: "Số tiền"; }
-    .table-wrapper tbody td:nth-child(5)::before { content: "Trạng thái"; }
-
-    .table-wrapper tbody td:nth-child(4) {
-        font-size: 1rem !important;
-    }
-
-    .table-wrapper tbody td:last-child {
-        display: flex !important;
-        justify-content: flex-end !important;
-        padding-top: 8px !important;
-        border-top: 1px dashed var(--border-color, #e2e8f0) !important;
-    }
-
-    .table-wrapper tbody td:last-child::before {
-        display: none !important;
-    }
-
-    .table-wrapper tbody td:last-child button {
-        width: 42px !important;
-        height: 42px !important;
-        min-width: 42px !important;
-        padding: 0 !important;
-        border-radius: 12px !important;
-    }
-
-    /* ---------- NÚT NỔI ---------- */
-    .fab-btn {
-        position: fixed !important;
-        right: 16px !important;
-        bottom: calc(16px + var(--mobile-safe-bottom)) !important;
-        z-index: 850 !important;
-        width: 58px !important;
-        height: 58px !important;
-        min-width: 58px !important;
-        min-height: 58px !important;
-        border-radius: 20px !important;
-        box-shadow: 0 12px 30px rgba(79, 70, 229, 0.32) !important;
-    }
-
-    /* ---------- FORM ---------- */
-    .form-input,
-    .config-input,
-    input,
-    select,
-    textarea {
-        max-width: 100% !important;
-    }
-
-    .form-input,
-    .config-input {
-        width: 100% !important;
-        min-height: 46px !important;
-        font-size: 16px !important;
-        border-radius: 13px !important;
-    }
-
-    textarea.form-input,
-    textarea.config-input {
-        min-height: 110px !important;
-    }
-
-    #form-tx > div[style*="grid-template-columns"] {
-        display: grid !important;
-        grid-template-columns: minmax(0, 1fr) !important;
-        gap: 12px !important;
-    }
-
-    #form-tx div[style*="display: flex"] {
-        max-width: 100% !important;
-    }
-
-    #form-tx button[type="submit"],
-    #form-tx .btn-primary {
-        width: 100% !important;
-        min-height: 48px !important;
-        justify-content: center !important;
-    }
-
-    .btn {
-        min-height: 44px;
-    }
-
-    /* ---------- MODAL DẠNG BOTTOM SHEET ---------- */
-    .modal-overlay {
-        align-items: flex-end !important;
-        justify-content: center !important;
-        padding: 0 !important;
-        background: rgba(15, 23, 42, 0.56) !important;
-        backdrop-filter: blur(3px);
-        -webkit-backdrop-filter: blur(3px);
-    }
-
-    .modal-overlay.active {
-        display: flex !important;
-    }
-
-    .modal-box {
-        position: relative !important;
+    
+    video, img {
         width: 100% !important;
         max-width: 100% !important;
         height: auto !important;
-        max-height: min(92dvh, 920px) !important;
-        margin: auto 0 0 !important;
-        padding: 16px !important;
-        padding-bottom: calc(18px + var(--mobile-safe-bottom)) !important;
-        overflow-x: hidden !important;
-        overflow-y: auto !important;
-        border-radius: 24px 24px 0 0 !important;
-        animation: mobileSheetIn 0.25s cubic-bezier(.22, 1, .36, 1) both;
-        -webkit-overflow-scrolling: touch;
     }
 
-    .modal-box::before {
-        content: "";
-        display: block;
-        width: 44px;
-        height: 5px;
-        margin: -5px auto 12px;
-        border-radius: 99px;
-        background: #cbd5e1;
-    }
-
-    .modal-box .card-header {
-        position: sticky !important;
-        top: -16px !important;
-        z-index: 8 !important;
-        margin: -16px -16px 14px !important;
-        padding: 16px !important;
-        background: var(--bg-card, #fff) !important;
-        border-bottom: 1px solid var(--border-color, #e2e8f0) !important;
-    }
-
-    .modal-box .card-title {
-        min-width: 0 !important;
-        font-size: clamp(1rem, 5vw, 1.3rem) !important;
-        line-height: 1.25 !important;
-        overflow-wrap: anywhere !important;
-    }
-
-    .modal-box .card-header .btn-ghost,
-    .modal-box .close-modal {
-        flex: 0 0 42px !important;
-        width: 42px !important;
-        height: 42px !important;
-        min-width: 42px !important;
-        padding: 0 !important;
-        border-radius: 13px !important;
-    }
-
-    #custom-popup-overlay {
-        align-items: center !important;
-        padding: 14px !important;
-    }
-
-    #custom-popup-overlay .modal-box {
-        width: min(100%, 420px) !important;
-        margin: auto !important;
-        padding: 20px !important;
-        border-radius: 22px !important;
-    }
-
-    #custom-popup-overlay .modal-box::before {
-        display: none !important;
-    }
-
-    #popup-actions {
-        display: grid !important;
-        grid-template-columns: 1fr 1fr !important;
-        gap: 10px !important;
-    }
-
-    #popup-actions button:only-child {
-        grid-column: 1 / -1 !important;
-    }
-
-    #modal-data-tools .modal-box button.btn {
-        min-height: 68px !important;
-        white-space: normal !important;
-    }
-
-    #modal-receipt .modal-box,
-    #modal-lawyer .modal-box {
-        max-height: 96dvh !important;
-    }
-
-    .receipt-paper,
-    .lawyer-paper {
-        max-width: 100% !important;
-        transform: none !important;
-    }
-
-    /* Bảng bên trong modal được cuộn ngang thay vì làm vỡ trang */
-    .modal-box table {
-        display: block !important;
+    /* =========================================================
+       SỬA LỖI LẪN LỘN GIAO DIỆN & ÉP BẢNG DỌC (ĐÃ XÓA DISPLAY: FLEX !IMPORTANT)
+       ========================================================= */
+    #speakingChatInlineView > div:nth-child(3),
+    #listeningQuizInlineView > div > div:nth-child(3),
+    #listeningMCQInlineView > div > div:nth-child(3),
+    .writing-layout,
+    #sentenceBuilderInlineView > div[style*="display: flex"]:not(.topic-header),
+    #translatePracticeTab > div[style*="display: flex"],
+    #transPracMainTab,
+    #radicalInlineView > div[style*="display: flex"],
+    #analyzerInlineView > div[style*="display: flex"],
+    #distMainTab {
+        flex-direction: column !important; /* Chỉ đảo hướng dọc, không ép hiển thị */
+        gap: 20px !important;
+        height: auto !important;
         width: 100% !important;
+    }
+
+    /* Đảm bảo các cột con giãn hết 100% chiều ngang */
+    #speakingChatInlineView > div:nth-child(3) > div,
+    #listeningQuizInlineView > div > div:nth-child(3) > div,
+    #listeningMCQInlineView > div > div:nth-child(3) > div,
+    .writing-workspace, 
+    .writing-tools,
+    #sentenceBuilderInlineView > div[style*="display: flex"] > div,
+    #translatePracticeTab > div[style*="display: flex"] > div,
+    #radicalInlineView > div[style*="display: flex"] > div,
+    #analyzerInlineView > div[style*="display: flex"] > div,
+    #distMainTab > div {
+        flex: none !important; 
+        width: 100% !important;
+        min-width: 0 !important;
         max-width: 100% !important;
-        overflow-x: auto !important;
-        white-space: nowrap !important;
-        -webkit-overflow-scrolling: touch;
+        height: auto !important;
     }
 
-    .modal-box table thead,
-    .modal-box table tbody {
-        min-width: 560px !important;
+    /* Gỡ bỏ khóa chiều cao của khung chat/bài tập */
+    #speakingChatInlineView, #listeningQuizInlineView, #listeningMCQInlineView, 
+    #sentenceBuilderInlineView, #transPracInlineView, #translateInlineView, 
+    #analyzerInlineView, #radicalInlineView, #distinguishInlineView {
+        height: auto !important;
+        max-height: none !important;
+        overflow-y: visible !important;
+        padding-right: 0 !important; 
     }
 
-    /* ---------- MÀN HÌNH KHÓA ---------- */
-    #security-overlay {
-        width: 100vw !important;
-        min-height: 100dvh !important;
-        padding: calc(24px + env(safe-area-inset-top, 0px)) 16px calc(24px + var(--mobile-safe-bottom)) !important;
+    /* Tối ưu không gian cho vùng chat */
+    #chatMessagesArea, #quizWorkspace, #mcqWorkspace {
+        min-height: 320px !important;
+        max-height: 55vh !important; 
         overflow-y: auto !important;
+        padding: 12px !important;
+        background-color: #fdfdfc !important;
+        border-radius: 12px !important;
     }
 
-    .numpad {
-        width: min(100%, 330px) !important;
-        gap: 10px !important;
+    .writing-tools .tool-section {
+        width: 100% !important;
+        margin-bottom: 15px !important;
+        display: block !important;
     }
 
-    .num-btn {
-        aspect-ratio: 1 / 1 !important;
-        min-height: 58px !important;
-        border-radius: 18px !important;
+    /* =========================================================
+       SỬA LỖI Ô NHẬP LIỆU BỊ TRÀN & LỖI BỘ NÃO AI
+       ========================================================= */
+    #grammarSearchTab div[style*="display: flex"],
+    .settings-panel div[style*="display: flex"]:not([style*="align-items: center"]) {
+        flex-direction: column !important;
+        gap: 12px !important;
+        width: 100% !important;
     }
 
-    @keyframes mobileSheetIn {
-        from {
-            opacity: 0;
-            transform: translateY(32px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
+    #grammarSearchTab input, #grammarSearchTab textarea, .settings-panel input, .settings-panel select {
+        width: 100% !important; max-width: 100% !important; margin-bottom: 0 !important;
     }
+
+    .settings-panel div[style*="align-items: center"] {
+        flex-direction: row !important; justify-content: space-between !important; align-items: center !important; flex-wrap: nowrap !important;
+    }
+
+    #grammarListContainer, #brainAIList, .reading-list-grid, .audio-list-grid {
+        display: flex !important; flex-direction: column !important; width: 100% !important; gap: 15px !important;
+    }
+
+    #brainTotalChars, #brainTotalCalls, .vocab-stats strong, .audio-stats strong, .speaking-stats strong {
+        font-size: 22px !important; word-break: break-all !important; overflow-wrap: break-word !important; white-space: normal !important; line-height: 1.3 !important;
+    }
+
+    /* CẤU HÌNH Ô NHẬP LIỆU CHUNG */
+    textarea, .tool-content, #transOutputArea, #builderOutputArea, #transPracUserText {
+        min-height: 120px !important; height: auto !important; width: 100% !important;
+    }
+
+    .vocab-toolbar, .audio-toolbar, .speaking-toolbar {
+        flex-direction: column !important; align-items: stretch !important; gap: 12px !important;
+    }
+    .search-box { width: 100% !important; border-radius: 12px !important; }
+    .search-box input { width: 100% !important; padding-left: 42px !important; }
+
+    /* --- MOBILE HEADER BAR --- */
+    #mobile-header {
+        display: flex !important; justify-content: space-between !important; align-items: center !important;
+        padding: 10px 15px !important; background: #ffffff !important; border-bottom: 1px solid #cfe0d4 !important;
+        position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important;
+        z-index: 9998 !important; box-shadow: 0 4px 10px rgba(36, 54, 42, 0.04) !important; height: 60px !important;
+    }
+
+    .modal-content, .login-box {
+        width: 94% !important; margin: 12% auto !important; padding: 20px !important; border-radius: 16px !important; 
+    }
+
+    #openVocabModalBtn, #openAudioModalBtn, #openSpeakingModalBtn, .fixed-add-btn {
+        position: fixed !important; bottom: 20px !important; right: 20px !important; padding: 14px 22px !important;
+        font-size: 15px !important; border-radius: 30px !important; z-index: 990 !important; width: auto !important; height: auto !important;
+    }
+
+    table { min-width: 550px !important; }
+    .table-responsive { width: 100% !important; overflow-x: auto !important; display: block !important; border-radius: 8px; -webkit-overflow-scrolling: touch; }
+
+    /* --- MENU TRƯỢT NGANG --- */
+    .mobile-menu-container {
+        display: block !important; position: fixed !important; top: 0 !important; left: -100% !important; 
+        width: 78% !important; max-width: 280px !important; height: 100vh !important; background: #ffffff !important; 
+        border-right: 1px solid #cfe0d4 !important; z-index: 9999 !important; transition: left 0.3s cubic-bezier(0.25, 1, 0.5, 1) !important; 
+        overflow-y: auto !important; padding-top: 25px !important; box-shadow: 10px 0 25px rgba(36, 54, 42, 0.1) !important;
+    }
+    .mobile-menu-container.mobile-open { left: 0 !important; }
+
+    .mobile-overlay {
+        display: none; position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important;
+        background: rgba(36, 54, 42, 0.4) !important; z-index: 9990 !important; backdrop-filter: blur(2px) !important; transition: opacity 0.3s ease !important;
+    }
+    .mobile-overlay.overlay-open { display: block !important; }
+
+    .mobile-menu-container .tab-link {
+        display: flex !important; align-items: center !important; width: 88% !important; margin: 8px auto !important; text-align: left !important;
+        border-radius: 12px !important; padding: 12px 16px !important; color: #43594b !important; border: none !important; background: transparent !important; font-size: 15.5px !important;
+    }
+    .mobile-menu-container .tab-link.active { background: #e8f5e9 !important; color: #2e7d32 !important; }
+    .mobile-menu-container .tab-link .icon { margin-right: 12px !important; font-size: 18px !important; }
+    
+    #mobileMenuBtn, .switch, .switch input { width: auto !important; }
 }
-
-/* Điện thoại rất nhỏ */
-@media screen and (max-width: 390px) {
-    :root {
-        --mobile-gap: 9px;
-        --mobile-radius: 16px;
+/* =========================================================
+       SỬA LỖI 6: GIAO DIỆN BÔI ĐEN TRA TỪ (TOOLTIP) TRÊN MOBILE
+       ========================================================= */
+    /* Dời Popup xuống dưới cùng màn hình để không bị menu "Sao chép/Dán" của điện thoại che mất */
+    .selection-popup {
+        position: fixed !important;
+        top: auto !important;
+        bottom: 25px !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        width: 92% !important;
+        max-width: 400px !important;
+        border-radius: 20px !important;
+        box-shadow: 0 10px 30px rgba(36, 54, 42, 0.2) !important;
+        z-index: 100000 !important;
+        background: #ffffff !important;
+        border: 1px solid #cfe0d4 !important;
+        padding: 20px !important;
     }
 
-    .main-header {
-        gap: 8px !important;
-    }
-
-    .page-title {
-        font-size: 1rem !important;
-    }
-
-    .page-subtitle {
+    /* Ẩn cái mũi tên chỉ xuống của giao diện PC vì trên điện thoại không cần nữa */
+    .selection-popup::after, 
+    .selection-popup::before {
         display: none !important;
     }
-
-    .stat-card-pop,
-    .glass-card,
-    .budget-widget-pop {
-        padding: 12px !important;
-    }
-
-    .budget-info-pop {
-        grid-template-columns: 1fr !important;
-    }
-
-    .table-wrapper tbody td {
-        grid-template-columns: 70px minmax(0, 1fr) !important;
-    }
-
-    .modal-box {
-        padding-left: 12px !important;
-        padding-right: 12px !important;
-    }
-}
-
-/* Điện thoại nằm ngang */
-@media screen and (max-width: 900px) and (orientation: landscape) {
-    .modal-box {
-        max-height: 96dvh !important;
-    }
-
-    #sidebar {
-        width: min(72vw, 350px) !important;
-    }
-
-    .chat-log {
-        max-height: 52vh !important;
-    }
-}
