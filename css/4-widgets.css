@@ -1,0 +1,1485 @@
+/* Zalo Widget */
+/* --- THAY THẾ ĐOẠN ZALO WIDGET CŨ --- */
+
+/* Widget Zalo phong cách thẻ thành viên (Membership Card) */
+.zalo-widget {
+    /* Mặc định (Thành viên) */
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    border: 1px solid #cbd5e1;
+    color: #475569;
+
+    border-radius: 20px;
+    padding: 1.2rem;
+    margin-bottom: 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    position: relative;
+    overflow: hidden;
+    min-height: 140px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.zalo-widget:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+/* Các giao diện hạng thẻ (Ghi đè màu sắc) */
+.zalo-widget.rank-silver {
+    background: linear-gradient(135deg, #94a3b8 0%, #475569 100%);
+    border-color: #94a3b8;
+    color: white;
+}
+
+.zalo-widget.rank-gold {
+    background: linear-gradient(135deg, #facc15 0%, #ca8a04 100%);
+    border-color: #eab308;
+    color: white;
+    /* Chữ trắng trên nền vàng đậm */
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.zalo-widget.rank-diamond {
+    background: linear-gradient(135deg, #22d3ee 0%, #0891b2 100%);
+    border-color: #06b6d4;
+    color: white;
+}
+
+/* Các thành phần bên trong */
+.zalo-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    position: relative;
+    z-index: 2;
+}
+
+.zalo-logo-text {
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    opacity: 0.9;
+}
+
+.zalo-icon-crown {
+    font-size: 1.5rem;
+    opacity: 0.8;
+    transform: rotate(15deg);
+}
+
+.zalo-card-middle {
+    position: relative;
+    z-index: 2;
+    margin-top: 0.5rem;
+}
+
+.zalo-money {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.4rem;
+    font-weight: 800;
+    margin-bottom: 2px;
+}
+
+.zalo-rank-name {
+    font-size: 0.8rem;
+    font-weight: 700;
+    opacity: 0.9;
+    text-transform: uppercase;
+}
+
+/* Thanh tiến độ nhỏ gọn phía dưới */
+.zalo-progress-mini {
+    height: 4px;
+    background: rgba(255, 255, 255, 0.3);
+    /* Nền mờ */
+    border-radius: 99px;
+    overflow: hidden;
+    margin-top: 10px;
+}
+
+/* Với rank mặc định (nền sáng), thanh progress cần tối hơn chút */
+.zalo-widget:not(.rank-silver):not(.rank-gold):not(.rank-diamond) .zalo-progress-mini {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.zalo-bar-mini {
+    height: 100%;
+    background: white;
+    border-radius: 99px;
+    transition: width 0.5s ease;
+}
+
+/* Với rank mặc định, thanh bar màu xám đậm */
+.zalo-widget:not(.rank-silver):not(.rank-gold):not(.rank-diamond) .zalo-bar-mini {
+    background: #475569;
+}
+
+/* Hiệu ứng nền chìm (Pattern) */
+.zalo-bg-pattern {
+    position: absolute;
+    right: -20px;
+    bottom: -20px;
+    font-size: 6rem;
+    opacity: 0.1;
+    transform: rotate(-15deg);
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* --- POP ART WEATHER WIDGET --- */
+
+.weather-widget {
+    /* Reset layout cũ */
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    position: relative;
+    overflow: hidden;
+
+    /* Style Pop Art */
+    background: #fff;
+    border: 3px solid #000;
+    border-radius: 20px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 6px 6px 0px #000;
+    /* Bóng đổ cứng */
+    transition: transform 0.2s, box-shadow 0.2s;
+    min-height: 120px;
+}
+
+.weather-widget:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 8px 8px 0px #000;
+}
+
+/* Background Patterns & Colors */
+.w-sunny {
+    background: #fffbeb;
+    background-image: radial-gradient(#f59e0b 15%, transparent 16%);
+    background-size: 20px 20px;
+    /* Chấm bi vàng */
+}
+
+.w-cloudy {
+    background: #f0f9ff;
+    background-image: linear-gradient(45deg, #e0f2fe 25%, transparent 25%, transparent 50%, #e0f2fe 50%, #e0f2fe 75%, transparent 75%, transparent);
+    background-size: 20px 20px;
+    /* Sọc chéo xanh nhạt */
+}
+
+.w-rainy {
+    background: #eff6ff;
+    background-image: linear-gradient(135deg, #bfdbfe 25%, transparent 25%), linear-gradient(225deg, #bfdbfe 25%, transparent 25%), linear-gradient(45deg, #bfdbfe 25%, transparent 25%), linear-gradient(315deg, #bfdbfe 25%, transparent 25%);
+    background-position: 10px 0, 10px 0, 0 0, 0 0;
+    background-size: 20px 20px;
+    background-repeat: repeat;
+}
+
+.w-storm {
+    background: #fef2f2;
+    /* Sọc cảnh báo đỏ trắng */
+    background: repeating-linear-gradient(45deg,
+            #fef2f2,
+            #fef2f2 10px,
+            #fee2e2 10px,
+            #fee2e2 20px);
+    border-color: #dc2626;
+    /* Viền đỏ báo động */
+}
+
+/* Icon Box */
+.weather-icon-box {
+    width: 80px;
+    height: 80px;
+    background: #fff;
+    border: 3px solid #000;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    z-index: 2;
+    box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.2);
+    flex-shrink: 0;
+}
+
+/* Icon colors */
+.w-sunny .weather-icon-box {
+    color: #d97706;
+    background: #fff;
+}
+
+.w-cloudy .weather-icon-box {
+    color: #0284c7;
+    background: #fff;
+}
+
+.w-rainy .weather-icon-box {
+    color: #2563eb;
+    background: #fff;
+}
+
+.w-storm .weather-icon-box {
+    color: #dc2626;
+    background: #fff;
+    animation: shake-hard 0.5s infinite;
+    border-color: #dc2626;
+}
+
+/* Content Area */
+.weather-content {
+    z-index: 2;
+    background: #fff;
+    padding: 10px 15px;
+    border: 2px solid #000;
+    border-radius: 12px;
+    box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.1);
+    flex: 1;
+}
+
+.weather-title {
+    font-weight: 900;
+    font-size: 1.1rem;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.weather-desc {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+/* Text Colors */
+.w-sunny .weather-title {
+    color: #b45309;
+}
+
+.w-cloudy .weather-title {
+    color: #0369a1;
+}
+
+.w-rainy .weather-title {
+    color: #1d4ed8;
+}
+
+.w-storm .weather-title {
+    color: #b91c1c;
+}
+
+/* Animations */
+@keyframes shake-hard {
+    0% {
+        transform: translate(1px, 1px) rotate(0deg);
+    }
+
+    10% {
+        transform: translate(-1px, -2px) rotate(-1deg);
+    }
+
+    20% {
+        transform: translate(-3px, 0px) rotate(1deg);
+    }
+
+    30% {
+        transform: translate(3px, 2px) rotate(0deg);
+    }
+
+    40% {
+        transform: translate(1px, -1px) rotate(1deg);
+    }
+
+    50% {
+        transform: translate(-1px, 2px) rotate(-1deg);
+    }
+
+    60% {
+        transform: translate(-3px, 1px) rotate(0deg);
+    }
+
+    70% {
+        transform: translate(3px, 1px) rotate(-1deg);
+    }
+
+    80% {
+        transform: translate(-1px, -1px) rotate(1deg);
+    }
+
+    90% {
+        transform: translate(1px, 2px) rotate(0deg);
+    }
+
+    100% {
+        transform: translate(1px, -2px) rotate(-1deg);
+    }
+}
+
+@keyframes float-icon {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-5px);
+    }
+}
+
+.w-cloudy .weather-icon-box {
+    animation: float-icon 3s ease-in-out infinite;
+}
+
+.w-sunny .weather-icon-box i {
+    animation: spin-slow 10s linear infinite;
+}
+
+/* --- SECURITY LOCK SCREEN (NEW DESIGN - THE VAULT) --- */
+
+#security-overlay {
+    position: fixed;
+    inset: 0;
+    /* Nền tối màu xanh đen hiện đại */
+    background-color: #0f172a;
+    /* Họa tiết chấm bi mờ làm nền */
+    background-image: radial-gradient(#334155 1px, transparent 1px);
+    background-size: 20px 20px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    backdrop-filter: blur(5px);
+}
+
+#security-overlay.hidden {
+    transform: translateY(-100%) scale(0.9);
+    opacity: 0;
+    pointer-events: none;
+    border-radius: 0 0 50% 50%;
+    /* Hiệu ứng màn hình cuộn lên */
+}
+
+/* 1. Icon Ổ khóa (Hiệu ứng nổi) */
+.lock-icon-box {
+    font-size: 3.5rem;
+    margin-bottom: 2.5rem;
+    width: 100px;
+    height: 100px;
+    border-radius: 24px;
+    /* Màu nền vàng nổi bật */
+    background: #facc15;
+    border: 4px solid #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #000;
+    /* Bóng đổ cứng */
+    box-shadow: 6px 6px 0px #000;
+    animation: bounce-lock 2s infinite ease-in-out;
+    position: relative;
+}
+
+/* Tai thỏ của ổ khóa */
+.lock-icon-box::before {
+    content: '';
+    position: absolute;
+    top: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 50px;
+    height: 40px;
+    border: 6px solid #94a3b8;
+    border-bottom: none;
+    border-radius: 30px 30px 0 0;
+    z-index: -1;
+}
+
+@keyframes bounce-lock {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+/* 2. Hiển thị PIN (Các chấm tròn) */
+.pin-display {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 3rem;
+    padding: 10px 20px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 99px;
+    border: 2px solid #334155;
+}
+
+.pin-display.error-shake {
+    animation: shake-error 0.4s cubic-bezier(.36, .07, .19, .97) both;
+    border-color: #ef4444;
+}
+
+.pin-dot {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #334155;
+    border: 2px solid #475569;
+    transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    transform: scale(0.8);
+}
+
+.pin-dot.filled {
+    background: #22d3ee;
+    /* Màu xanh cyan sáng */
+    border-color: #fff;
+    transform: scale(1.2);
+    box-shadow: 0 0 10px rgba(34, 211, 238, 0.5);
+}
+
+/* 3. Bàn phím số (Numpad) */
+.numpad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    max-width: 320px;
+}
+
+.num-btn {
+    width: 72px;
+    height: 72px;
+    border-radius: 20px;
+    /* Bo góc vuông mềm */
+    background: #fff;
+    border: 3px solid #000;
+    color: #000;
+    font-size: 1.8rem;
+    font-weight: 800;
+    font-family: 'JetBrains Mono', monospace;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 4px 4px 0px #000;
+    /* Bóng cứng */
+    transition: all 0.1s;
+    user-select: none;
+}
+
+.num-btn:active {
+    transform: translate(3px, 3px);
+    box-shadow: 0px 0px 0px #000;
+    background: #facc15;
+    /* Bấm vào đổi màu vàng */
+}
+
+.num-btn:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: 5px 5px 0px #000;
+}
+
+/* Nút vân tay/FaceID (Nếu có) */
+.biometric-btn {
+    grid-column: span 3;
+    height: 56px;
+    font-size: 1rem;
+    width: 100%;
+    margin-top: 10px;
+    background: #3b82f6;
+    /* Màu xanh dương */
+    color: white;
+    border-radius: 16px;
+}
+
+.biometric-btn:active {
+    background: #2563eb;
+}
+
+/* Animation rung khi sai pass */
+@keyframes shake-error {
+
+    10%,
+    90% {
+        transform: translate3d(-2px, 0, 0);
+    }
+
+    20%,
+    80% {
+        transform: translate3d(4px, 0, 0);
+    }
+
+    30%,
+    50%,
+    70% {
+        transform: translate3d(-6px, 0, 0);
+    }
+
+    40%,
+    60% {
+        transform: translate3d(6px, 0, 0);
+    }
+}
+
+/* Budget Widget */
+.budget-track {
+    height: 16px;
+    background: #e5e7eb;
+    border-radius: 99px;
+    border: 2px solid var(--text-main);
+    overflow: hidden;
+    position: relative;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.budget-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #10b981, #34d399);
+    transition: width 0.5s, background 0.3s;
+    border-right: 2px solid rgba(0, 0, 0, 0.1);
+}
+
+.budget-bar.warning {
+    background: linear-gradient(90deg, #f59e0b, #fbbf24);
+}
+
+.budget-bar.danger {
+    background: linear-gradient(90deg, #dc2626, #ef4444);
+}
+
+.budget-overload {
+    animation: budget-flash 1s infinite;
+    background: repeating-linear-gradient(45deg, #dc2626, #dc2626 10px, #b91c1c 10px, #b91c1c 20px) !important;
+}
+
+@keyframes budget-flash {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.btn-budget-action {
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.btn-budget-action.exclude {
+    color: var(--danger);
+    background-color: transparent;
+    border: 1px solid transparent;
+}
+
+.btn-budget-action.exclude:hover {
+    background-color: #fee2e2;
+    color: #d93025;
+}
+
+.btn-budget-action.include {
+    color: var(--primary);
+    border: 1px solid var(--primary);
+    background-color: transparent;
+}
+
+.btn-budget-action.include:hover {
+    background-color: var(--primary);
+    color: white;
+    box-shadow: 0 2px 4px rgba(139, 92, 246, 0.2);
+}
+
+.budget-history-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.85rem 0.5rem;
+    border-bottom: 1px solid #f1f5f9;
+    transition: 0.3s;
+}
+
+/* --- NEWS TICKER (REMASTERED) --- */
+.news-ticker-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 42px;
+    /* Cao hơn chút cho dễ đọc */
+    background: #1e293b;
+    /* Nền mặc định tối */
+    color: #fff;
+    display: flex;
+    align-items: center;
+    z-index: 9999;
+    border-top: 3px solid #000;
+    box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.2);
+    font-family: 'JetBrains Mono', monospace;
+    overflow: hidden;
+    white-space: nowrap;
+    transition: background 0.3s ease;
+}
+
+/* Background Pattern cho từng loại tin */
+.news-ticker-bar.t-income {
+    background: #065f46;
+    background-image: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.05) 0px, rgba(255, 255, 255, 0.05) 10px, transparent 10px, transparent 20px);
+}
+
+.news-ticker-bar.t-expense {
+    background: #991b1b;
+    background-image: repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.1) 0px, rgba(0, 0, 0, 0.1) 10px, transparent 10px, transparent 20px);
+}
+
+.news-ticker-bar.t-debt {
+    background: #92400e;
+    border-top-color: #ef4444;
+    /* Viền đỏ báo động */
+}
+
+.news-ticker-bar.t-plan {
+    background: #5b21b6;
+    background-image: radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+    background-size: 10px 10px;
+}
+
+/* Nhãn "TIN NÓNG" bên trái */
+.news-label-box {
+    background: #facc15;
+    /* Vàng rực */
+    color: #000;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    padding: 0 1.5rem;
+    position: relative;
+    z-index: 10;
+    box-shadow: 4px 0 0 rgba(0, 0, 0, 0.3);
+    transform: skewX(-10deg) translateX(-10px);
+    /* Nghiêng tạo tốc độ */
+}
+
+/* Chỉnh lại text bên trong cho thẳng lại sau khi nghiêng box */
+.news-label-text {
+    transform: skewX(10deg);
+    font-weight: 900;
+    text-transform: uppercase;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    letter-spacing: 1px;
+}
+
+/* Dấu chấm đỏ nhấp nháy "LIVE" */
+.news-live-dot {
+    width: 10px;
+    height: 10px;
+    background: #dc2626;
+    border-radius: 50%;
+    display: inline-block;
+    box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.3);
+    animation: live-pulse 1.5s infinite;
+}
+
+@keyframes live-pulse {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(1.2);
+        opacity: 0.5;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Nội dung chạy chữ */
+.news-content-wrapper {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    mask-image: linear-gradient(to right, transparent, black 20px, black 95%, transparent);
+    /* Làm mờ 2 đầu */
+}
+
+.news-content {
+    display: inline-block;
+    padding-left: 100%;
+    animation: ticker-scroll 25s linear infinite;
+    /* Chậm lại xíu cho dễ đọc */
+    font-weight: 700;
+    font-size: 0.95rem;
+    text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5);
+    /* Bóng chữ nhẹ */
+}
+
+/* Hover vào thì dừng chạy để đọc */
+.news-ticker-bar:hover .news-content {
+    animation-play-state: paused;
+}
+
+@keyframes ticker-scroll {
+    0% {
+        transform: translate3d(0, 0, 0);
+    }
+
+    100% {
+        transform: translate3d(-100%, 0, 0);
+    }
+}
+
+/* Thêm vào cuối file 4-widgets.css */
+
+/* Hiệu ứng nhấp nháy cho thanh trả tối thiểu MoMo */
+@keyframes pulse-bar {
+    0% {
+        opacity: 0.6;
+        box-shadow: 0 0 0 rgba(245, 158, 11, 0);
+    }
+
+    50% {
+        opacity: 1;
+        box-shadow: 0 0 8px rgba(245, 158, 11, 0.8);
+    }
+
+    100% {
+        opacity: 0.6;
+        box-shadow: 0 0 0 rgba(245, 158, 11, 0);
+    }
+}
+
+.min-pay-track {
+    height: 6px;
+    background: #e2e8f0;
+    border-radius: 4px;
+    margin-top: 4px;
+    overflow: hidden;
+    position: relative;
+}
+
+.min-pay-bar {
+    height: 100%;
+    background: #f59e0b;
+    /* Màu cam cảnh báo */
+    border-radius: 4px;
+    animation: pulse-bar 1.5s infinite ease-in-out;
+}
+
+.sub-debt-item {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-left: 10px;
+    border-left: 2px solid #e2e8f0;
+    padding-left: 8px;
+    margin-top: 4px;
+}
+
+/* --- 4-widgets.css --- */
+
+/* Hiệu ứng nhấp nháy cho thanh trả tối thiểu MoMo */
+@keyframes pulse-bar {
+    0% {
+        opacity: 0.6;
+        box-shadow: 0 0 0 rgba(245, 158, 11, 0);
+    }
+
+    50% {
+        opacity: 1;
+        box-shadow: 0 0 8px rgba(245, 158, 11, 0.8);
+    }
+
+    100% {
+        opacity: 0.6;
+        box-shadow: 0 0 0 rgba(245, 158, 11, 0);
+    }
+}
+
+.min-pay-track {
+    height: 6px;
+    background: #e2e8f0;
+    border-radius: 4px;
+    margin-top: 4px;
+    overflow: hidden;
+    position: relative;
+}
+
+.min-pay-bar {
+    height: 100%;
+    background: #f59e0b;
+    /* Màu cam cảnh báo */
+    border-radius: 4px;
+    animation: pulse-bar 1.5s infinite ease-in-out;
+}
+
+.sub-debt-item {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-left: 10px;
+    border-left: 2px solid #e2e8f0;
+    padding-left: 8px;
+    margin-top: 4px;
+}
+
+/* --- New Stat Cards (Cartoon Style) --- */
+.stat-card-pop {
+    position: relative;
+    border-radius: 16px;
+    padding: 1.25rem;
+    border: 3px solid #000;
+    /* Viền đen đậm chất cartoon */
+    box-shadow: 6px 6px 0px rgba(0, 0, 0, 1);
+    /* Bóng cứng */
+    overflow: hidden;
+    transition: transform 0.2s;
+    color: #fff;
+    min-height: 160px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.stat-card-pop:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 8px 8px 0px rgba(0, 0, 0, 1);
+}
+
+/* Màu sắc từng thẻ */
+.theme-income {
+    background: #10b981;
+    /* Xanh lá */
+    background: linear-gradient(135deg, #34d399 0%, #059669 100%);
+}
+
+.theme-expense {
+    background: #ef4444;
+    /* Đỏ */
+    background: linear-gradient(135deg, #f87171 0%, #dc2626 100%);
+}
+
+.theme-debt {
+    background: #f59e0b;
+    /* Cam */
+    background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
+}
+
+/* Icon chìm làm nền */
+.stat-bg-icon {
+    position: absolute;
+    right: -20px;
+    top: -20px;
+    font-size: 8rem;
+    opacity: 0.15;
+    transform: rotate(-15deg);
+    pointer-events: none;
+    color: #000;
+}
+
+/* Header nhỏ phía trên */
+.stat-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    position: relative;
+    z-index: 2;
+}
+
+.stat-icon-circle {
+    width: 32px;
+    height: 32px;
+    background: #000;
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+}
+
+.stat-label {
+    font-weight: 800;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+    text-shadow: 1px 1px 0 #000;
+}
+
+/* Số tiền to */
+.stat-value {
+    font-family: 'JetBrains Mono', monospace;
+    /* Font số đẹp */
+    font-weight: 900;
+    font-size: 1.8rem;
+    margin-bottom: 1rem;
+    position: relative;
+    z-index: 2;
+    text-shadow: 2px 2px 0px rgba(0, 0, 0, 0.2);
+    /* Quan trọng: Ép màu trắng đè lên JS cũ */
+    color: #fff !important;
+}
+
+/* --- FIX LỖI GIAO DIỆN BOX CHI TIẾT (STAT DETAIL) --- */
+
+/* 1. Căn chỉnh dòng giao dịch */
+.stat-detail-box div {
+    display: flex;
+    justify-content: space-between;
+    /* Đẩy tên và tiền sang 2 bên */
+    align-items: center;
+    width: 100%;
+    gap: 10px;
+    /* Khoảng cách tối thiểu giữa tên và tiền */
+    margin-bottom: 4px;
+}
+
+/* 2. Xử lý tên giao dịch (bên trái): Quá dài sẽ hiện dấu "..." */
+.stat-detail-box div span:first-child {
+    white-space: nowrap;
+    /* Bắt buộc nằm trên 1 dòng */
+    overflow: hidden;
+    /* Ẩn phần chữ tràn ra */
+    text-overflow: ellipsis;
+    /* Hiện dấu 3 chấm (...) */
+    flex: 1;
+    /* Chiếm hết khoảng trống còn lại */
+    text-align: left;
+    min-width: 0;
+    /* Quan trọng: Để flexbox hiểu cần co lại */
+}
+
+/* 3. Xử lý số tiền (bên phải): Luôn hiển thị đầy đủ */
+.stat-detail-box div span:last-child {
+    white-space: nowrap;
+    /* Không bao giờ xuống dòng */
+    flex-shrink: 0;
+    /* Không bị ép nhỏ lại */
+    font-weight: 800;
+}
+
+/* --- Widget Ngân Sách (Cartoon / Pop Art Style) --- */
+.budget-widget-pop {
+    background: #fff;
+    border: 3px solid #000;
+    border-radius: 16px;
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 6px 6px 0px #000;
+    /* Bóng cứng */
+    position: relative;
+    overflow: visible;
+}
+
+/* Phần Header */
+.budget-header-pop {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.budget-title-box {
+    font-weight: 900;
+    font-size: 1rem;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #000;
+}
+
+.budget-tools {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Badge trạng thái (Ổn định/Cảnh báo...) */
+.status-badge-pop {
+    font-size: 0.75rem;
+    font-weight: 800;
+    padding: 4px 8px;
+    border: 2px solid #000;
+    border-radius: 6px;
+    background: #f3f4f6;
+    box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.1);
+}
+
+/* Nút cài đặt nhỏ */
+.btn-setting-pop {
+    background: #fff;
+    border: 2px solid #000;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 2px 2px 0px #000;
+    transition: 0.1s;
+}
+
+.btn-setting-pop:active {
+    transform: translate(2px, 2px);
+    box-shadow: none;
+}
+
+/* Thanh tiến độ (Track) */
+.budget-track-container {
+    padding: 4px;
+    border: 3px solid #000;
+    border-radius: 99px;
+    background: #fff;
+    margin-bottom: 1rem;
+}
+
+.budget-track.pop-track {
+    height: 20px;
+    /* Độ dày thanh */
+    background: #e5e7eb;
+    border-radius: 99px;
+    overflow: hidden;
+    /* Xóa border cũ của class budget-track gốc nếu có */
+    border: none !important;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Các thông số bên dưới */
+.budget-info-pop {
+    display: flex;
+    justify-content: space-between;
+    background: #f9fafb;
+    border-radius: 12px;
+    padding: 10px;
+    border: 2px dashed #e5e7eb;
+}
+
+.b-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.b-item.remain {
+    text-align: right;
+    align-items: flex-end;
+}
+
+.b-item .label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: #6b7280;
+    margin-bottom: 2px;
+}
+
+.b-item .value {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: #000;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* Ghi đè màu text cho số liệu (để JS không làm hỏng style) */
+#budget-remain {
+    color: #000;
+}
+
+/* Nếu muốn số dư âm màu đỏ thì CSS này sẽ bị JS ghi đè inline style, 
+   nên ta không để !important ở color để JS vẫn đổi màu được khi âm */
+/* --- ZALO POP ART MODAL STYLE --- */
+
+/* 1. Thẻ thành viên "Vật lý" */
+.zalo-pop-card {
+    position: relative;
+    border-radius: 24px;
+    padding: 1.5rem;
+    color: #fff;
+    border: 3px solid #000;
+    box-shadow: 8px 8px 0px #000;
+    margin-bottom: 2rem;
+    overflow: hidden;
+    transition: transform 0.2s;
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.zalo-pop-card:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 10px 10px 0px #000;
+}
+
+/* Màu nền các hạng */
+.zalo-pop-card[data-rank="member"] {
+    background: linear-gradient(135deg, #64748b 0%, #334155 100%);
+}
+
+.zalo-pop-card[data-rank="silver"] {
+    background: linear-gradient(135deg, #94a3b8 0%, #475569 100%);
+}
+
+.zalo-pop-card[data-rank="gold"] {
+    background: linear-gradient(135deg, #facc15 0%, #ca8a04 100%);
+    color: #000;
+}
+
+.zalo-pop-card[data-rank="diamond"] {
+    background: linear-gradient(135deg, #22d3ee 0%, #0891b2 100%);
+}
+
+/* Họa tiết nền */
+.zalo-pop-pattern {
+    position: absolute;
+    top: -20px;
+    right: -20px;
+    font-size: 10rem;
+    opacity: 0.15;
+    transform: rotate(-20deg);
+    pointer-events: none;
+}
+
+/* Header thẻ */
+.zalo-pop-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    z-index: 2;
+}
+
+.zalo-pop-logo {
+    font-weight: 900;
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.zalo-pop-fee-badge {
+    background: #000;
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 99px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    box-shadow: 2px 2px 0px rgba(255, 255, 255, 0.3);
+}
+
+/* Nội dung chính thẻ */
+.zalo-pop-body {
+    text-align: center;
+    position: relative;
+    z-index: 2;
+    margin: 1.5rem 0;
+}
+
+.zalo-pop-rank-title {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    opacity: 0.8;
+    letter-spacing: 2px;
+}
+
+.zalo-pop-rank-name {
+    font-size: 2.5rem;
+    font-weight: 900;
+    text-shadow: 3px 3px 0px rgba(0, 0, 0, 0.2);
+    margin: 0.2rem 0;
+}
+
+.zalo-pop-money {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.2rem;
+    font-weight: 700;
+    background: rgba(0, 0, 0, 0.2);
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 8px;
+}
+
+/* Footer thẻ (Thông tin dự báo) */
+.zalo-pop-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    position: relative;
+    z-index: 2;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+/* 2. Style cho phần List Chi tiêu bên dưới */
+.zalo-spending-box {
+    background: #fff;
+    border: 3px solid #000;
+    border-radius: 20px;
+    padding: 1.25rem;
+    margin-bottom: 2rem;
+    box-shadow: 6px 6px 0px rgba(0, 0, 0, 0.1);
+}
+
+.spending-progress-track {
+    height: 24px;
+    background: #e5e7eb;
+    border-radius: 99px;
+    border: 2px solid #000;
+    margin: 10px 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.spending-progress-bar {
+    height: 100%;
+    background: repeating-linear-gradient(45deg, #4ade80, #4ade80 10px, #22c55e 10px, #22c55e 20px);
+    border-right: 2px solid #000;
+    transition: width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* List Item */
+.z-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    margin-bottom: 8px;
+    background: #f8fafc;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    transition: 0.2s;
+}
+
+.z-item:hover {
+    background: #fff;
+    border-color: var(--primary);
+    transform: translateX(4px);
+    box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.1);
+}
+
+/* 3. Khu vực Hack (Developer Zone) */
+.hack-zone {
+    border: 2px dashed #cbd5e1;
+    background: #f1f5f9;
+    border-radius: 20px;
+    padding: 1.5rem;
+    position: relative;
+}
+
+.hack-badge {
+    position: absolute;
+    top: -12px;
+    left: 20px;
+    background: #334155;
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 800;
+    padding: 4px 10px;
+    border-radius: 6px;
+    transform: rotate(-2deg);
+}
+
+/* --- SECURITY LOCK SCREEN (ANIMATED VERSION) --- */
+
+/* 1. Màn hình nền & Hiệu ứng xuất hiện */
+#security-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: #0f172a;
+    background-image:
+        radial-gradient(#334155 1px, transparent 1px),
+        repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.03) 0px, rgba(0, 0, 0, 0.03) 10px, transparent 10px, transparent 20px);
+    background-size: 20px 20px, 100% 100%;
+    z-index: 99999;
+    /* Đảm bảo đè lên tất cả */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55), opacity 0.3s;
+}
+
+/* Khi ẩn đi (Unlock thành công) -> Trượt lên trên */
+#security-overlay.hidden {
+    transform: translateY(-120%) scale(1);
+    opacity: 1;
+    pointer-events: none;
+}
+
+/* 2. Ổ Khóa (Trái tim của animation) */
+.lock-icon-box {
+    font-size: 3.5rem;
+    margin-bottom: 2.5rem;
+    width: 100px;
+    height: 100px;
+    border-radius: 24px;
+    background: #facc15;
+    /* Vàng mặc định */
+    border: 4px solid #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #000;
+    box-shadow: 6px 6px 0px #000;
+    position: relative;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* Cái càng khóa (Shackle) */
+.lock-icon-box::before {
+    content: '';
+    position: absolute;
+    top: -35px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 50px;
+    height: 45px;
+    border: 8px solid #cbd5e1;
+    border-bottom: none;
+    border-radius: 35px 35px 0 0;
+    z-index: -1;
+    transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    transform-origin: bottom right;
+    /* Xoay từ góc */
+}
+
+/* --- TRẠNG THÁI: KHI MỞ KHÓA THÀNH CÔNG (Class JS sẽ thêm vào) --- */
+.lock-icon-box.unlocked {
+    background: #4ade80;
+    /* Chuyển màu xanh lá */
+    color: #fff;
+    transform: scale(1.1);
+    box-shadow: 0 0 30px rgba(74, 222, 128, 0.6);
+    border-color: #000;
+}
+
+/* Animation mở càng khóa */
+.lock-icon-box.unlocked::before {
+    top: -50px;
+    /* Bật lên */
+    transform: translateX(-50%) rotate(-25deg);
+    /* Xoay nghiêng mở ra */
+    border-color: #4ade80;
+    /* Càng cũng đổi màu */
+}
+
+/* Icon ổ khóa bên trong */
+.lock-icon-box i {
+    transition: transform 0.3s;
+}
+
+.lock-icon-box.unlocked i {
+    transform: scale(1.2);
+    /* Icon to lên vui vẻ */
+}
+
+/* 3. Hiển thị PIN */
+.pin-display {
+    display: flex;
+    gap: 1.2rem;
+    margin-bottom: 3rem;
+    padding: 12px 24px;
+    background: #1e293b;
+    border-radius: 20px;
+    border: 2px solid #334155;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.pin-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #475569;
+    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+}
+
+.pin-dot.filled {
+    background: #38bdf8;
+    box-shadow: 0 0 10px #38bdf8, 0 0 20px #38bdf8;
+    transform: scale(1.4);
+}
+
+/* Rung lắc khi sai */
+.pin-display.error-shake {
+    animation: shake-hard 0.4s ease-in-out both;
+    border-color: #ef4444;
+    background: #450a0a;
+}
+
+@keyframes shake-hard {
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    20% {
+        transform: translateX(-10px) rotate(-5deg);
+    }
+
+    40% {
+        transform: translateX(10px) rotate(5deg);
+    }
+
+    60% {
+        transform: translateX(-5px);
+    }
+
+    80% {
+        transform: translateX(5px);
+    }
+}
+
+/* 4. Numpad Keys (Hiệu ứng bấm 3D) */
+.num-btn {
+    /* (Giữ nguyên style cũ, chỉ thêm active) */
+    position: relative;
+    top: 0;
+    left: 0;
+    transition: all 0.1s;
+}
+
+/* Khi bấm xuống (Active state) */
+.num-btn:active,
+.num-btn.active-key {
+    top: 4px;
+    left: 4px;
+    box-shadow: 0px 0px 0px #000 !important;
+    /* Mất bóng đổ tạo cảm giác lún */
+    background: #e2e8f0;
+    color: #0f172a;
+}

@@ -1,0 +1,281 @@
+:root {
+    --ease-elastic: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+    --shadow-pop: 4px 4px 0px rgba(0,0,0,0.1);
+}
+
+/* 1. GLOBAL SMOOTHNESS */
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    -webkit-font-smoothing: antialiased; /* Làm mượt font chữ trên Mac/iOS */
+}
+
+/* 2. ENTRANCE ANIMATIONS (Hiệu ứng xuất hiện) */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Áp dụng cho các khối chính */
+.glass-card, 
+.stat-card, 
+.zalo-widget, 
+.weather-widget,
+.chart-container-wrapper,
+.ai-assistant-card,
+.plan {
+    animation: fadeInUp 0.6s var(--ease-smooth) backwards;
+    will-change: transform, opacity;
+    transition: transform 0.3s var(--ease-smooth), box-shadow 0.3s var(--ease-smooth);
+}
+
+/* Stagger (Xuất hiện lần lượt) */
+.grid-3 .stat-card:nth-child(1) { animation-delay: 0.1s; }
+.grid-3 .stat-card:nth-child(2) { animation-delay: 0.2s; }
+.grid-3 .stat-card:nth-child(3) { animation-delay: 0.3s; }
+
+/* Bảng giao dịch xuất hiện từng dòng */
+tbody tr { animation: fadeInUp 0.4s var(--ease-smooth) backwards; }
+tbody tr:nth-child(1) { animation-delay: 0.05s; }
+tbody tr:nth-child(2) { animation-delay: 0.1s; }
+tbody tr:nth-child(3) { animation-delay: 0.15s; }
+tbody tr:nth-child(4) { animation-delay: 0.2s; }
+tbody tr:nth-child(5) { animation-delay: 0.25s; }
+
+/* 3. INTERACTIVE CARDS (Hiệu ứng tương tác) */
+.stat-card:hover, .glass-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+    border-color: var(--primary);
+    z-index: 10;
+}
+
+/* 4. BUTTONS (Nút bấm xịn hơn) */
+.btn, .fab-btn, .menu-item {
+    position: relative;
+    overflow: hidden;
+    transition: all 0.2s var(--ease-smooth);
+    /* Giữ lại style viền cũ nhưng làm mượt shadow */
+}
+
+.btn:active, .fab-btn:active {
+    transform: scale(0.95);
+    filter: brightness(0.9);
+}
+
+/* Hiệu ứng Ripple (Gợn sóng) khi click - Sẽ được JS kích hoạt */
+.ripple {
+    position: absolute;
+    border-radius: 50%;
+    transform: scale(0);
+    animation: ripple-anim 0.6s linear;
+    background-color: rgba(255, 255, 255, 0.4);
+    pointer-events: none;
+}
+
+@keyframes ripple-anim {
+    to {
+        transform: scale(4);
+        opacity: 0;
+    }
+}
+
+/* 5. INPUT FOCUS EFFECTS */
+.form-input:focus, .search-input:focus, .chat-input:focus {
+    transform: translateY(-2px);
+    border-color: var(--primary);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15); /* Glow nhẹ màu tím */
+    outline: none;
+}
+
+/* 6. MODAL ANIMATION (Nảy lên kiểu iOS) */
+.modal-overlay {
+    backdrop-filter: blur(8px); /* Mờ nền phía sau */
+    background: rgba(15, 23, 42, 0.4);
+    transition: opacity 0.3s ease;
+}
+
+@keyframes modalPop {
+    0% { transform: scale(0.9) translateY(20px); opacity: 0; }
+    50% { transform: scale(1.02); opacity: 1; }
+    100% { transform: scale(1) translateY(0); }
+}
+
+.modal-overlay.active .modal-box {
+    animation: modalPop 0.4s var(--ease-elastic);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+/* 7. ZALO WIDGET & VIP EFFECTS */
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+/* Hiệu ứng quét sáng cho thẻ Rank */
+.zalo-widget.rank-diamond, .zalo-widget.rank-gold {
+    position: relative;
+    overflow: hidden;
+}
+
+.zalo-widget.rank-diamond::after, .zalo-widget.rank-gold::after {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: linear-gradient(
+        105deg,
+        transparent 20%,
+        rgba(255, 255, 255, 0.4) 25%,
+        transparent 30%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 3s infinite linear;
+    pointer-events: none;
+}
+
+/* 8. WEATHER ANIMATIONS (Biểu tượng thời tiết) */
+@keyframes spin-slow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes float-cloud {
+    0%, 100% { transform: translateX(0); }
+    50% { transform: translateX(10px); }
+}
+
+.w-sunny i { color: #f59e0b; animation: spin-slow 10s linear infinite; }
+.w-cloudy i { color: #64748b; animation: float-cloud 3s ease-in-out infinite; }
+.w-storm i { color: #6366f1; animation: pulse-fast 0.5s infinite; }
+
+@keyframes pulse-fast {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* 9. PROGRESS BAR STRIPES */
+@keyframes stripes {
+    from { background-position: 1rem 0; }
+    to { background-position: 0 0; }
+}
+
+.budget-bar, .progress-bar {
+    background-image: linear-gradient(
+        45deg,
+        rgba(255, 255, 255, 0.15) 25%,
+        transparent 25%,
+        transparent 50%,
+        rgba(255, 255, 255, 0.15) 50%,
+        rgba(255, 255, 255, 0.15) 75%,
+        transparent 75%,
+        transparent
+    );
+    background-size: 1rem 1rem;
+    animation: stripes 1s linear infinite;
+}
+
+/* 10. TYPING INDICATOR (Cho Gemini Chat) */
+.typing-indicator {
+    display: flex;
+    gap: 4px;
+    padding: 8px 12px;
+    background: #f1f5f9;
+    border-radius: 12px;
+    width: fit-content;
+}
+.typing-dot {
+    width: 6px; height: 6px;
+    background: #94a3b8;
+    border-radius: 50%;
+    animation: bounce 1.4s infinite ease-in-out both;
+}
+.typing-dot:nth-child(1) { animation-delay: -0.32s; }
+.typing-dot:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes bounce {
+    0%, 80%, 100% { transform: scale(0); }
+    40% { transform: scale(1); }
+}
+
+/* 11. CUSTOM SCROLLBAR */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+.fab-btn {
+    position: fixed !important;  /* Cố định vị trí so với màn hình */
+    bottom: 30px !important;     /* Cách đáy 30px */
+    right: 30px !important;      /* Cách phải 30px */
+    top: auto !important;        /* Hủy bỏ nếu bị dính lên trên */
+    left: auto !important;       /* Hủy bỏ nếu bị dính sang trái */
+    
+    /* Style giao diện nút */
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: var(--primary, #6366f1); /* Màu tím chủ đạo */
+    color: white;
+    
+    /* Căn giữa dấu cộng */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    
+    font-size: 1.5rem;
+    box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.4); /* Bóng đổ đẹp */
+    cursor: pointer;
+    z-index: 9999; /* Đảm bảo luôn nổi trên cùng */
+    
+    /* Animation mượt mà */
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
+    overflow: hidden; /* Để hiệu ứng ripple không bị tràn ra ngoài */
+}
+
+/* Hiệu ứng khi di chuột vào */
+.fab-btn:hover {
+    transform: scale(1.1) rotate(90deg); /* Phóng to nhẹ và xoay */
+    box-shadow: 0 15px 35px -5px rgba(99, 102, 241, 0.6);
+}
+
+/* Hiệu ứng khi bấm xuống */
+.fab-btn:active {
+    transform: scale(0.9) !important; /* Thu nhỏ khi bấm */
+    box-shadow: none !important;
+}
+/* =========================================
+   Thêm vào cuối file 6-effects.css
+   Hiệu ứng nhấn vật lý (Scale Down)
+========================================= */
+
+/* Class tiện ích để thêm hiệu ứng nhấn cho bất kỳ phần tử nào */
+.press-effect {
+    /* Thêm transition để hiệu ứng diễn ra mượt mà, không bị giật */
+    transition: transform 0.1s cubic-bezier(0.34, 1.56, 0.64, 1); /* Hiệu ứng nảy nhẹ */
+    /* Đảm bảo phần tử nằm trên cùng khi nhấn để không bị che khuất */
+    position: relative; 
+    z-index: 1;
+}
+
+/* Khi người dùng nhấn giữ chuột (hoặc chạm trên mobile) */
+.press-effect:active {
+    /* Thu nhỏ phần tử lại còn 95% kích thước gốc */
+    transform: scale(0.95); 
+}
+
+/* Tùy chọn: Nếu là nút, có thể làm tối màu nền đi một chút khi nhấn */
+button.press-effect:active,
+.btn.press-effect:active {
+     filter: brightness(90%); /* Làm tối đi 10% */
+}

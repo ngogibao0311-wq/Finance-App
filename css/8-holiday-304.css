@@ -1,0 +1,173 @@
+/* =========================================
+   GIAO DIỆN ĐẠI LỄ 30/4 - 1/5 (BẢN MAX SETTINGS)
+   Màu chủ đạo: Đỏ cờ (#dc2626) và Vàng sao (#facc15)
+   ========================================= */
+
+/* --- 0. ÉP BIẾN MÀU TOÀN HỆ THỐNG --- */
+body.theme-304 {
+    --primary: #dc2626 !important;      
+    --primary-hover: #b91c1c !important; 
+    --success: #ca8a04 !important; /* Vàng sậm */
+    --danger: #7f1d1d !important;
+    --bg-main: #fef2f2 !important;
+    --text-main: #450a0a !important; /* Đỏ đen đậm */
+    --text-muted: #7f1d1d !important;
+    --border-color: #fca5a5 !important;
+    
+    background: radial-gradient(circle at 50% 0%, #ffedd5 0%, #fef2f2 100%) !important;
+}
+
+/* --- TÙY CHỈNH THANH CUỘN (SCROLLBAR) --- */
+body.theme-304 ::-webkit-scrollbar { width: 8px; height: 8px; }
+body.theme-304 ::-webkit-scrollbar-track { background: #fee2e2; border-radius: 4px; }
+body.theme-304 ::-webkit-scrollbar-thumb { background: #dc2626; border-radius: 4px; border: 1px solid #facc15; }
+body.theme-304 ::-webkit-scrollbar-thumb:hover { background: #b91c1c; }
+
+/* --- 1. MÀN HÌNH KHÓA (SECURITY OVERLAY) --- */
+body.theme-304 #security-overlay {
+    background: radial-gradient(circle, #b91c1c 0%, #7f1d1d 100%) !important;
+    color: #fef08a !important;
+}
+body.theme-304 .lock-icon-box {
+    background: #facc15 !important; 
+    color: #dc2626 !important; 
+    box-shadow: 0 0 30px rgba(250, 204, 21, 0.8) !important;
+    border: 4px solid #fef08a !important;
+    transform: scale(1.1);
+}
+body.theme-304 #security-overlay h2, body.theme-304 #security-overlay p, body.theme-304 #security-overlay div {
+    color: #fef08a !important;
+    text-shadow: 0px 2px 4px rgba(0,0,0,0.5);
+}
+body.theme-304 .pin-dot { border-color: #facc15 !important; background: transparent; }
+body.theme-304 .pin-dot.active { background-color: #facc15 !important; box-shadow: 0 0 15px #facc15 !important; }
+body.theme-304 .num-btn { background: rgba(255,255,255,0.05) !important; color: #facc15 !important; border: 1px solid rgba(250,204,21,0.2) !important; }
+body.theme-304 .num-btn:hover { background: #facc15 !important; color: #7f1d1d !important; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(250,204,21,0.4); }
+
+/* --- 2. SIDEBAR & MENU CÔNG CỤ --- */
+body.theme-304 #sidebar { background: #fff5f5 !important; border-right: 3px solid #fca5a5 !important; box-shadow: 5px 0 15px rgba(220,38,38,0.05); }
+body.theme-304 .brand-text { color: #dc2626 !important; text-shadow: 2px 2px 0px #facc15 !important; font-size: 1.4rem; }
+body.theme-304 .menu-item:hover { background: #fee2e2 !important; border-right: 4px solid #dc2626 !important; transform: translateX(5px); }
+body.theme-304 .menu-icon { background: #fee2e2 !important; color: #dc2626 !important; border: 1px solid #fca5a5; }
+
+/* Widget Zalo Priority - Chuẩn thẻ V.I.P Ngày Lễ */
+body.theme-304 #zalo-widget-card {
+    background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%) !important;
+    border: 2px solid #facc15 !important;
+    box-shadow: 0 8px 20px rgba(220, 38, 38, 0.4) !important;
+}
+body.theme-304 .zalo-logo-text, body.theme-304 #zalo-accumulated, body.theme-304 #zalo-rank-name, body.theme-304 #zalo-status-text, body.theme-304 #zalo-target {
+    color: #fef08a !important; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+}
+body.theme-304 .zalo-icon-crown { color: #facc15 !important; filter: drop-shadow(0 0 5px #facc15); }
+body.theme-304 #zalo-progress { background: linear-gradient(90deg, #facc15, #fef08a) !important; box-shadow: 0 0 8px #facc15; }
+
+/* --- 3. KHU VỰC THỐNG KÊ (STAT CARDS) --- */
+body.theme-304 .stat-card-pop { border: 2px solid #fca5a5 !important; background: #fff !important; box-shadow: 6px 6px 0px #fee2e2 !important; }
+body.theme-304 .stat-card-pop:hover { transform: translateY(-5px); box-shadow: 8px 8px 0px #fca5a5 !important; }
+body.theme-304 .stat-icon-circle { background: #fee2e2 !important; color: #dc2626 !important; border: 2px solid #fca5a5; }
+body.theme-304 .stat-label { color: #991b1b !important; font-weight: 800; }
+body.theme-304 .stat-value { color: #dc2626 !important; text-shadow: 1px 1px 0px #facc15; }
+
+/* Khung Ngân sách (Budget Box) */
+body.theme-304 #budget-box { background: #fff5f5 !important; border: 2px dashed #dc2626 !important; box-shadow: 6px 6px 0px #fee2e2 !important; }
+body.theme-304 .budget-title-box { color: #dc2626 !important; }
+body.theme-304 .budget-title-box i { color: #facc15 !important; text-shadow: 0 0 5px #facc15; }
+body.theme-304 #budget-bar { background: linear-gradient(90deg, #dc2626, #facc15) !important; }
+
+/* --- 4. KHUNG CHAT AI (GEMINI) --- */
+body.theme-304 .ai-assistant-card { border: 2px solid #dc2626 !important; background: #fff !important; box-shadow: 6px 6px 0px #fee2e2 !important; }
+body.theme-304 .ai-avatar { background: #dc2626 !important; color: #facc15 !important; border: 2px solid #fca5a5; }
+body.theme-304 .chat-bubble { background: #fff5f5 !important; border: 1px solid #fca5a5 !important; color: #991b1b !important; font-weight: 600; }
+body.theme-304 .btn-send-ai { background: #dc2626 !important; color: #facc15 !important; box-shadow: 3px 3px 0px #991b1b !important; }
+
+/* --- 5. BẢNG LỊCH SỬ GIAO DỊCH (TABLE) --- */
+body.theme-304 .table-wrapper table thead tr {
+    background: #dc2626 !important;
+    color: #facc15 !important;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+body.theme-304 .table-wrapper table tbody tr:hover { background: #fff5f5 !important; }
+body.theme-304 .table-wrapper table tbody td { border-bottom: 1px dashed #fca5a5 !important; }
+body.theme-304 .badge-secondary { background: #fee2e2 !important; color: #dc2626 !important; border-color: #fca5a5 !important; }
+
+/* --- 6. NÚT THÊM GIAO DỊCH (FAB BUTTON) --- */
+body.theme-304 .fab-btn {
+    background: linear-gradient(135deg, #dc2626, #991b1b) !important;
+    color: #facc15 !important;
+    border: 3px solid #facc15 !important;
+    box-shadow: 0 0 20px rgba(220, 38, 38, 0.6), inset 0 0 10px rgba(250, 204, 21, 0.5) !important;
+    animation: pulseHoliday 2s infinite;
+}
+@keyframes pulseHoliday {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
+    70% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(220, 38, 38, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+}
+
+/* --- 7. MODALS, INPUTS & CÁC NÚT BẤM CHÍNH --- */
+body.theme-304 .modal-box { border: 3px solid #dc2626 !important; box-shadow: 10px 10px 0px rgba(220, 38, 38, 0.2) !important; background: #fff !important; }
+body.theme-304 .card-header { border-bottom: 2px dashed #fca5a5 !important; }
+body.theme-304 .card-title { color: #dc2626 !important; font-weight: 900; text-transform: uppercase; }
+body.theme-304 .btn-primary {
+    background: linear-gradient(45deg, #dc2626, #b91c1c) !important;
+    border: 2px solid #7f1d1d !important;
+    box-shadow: 4px 4px 0px #7f1d1d !important;
+    color: #facc15 !important;
+    font-weight: 800;
+}
+body.theme-304 .btn-primary:active { box-shadow: 0px 0px 0px #7f1d1d !important; transform: translate(4px, 4px); }
+body.theme-304 .form-input { border: 2px solid #fca5a5 !important; background: #fff !important; }
+body.theme-304 .form-input:focus { border-color: #dc2626 !important; box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.2) !important; }
+
+/* --- 8. HÓA ĐƠN CUỘC ĐỜI (RECEIPT) & LUẬT SƯ (LAWYER) --- */
+body.theme-304 #receipt-capture-area {
+    background: #fffbeb !important; /* Giấy ngả vàng vintage */
+    border: 2px solid #dc2626 !important;
+    box-shadow: 5px 5px 15px rgba(220, 38, 38, 0.3) !important;
+}
+body.theme-304 .receipt-title { color: #dc2626 !important; text-shadow: 1px 1px 0px #facc15; }
+body.theme-304 .lawyer-paper {
+    background: #fffbeb !important;
+    border: 3px solid #dc2626 !important;
+    box-shadow: inset 0 0 20px rgba(220,38,38,0.1), 8px 8px 0px rgba(220,38,38,0.2) !important;
+}
+body.theme-304 .lawyer-stamp { color: #dc2626 !important; border-color: #dc2626 !important; transform: rotate(-15deg); font-weight: 900; }
+body.theme-304 .lawyer-header div { color: #991b1b !important; }
+
+/* --- 9. HIỆU ỨNG CỜ ĐỎ SAO VÀNG TREO GÓC MÀN HÌNH --- */
+.theme-304 .holiday-flags-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999; overflow: hidden; }
+.theme-304 .holiday-flag {
+    position: absolute; top: 20px; width: 80px; height: 55px;
+    background-color: #dc2626;
+    box-shadow: 3px 5px 10px rgba(0,0,0,0.3);
+    border-radius: 2px;
+    border-left: 6px solid #a8a29e; /* Cột cờ to hơn */
+    animation: waveFlag 2.5s ease-in-out infinite alternate;
+}
+.theme-304 .holiday-flag::after {
+    content: '★'; color: #facc15; font-size: 32px;
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%); line-height: 1;
+    text-shadow: 0px 0px 4px rgba(250, 204, 21, 0.6);
+}
+.theme-304 .holiday-flag.left { left: 20px; transform-origin: left top; }
+.theme-304 .holiday-flag.right { right: 20px; transform-origin: left top; }
+@keyframes waveFlag {
+    0% { transform: rotate(8deg) skewY(3deg); }
+    100% { transform: rotate(-5deg) skewY(-2deg); }
+}
+
+/* --- 10. HIỆU ỨNG PHÁO SÁNG RƠI NHẸ (HOA GIẤY) TRÊN NỀN --- */
+.theme-304::before {
+    content: '';
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: -1;
+    background-image: 
+        radial-gradient(#facc15 1px, transparent 1px),
+        radial-gradient(#dc2626 1px, transparent 1px);
+    background-size: 40px 40px;
+    background-position: 0 0, 20px 20px;
+    opacity: 0.1; /* Họa tiết mờ làm nền */
+}

@@ -1,0 +1,1396 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FinDash - Cartoon Edition</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://<div id=" security-overlay"fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&family=JetBrains+Mono:wght@600&family=Black+Ops+One&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap"
+        rel="stylesheet">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+
+    <link rel="stylesheet" href="css/1-variables.css">
+    <link rel="stylesheet" href="css/2-layout.css">
+    <link rel="stylesheet" href="css/3-components.css">
+    <link rel="stylesheet" href="css/4-widgets.css">
+    <link rel="stylesheet" href="css/5-creative.css">
+    <link rel="stylesheet" href="css/6-effects.css">
+    <link rel="stylesheet" href="css/7-mobile.css">
+    <link rel="stylesheet" href="css/8-holiday-304.css">
+    <link rel="stylesheet" href="css/9-holiday-83.css">
+</head>
+
+<body>
+    <div id="security-overlay" class="hidden">
+        <div class="lock-icon-box"><i class="fa-solid fa-lock"></i></div>
+        <h2 style="margin-bottom: 0.5rem;">Private Mode</h2>
+        <p style="color: #888; margin-bottom: 2rem;">Nhập PIN/Mật khẩu để giải mã dữ liệu</p>
+
+        <input type="password" id="auth-input-hidden" style="opacity: 0; position: absolute; pointer-events: none;">
+
+        <div class="pin-display" id="pin-dots">
+            <div class="pin-dot"></div>
+            <div class="pin-dot"></div>
+            <div class="pin-dot"></div>
+            <div class="pin-dot"></div>
+        </div>
+
+        <div class="numpad">
+            <div class="num-btn" onclick="app.security.input(1)">1</div>
+            <div class="num-btn" onclick="app.security.input(2)">2</div>
+            <div class="num-btn" onclick="app.security.input(3)">3</div>
+            <div class="num-btn" onclick="app.security.input(4)">4</div>
+            <div class="num-btn" onclick="app.security.input(5)">5</div>
+            <div class="num-btn" onclick="app.security.input(6)">6</div>
+            <div class="num-btn" onclick="app.security.input(7)">7</div>
+            <div class="num-btn" onclick="app.security.input(8)">8</div>
+            <div class="num-btn" onclick="app.security.input(9)">9</div>
+            <div class="num-btn" onclick="app.security.clear()" style="font-size: 1rem; color:#ef4444">C</div>
+            <div class="num-btn" onclick="app.security.input(0)">0</div>
+            <div class="num-btn" onclick="app.security.submit()" style="font-size: 1.2rem; color:#10b981"><i
+                    class="fa-solid fa-arrow-right"></i></div>
+        </div>
+        <div style="margin-top: 2rem; font-size: 0.8rem; color: #555;">Được bảo vệ bởi AES-256 Encryption</div>
+    </div>
+
+    <div id="mobile-backdrop" class="mobile-backdrop hidden" onclick="app.ui.toggleMobileMenu()"
+        style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999"></div>
+
+    <aside id="sidebar">
+        <div class="brand-box">
+            <div class="brand-logo">
+                <i class="fa-solid fa-rocket"></i> <span class="brand-text">FinDash</span>
+            </div>
+            <div id="btn-toggle-sidebar">
+                <i class="fa-solid fa-chevron-left toggle-icon"></i>
+            </div>
+        </div>
+
+        <div class="zalo-widget" id="zalo-widget-card" onclick="app.ui.modals.zalo.open()">
+            <div class="zalo-bg-pattern">
+                <i class="fa-solid fa-crown"></i>
+            </div>
+
+            <div class="zalo-card-top">
+                <span class="zalo-logo-text">Zalo Priority</span>
+                <i class="fa-solid fa-crown zalo-icon-crown"></i>
+            </div>
+
+            <div class="zalo-card-middle">
+                <div class="zalo-money" id="zalo-accumulated">0 ₫</div>
+                <div class="zalo-rank-name" id="zalo-rank-name">Thành viên</div>
+
+                <div class="zalo-progress-mini">
+                    <div id="zalo-progress" class="zalo-bar-mini" style="width: 0%;"></div>
+                </div>
+
+                <div
+                    style="display:flex; justify-content:space-between; font-size: 0.65rem; margin-top: 4px; font-weight: 600; opacity: 0.8;">
+                    <span id="zalo-status-text">Đang tích lũy</span>
+                    <span id="zalo-target">---</span>
+                </div>
+            </div>
+        </div>
+
+        <div style="flex:1; overflow-y: auto;">
+            <div class="section-label">Lịch</div>
+            <div id="calendar-filter"></div>
+
+            <div class="section-label" style="margin-top: 2rem;">Hộp công cụ</div>
+            <div class="menu-item" id="btn-sync-cloud">
+                <div class="menu-icon" style="background:#e0f2fe; color:#0284c7; border-radius:50%; padding:4px;"><i
+                        class="fa-solid fa-cloud-arrow-up"></i></div>
+                <span class="menu-text">Lưu Cloud</span>
+            </div>
+            <div class="menu-item" id="btn-load-cloud">
+                <div class="menu-icon" style="background:#dcfce7; color:#16a34a; border-radius:50%; padding:4px;"><i
+                        class="fa-solid fa-cloud-arrow-down"></i></div>
+                <span class="menu-text">Tải Cloud</span>
+            </div>
+            <div class="menu-item" id="btn-export-excel">
+                <div class="menu-icon" style="background:#fecdd3; color:#e11d48; border-radius:50%; padding:4px;"><i
+                        class="fa-solid fa-file-pdf"></i></div>
+                <span class="menu-text">Xuất PDF</span>
+            </div>
+            <div class="menu-item" onclick="app.ui.modals.reports.open()">
+                <div class="menu-icon" style="background:#fae8ff; color:#d946ef; border-radius:50%; padding:4px;"><i
+                        class="fa-solid fa-chart-pie"></i></div>
+                <span class="menu-text">Báo cáo</span>
+            </div>
+            <div class="menu-item" onclick="app.ui.modals.debt.open()">
+                <div class="menu-icon" style="background:#ffedd5; color:#ea580c; border-radius:50%; padding:4px;"><i
+                        class="fa-solid fa-credit-card"></i></div>
+                <span class="menu-text">Quản lý Nợ</span>
+            </div>
+            <div class="menu-item" onclick="app.ui.modals.loans.open()">
+                <div class="menu-icon" style="background:#dbeafe; color:#1e40af; border-radius:50%; padding:4px;">
+                    <i class="fa-solid fa-hand-holding-dollar"></i>
+                </div>
+                <span class="menu-text">Quản lý Vay</span>
+            </div>
+            <div class="menu-item" onclick="app.ui.modals.banks.open()">
+                <div class="menu-icon" style="background:#e0e7ff; color:#4338ca; border-radius:50%; padding:4px;">
+                    <i class="fa-solid fa-building-columns"></i>
+                </div>
+                <span class="menu-text">Ngân hàng</span>
+            </div>
+            <div class="menu-item" onclick="app.ui.modals.cash.open()">
+                <div class="menu-icon" style="background:#ecfdf5; color:#059669; border-radius:50%; padding:4px;">
+                    <i class="fa-solid fa-money-bill-wave"></i>
+                </div>
+                <span class="menu-text">Tiền mặt</span>
+            </div>
+            <div class="menu-item" onclick="app.ui.modals.receipt.open()">
+                <div class="menu-icon" style="background:#f3f4f6; color:#333; border-radius:50%; padding:4px;">
+                    <i class="fa-solid fa-receipt"></i>
+                </div>
+                <span class="menu-text">In Hóa Đơn (Sống Ảo)</span>
+            </div>
+            <div style="margin-top: 10px; border-top: 2px dashed #cbd5e1; padding-top: 10px;">
+                <label class="form-label" style="font-size: 0.8rem;">🎯 Giới hạn chi tiêu (Tháng)</label>
+                <input type="text" id="budget-limit" class="config-input" placeholder="Nhập số tiền (VD: 5000000)"
+                    onkeyup="this.value=this.value.replace(/[^0-9]/g,'')">
+            </div>
+        </div>
+
+        <div class="config-panel">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <span style="font-size: 0.9rem; font-weight:800; color: var(--text-main);"><i
+                        class="fa-solid fa-gears"></i> Cấu hình</span>
+
+                <div style="display: flex; gap: 0.5rem;">
+                    <button id="guestModeBtn" class="btn-ghost" title="Che số tiền"><i
+                            class="fa-solid fa-eye-slash"></i></button>
+
+                    <button id="privateModeBtn" class="btn-ghost" title="Bật mã hóa dữ liệu">
+                        <i class="fa-solid fa-shield-halved"></i>
+                    </button>
+                </div>
+            </div>
+            <div id="config-inputs" style="display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: flex; gap: 5px;">
+                    <input type="text" id="cloud-bin-id" class="config-input" placeholder="GitHub Gist ID"
+                        style="flex: 1; margin-bottom: 0;">
+                    <button class="btn-ghost" onclick="app.logic.copyToClipboard('cloud-bin-id')" title="Sao chép ID"
+                        style="padding: 0 10px; border: 2px solid var(--border-color); border-radius: 8px;">
+                        <i class="fa-regular fa-copy"></i>
+                    </button>
+                </div>
+
+                <div style="display: flex; gap: 5px;">
+                    <input type="password" id="cloud-api-key" class="config-input" placeholder="GitHub Token (Classic)"
+                        style="flex: 1; margin-bottom: 0;">
+                    <button class="btn-ghost" onclick="app.logic.copyToClipboard('cloud-api-key')" title="Sao chép Key"
+                        style="padding: 0 10px; border: 2px solid var(--border-color); border-radius: 8px;">
+                        <i class="fa-regular fa-copy"></i>
+                    </button>
+                </div>
+
+                <div style="display: flex; gap: 5px;">
+                    <input type="password" id="gemini-key" class="config-input" placeholder="Gemini API Key"
+                        style="flex: 1; margin-bottom: 0;">
+                    <button class="btn-ghost" onclick="app.logic.copyToClipboard('gemini-key')" title="Sao chép Key"
+                        style="padding: 0 10px; border: 2px solid var(--border-color); border-radius: 8px;">
+                        <i class="fa-regular fa-copy"></i>
+                    </button>
+                </div>
+            </div>
+            <div
+                style="margin-top: 1rem; font-size: 0.8rem; font-weight:700; color: var(--text-muted); text-align: center; display:flex; justify-content:space-between; align-items:center">
+                <span>
+                    <i class="fa-solid fa-clock"></i>
+                    <span id="clock" style="font-family: 'Courier Prime', monospace; font-weight:bold;">--:--</span>
+                </span>
+                <span id="btn-reset-data"
+                    style="cursor:pointer; color:var(--danger); border-bottom: 2px solid var(--danger)">Reset App</span>
+            </div>
+        </div>
+    </aside>
+
+    <main>
+        <header class="main-header">
+            <div style="display:flex; align-items:center; gap: 1rem;">
+                <button class="btn-ghost mobile-menu-toggle" onclick="app.ui.toggleMobileMenu()"
+                    style="display:inline-flex; font-size: 1.5rem; color: var(--text-main);">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                <div>
+                    <h1 class="page-title" id="periodDisplay">Dashboard</h1>
+                    <p class="page-subtitle">Xin chào, hôm nay bạn tiêu gì?</p>
+                </div>
+            </div>
+            <div class="search-container">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="search-input" class="search-input" placeholder="Tìm giao dịch...">
+            </div>
+        </header>
+
+        <div id="financial-weather-box" class="weather-widget w-cloudy" style="display:none;">
+            <div class="weather-icon" id="weather-icon-display">
+                <i class="fa-solid fa-cloud"></i>
+            </div>
+            <div>
+                <div style="font-weight: 900; font-size: 1.1rem; text-transform: uppercase;" id="weather-title">TRỜI
+                    NHIỀU MÂY</div>
+                <div style="font-size: 0.9rem; color: var(--text-main);" id="weather-desc">Cân đối thu chi, cẩn thận
+                    trơn trượt.</div>
+            </div>
+        </div>
+
+        <div class="grid-3" style="gap: 1.5rem;">
+            <div class="stat-card-pop theme-income">
+                <div class="stat-bg-icon"><i class="fa-solid fa-piggy-bank"></i></div>
+                <div class="stat-header">
+                    <div class="stat-icon-circle"><i class="fa-solid fa-arrow-trend-up"></i></div>
+                    <span class="stat-label">Thu nhập</span>
+                </div>
+                <div class="stat-value" id="summary-income">0 ₫</div>
+                <div class="stat-detail-box">
+                    <div id="detail-income">Loading...</div>
+                </div>
+            </div>
+
+            <div class="stat-card-pop theme-expense">
+                <div class="stat-bg-icon"><i class="fa-solid fa-wallet"></i></div>
+                <div class="stat-header">
+                    <div class="stat-icon-circle"><i class="fa-solid fa-money-bill-transfer"></i></div>
+                    <span class="stat-label">Chi tiêu</span>
+                </div>
+                <div class="stat-value" id="summary-expense">0 ₫</div>
+                <div class="stat-detail-box">
+                    <div id="detail-expense">Loading...</div>
+                </div>
+            </div>
+
+            <div class="stat-card-pop theme-debt">
+                <div class="stat-bg-icon"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+                <div class="stat-header">
+                    <div class="stat-icon-circle"><i class="fa-solid fa-receipt"></i></div>
+                    <span class="stat-label">Nợ cần trả</span>
+                </div>
+                <div class="stat-value" id="summary-debt">0 ₫</div>
+                <div class="stat-detail-box">
+                    <div id="detail-debt">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="budget-box" class="budget-widget-pop" style="display:none;">
+            <div class="budget-header-pop">
+                <div class="budget-title-box">
+                    <i class="fa-solid fa-bullseye" style="color: #f59e0b;"></i>
+                    <span>NGÂN SÁCH THÁNG</span>
+                </div>
+
+                <div class="budget-tools">
+                    <div id="budget-status" class="status-badge-pop">Đang tải...</div>
+                    <button class="btn-setting-pop" onclick="app.ui.modals.budget.open()" title="Cấu hình">
+                        <i class="fa-solid fa-sliders"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="budget-track-container">
+                <div class="budget-track pop-track">
+                    <div id="budget-bar" class="budget-bar"></div>
+                </div>
+            </div>
+
+            <div class="budget-info-pop">
+                <div class="b-item used">
+                    <span class="label">Đã tiêu</span>
+                    <span id="budget-used" class="value">0đ</span>
+                </div>
+                <div class="b-item remain">
+                    <span class="label">Còn lại</span>
+                    <span id="budget-remain" class="value">0đ</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="upcoming-debt-box" class="glass-card"
+            style="display:none; margin-bottom: 1.5rem; padding: 1rem; border: 2px dashed #6366f1; background: #e0e7ff;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.5rem;">
+                <div style="font-weight:800; display:flex; gap:0.5rem; align-items:center; color: #4338ca;">
+                    <i class="fa-solid fa-calendar-check"></i>
+                    SẮP ĐẾN HẠN (<span id="upcoming-month-label">--/--</span>)
+                </div>
+                <div id="upcoming-total" style="font-weight:900; color: #4338ca; font-size: 1.1rem;">0 ₫</div>
+            </div>
+            <div style="font-size: 0.8rem; color: #4338ca; opacity: 0.8; margin-bottom: 0.5rem;">
+                Các khoản nợ cần chuẩn bị tiền cho tháng sau:
+            </div>
+            <div id="upcoming-list" style="display:flex; flex-direction:column; gap: 0.5rem;">
+            </div>
+        </div>
+        <div id="daily-budget-box" class="glass-card"
+            style="display:none; margin-bottom: 1.5rem; border: 2px solid #059669;">
+            <div class="card-header" style="margin-bottom: 0.5rem;">
+                <div class="card-title" style="font-size: 1.1rem; color: #059669;">
+                    <i class="fa-solid fa-calendar-day"></i> KẾ HOẠCH NGÀY (65K)
+                </div>
+                <div id="daily-status-badge" class="badge badge-success">Ổn định</div>
+            </div>
+
+            <div style="margin-bottom: 0.5rem;">
+                <div
+                    style="display:flex; justify-content:space-between; font-size: 0.8rem; font-weight:700; margin-bottom:4px;">
+                    <span>Hôm nay tiêu:</span>
+                    <span id="daily-today-spent">0đ / 65.000đ</span>
+                </div>
+                <div
+                    style="height: 12px; background: #e5e7eb; border-radius: 99px; overflow: hidden; border: 1px solid #d1d5db;">
+                    <div id="daily-today-bar"
+                        style="height: 100%; background: #10b981; width: 0%; transition: width 0.5s;"></div>
+                </div>
+            </div>
+
+            <div
+                style="background: #ecfdf5; padding: 0.8rem; border-radius: 12px; border: 1px dashed #059669; display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <div style="font-size: 0.75rem; color: #047857; font-weight:700; text-transform:uppercase;">Số dư lẻ
+                        (Heo đất)</div>
+                    <div id="daily-surplus"
+                        style="font-family:var(--font-mono); font-weight:900; font-size: 1.2rem; color: #059669;">0 ₫
+                    </div>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-size: 0.75rem; color: #047857;">Số ngày được cấp vốn</div>
+                    <div id="daily-days-count" style="font-weight:900; font-size: 1.2rem; color: #059669;">0 ngày</div>
+                </div>
+            </div>
+
+            <div id="daily-msg"
+                style="font-size: 0.8rem; margin-top: 0.5rem; font-style: italic; color: var(--text-muted);">
+            </div>
+        </div>
+
+        <div class="grid-2" style="margin-bottom: 1.5rem; align-items: stretch;">
+
+            <div class="glass-card compact-chart-card">
+                <div class="card-header" style="margin-bottom: 0.5rem; padding-bottom: 0;">
+                    <div class="card-title" style="font-size: 1rem;">
+                        <i class="fa-solid fa-chart-pie" style="color: var(--primary);"></i> Tổng Quan
+                    </div>
+                    <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted);">
+                        Thực thu/chi
+                    </div>
+                </div>
+                <div style="flex: 1; position: relative; min-height: 0;">
+                    <canvas id="overviewChart"></canvas>
+                </div>
+            </div>
+
+            <div class="ai-assistant-card">
+                <div class="chat-header">
+                    <div class="ai-avatar" style="width: 32px; height: 32px; font-size: 0.9rem;">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </div>
+                    <div style="font-weight: 800; color: var(--text-main); font-size: 0.9rem;">Gemini Advisor</div>
+                    <div class="badge badge-success" style="margin-left: auto; font-size: 0.6rem; padding: 2px 6px;">AI
+                    </div>
+                </div>
+
+                <div id="chat-log" class="chat-log">
+                    <div class="chat-msg ai">
+                        <div class="chat-bubble" style="font-size: 0.85rem;">
+                            Hế lô! Ví đang "ổn áp" hay "huyết áp" đây? 🤖
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chat-input-area">
+                    <div class="chat-input-wrapper">
+                        <input type="text" id="gemini-prompt" class="chat-input"
+                            placeholder="Hỏi nhanh (VD: Tôi có nghèo không?)...">
+                    </div>
+                    <button id="btn-ask-gemini" class="btn-send-ai">
+                        <i class="fa-solid fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="glass-card" style="margin-bottom: 4rem;">
+            <div class="card-header">
+                <div class="card-title">
+                    <i class="fa-solid fa-clock-rotate-left"></i> Lịch Sử
+                    <span id="tx-count" class="badge badge-secondary"
+                        style="margin-left: 0.5rem; border:2px solid #ccc">0</span>
+                </div>
+                <button class="btn-ghost" onclick="app.ui.modals.history.open()" title="Lịch sử hủy & hoàn"
+                    style="background: #f3f4f6; border-radius:50%">
+                    <i class="fa-solid fa-trash-can-arrow-up"></i>
+                </button>
+            </div>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Thời gian</th>
+                            <th>Nội dung</th>
+                            <th>Nguồn tiền</th>
+                            <th>Số tiền</th>
+                            <th>Trạng thái</th>
+                            <th style="text-align: right;">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tx-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <div class="fab-btn" onclick="app.ui.modals.transaction.open()">
+        <i class="fa-solid fa-plus"></i>
+    </div>
+
+    <div id="modal-tx" class="modal-overlay">
+        <div class="modal-box">
+            <div class="card-header">
+                <div class="card-title" style="font-size: 1.5rem;">Thêm Giao Dịch</div>
+                <button class="btn-ghost close-modal" style="font-size: 1.25rem;">&times;</button>
+            </div>
+            <div id="tx-locked-msg" class="badge badge-warning"
+                style="display:none; width: 100%; justify-content: center; margin-bottom: 1rem; padding: 0.75rem;">
+                <i class="fa-solid fa-lock"></i> Đã khóa chỉnh sửa
+            </div>
+            <div id="tx-countdown"
+                style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.5rem; text-align:right; font-weight: 800;">
+            </div>
+
+            <form id="form-tx">
+                <input type="hidden" id="tx-id">
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem;">
+                    <div>
+                        <label class="form-label">Loại</label>
+                        <select id="tx-type" class="form-input">
+                            <option value="Chi tiêu">🔴 Chi tiêu</option>
+                            <option value="Thu nhập">🟢 Thu nhập</option>
+                            <option value="Trả nợ">🔵 Trả nợ</option>
+                            <option value="Chuyển tiền">🔄 Chuyển tiền</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Trạng thái</label>
+                        <select id="tx-status" class="form-input">
+                            <option value="paid">✅ Đã xong</option>
+                            <option value="pending">⏳ Ghi nợ / Chưa trả</option>
+                            <option value="planned">📅 Dự kiến (Sẽ thu / Sẽ chi)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <div style="display: flex; gap: 10px; align-items: flex-start;">
+                        <div style="flex: 2;">
+                            <label class="form-label">Giá Gốc (Chưa giảm)</label>
+                            <div style="position: relative;">
+                                <input type="text" id="tx-amount" class="form-input"
+                                    style="font-size: 1.8rem; font-weight: 900; color: var(--primary); padding-left: 2.5rem;"
+                                    required placeholder="0"
+                                    onkeyup="this.value=this.value.replace(/[^0-9]/g,''); app.ui.calcDiscount()">
+                                <span
+                                    style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); font-size: 1.5rem; color: var(--text-muted);">₫</span>
+                            </div>
+                        </div>
+                        <div style="flex: 1;">
+                            <label class="form-label"
+                                style="display: flex; justify-content: space-between; align-items: center;">
+                                <span id="discount-label-text">Giảm giá</span>
+                                <label
+                                    style="display: flex; align-items: center; gap: 4px; font-weight: 700; font-size: 0.75rem; cursor: pointer; color: var(--primary);">
+                                    <input type="checkbox" id="tx-is-cashback" onchange="app.ui.toggleCashbackMode()"
+                                        style="accent-color: var(--primary); width: 14px; height: 14px; cursor: pointer;">
+                                    Hoàn
+                                </label>
+                            </label>
+                            <div style="position: relative;">
+                                <input type="text" id="tx-discount" class="form-input"
+                                    style="font-size: 1.1rem; font-weight: 700; color: var(--success); padding-right: 10px;"
+                                    placeholder="0"
+                                    onkeyup="this.value=this.value.replace(/[^0-9]/g,''); app.ui.calcDiscount()">
+                                <span id="discount-icon-span"
+                                    style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 0.8rem; color: var(--success); opacity:0.5"><i
+                                        class="fa-solid fa-arrow-down"></i></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="discount-hint"
+                        style="font-size: 0.8rem; margin-top: 5px; font-weight: 700; min-height: 20px; text-align: right;">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem;">
+                    <div>
+                        <label class="form-label">Nội dung</label>
+                        <input type="text" id="tx-place" class="form-input" required placeholder="VD: Trà sữa...">
+                    </div>
+                    <div>
+                        <label class="form-label">Thương hiệu <small
+                                style="font-weight:normal; color:#999">(Optional)</small></label>
+                        <input type="text" id="tx-brand" class="form-input" placeholder="VD: Mixue">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem;">
+                    <div>
+                        <label class="form-label">Nguồn tiền (Từ đâu?)</label>
+                        <input type="text" id="tx-source" class="form-input" required
+                            placeholder="Ví, Bank, Tiền mặt...">
+                    </div>
+                    <div>
+                        <label class="form-label">Chuyển tới (Đến đâu?)</label>
+                        <input type="text" id="tx-destination" class="form-input" placeholder="Ví nợ, Người nhận...">
+                    </div>
+                </div>
+                <div id="tx-ref-container"
+                    style="display:none; grid-column: 1 / -1; margin-bottom: 1.25rem; background: #f8fafc; padding: 10px; border-radius: 8px; border: 1px dashed #cbd5e1;">
+                    <label class="form-label" style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>Mã giao dịch / Số tham chiếu</span>
+                        <span id="tx-ref-badge" class="badge badge-info"
+                            style="display:none; font-size:0.65rem; padding:2px 6px; background:#e0f2fe; color:#0284c7; border: 1px solid #bae6fd;">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> AI Đã Nhận Diện
+                        </span>
+                    </label>
+                    <input type="text" id="tx-ref" class="form-input"
+                        placeholder="VD: FT23... (Lưu ý: Chỉ được phép sửa tối đa 6 ký tự sau khi lưu)"
+                        style="border-color: #94a3b8;">
+                    <input type="hidden" id="tx-original-ref">
+                    <input type="hidden" id="tx-fully-locked-flag" value="false">
+                    <div id="tx-ref-error"
+                        style="color: var(--danger); font-size: 0.8rem; margin-top: 6px; display:none; font-weight:700;">
+                        <i class="fa-solid fa-triangle-exclamation"></i> CẢNH BÁO: Vượt giới hạn! Bạn chỉ được phép sửa
+                        tối đa 6 ký tự so với mã ban đầu.
+                    </div>
+                </div>
+                <div id="tx-order-code-container"
+                    style="display:none; grid-column: 1 / -1; margin-bottom: 1.25rem; background: #fff7ed; padding: 10px; border-radius: 8px; border: 1px dashed #fdba74;">
+                    <label class="form-label" style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>Mã đơn hàng (Sàn TMĐT / Mua Online)</span>
+                        <span id="tx-order-badge" class="badge badge-warning"
+                            style="display:none; font-size:0.65rem; padding:2px 6px; background:#ffedd5; color:#ea580c; border: 1px solid #fed7aa;">
+                            <i class="fa-solid fa-cart-shopping"></i> Mua Online
+                        </span>
+                    </label>
+                    <input type="text" id="tx-order-code" class="form-input"
+                        placeholder="VD: 2405... (Chỉ được phép sửa tối đa 6 ký tự sau khi lưu)"
+                        style="border-color: #fdba74;">
+                    <input type="hidden" id="tx-original-order-code">
+                    <input type="hidden" id="tx-order-fully-locked-flag" value="false">
+                    <div id="tx-order-error"
+                        style="color: var(--danger); font-size: 0.8rem; margin-top: 6px; display:none; font-weight:700;">
+                    </div>
+                </div>
+                <div>
+                    <label class="form-label">
+                        Thời gian
+                        <span id="tx-unknown-status"
+                            style="color: #ef4444; font-size: 0.8rem; margin-left: 5px; display: none;">(Không rõ
+                            giờ)</span>
+                    </label>
+                    <input type="datetime-local" id="tx-date" class="form-input" required>
+
+                    <div id="tx-unknown-time-wrapper"
+                        style="margin-top: 8px; display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="tx-is-unknown-time"
+                            style="width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer;">
+                        <label for="tx-is-unknown-time"
+                            style="font-size: 0.85rem; color: var(--text-main); cursor: pointer; font-weight: 600;">
+                            Không rõ giờ
+                        </label>
+                        <span id="tx-unknown-time-countdown"
+                            style="font-size: 0.75rem; color: #ef4444; font-weight: bold; margin-left: auto;"></span>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 2rem;">
+                    <label class="form-label">Tags</label>
+                    <input type="text" id="tx-tags" class="form-input" placeholder="#an_uong #choi_boi">
+                </div>
+
+                <div id="tet-option-box"
+                    style="display:none; margin-top: 1rem; background: #fff1f2; border: 2px dashed #f43f5e; padding: 0.8rem; border-radius: 12px; align-items: center; gap: 10px;">
+                    <input type="checkbox" id="tx-is-tet"
+                        style="width: 20px; height: 20px; accent-color: #e11d48; cursor: pointer;">
+                    <label for="tx-is-tet"
+                        style="color: #be123c; font-weight: 800; cursor: pointer; flex: 1; display:flex; align-items:center; gap:6px;">
+                        <i class="fa-solid fa-envelope-open-text"></i> Lì xì Tết (Lucky Money)
+                    </label>
+                    <i class="fa-solid fa-star fa-spin" style="color: #fbbf24;"></i>
+                </div>
+
+                <div id="holiday-83-option-box"
+                    style="display:none; margin-top: 1rem; background: #fff1f2; border: 2px dashed #db2777; padding: 0.8rem; border-radius: 12px; align-items: center; gap: 10px;">
+                    <input type="checkbox" id="tx-is-83"
+                        style="width: 20px; height: 20px; accent-color: #db2777; cursor: pointer;">
+                    <label for="tx-is-83"
+                        style="color: #9d174d; font-weight: 800; cursor: pointer; flex: 1; display:flex; align-items:center; gap:6px;">
+                        <i class="fa-solid fa-gift"></i> Quà 8/3 (Women's Day)
+                    </label>
+                    <i class="fa-solid fa-heart" style="color: #ec4899;"></i>
+                </div>
+
+                <div id="holiday-304-option-box"
+                    style="display:none; margin-top: 1rem; background: #fef2f2; border: 2px dashed #dc2626; padding: 0.8rem; border-radius: 12px; align-items: center; gap: 10px;">
+                    <input type="checkbox" id="tx-is-304"
+                        style="width: 20px; height: 20px; accent-color: #dc2626; cursor: pointer;">
+                    <label for="tx-is-304"
+                        style="color: #991b1b; font-weight: 800; cursor: pointer; flex: 1; display:flex; align-items:center; gap:6px;">
+                        <i class="fa-solid fa-plane-departure"></i> Giao dịch Đại Lễ 30/4
+                    </label>
+                    <i class="fa-solid fa-star" style="color: #facc15;"></i>
+                </div>
+
+                <div
+                    style="display:flex; justify-content: space-between; gap: 10px; border-top: 2px dashed #e2e8f0; padding-top: 1.5rem;">
+                    <button type="button" id="btn-delete-tx" class="btn hidden"
+                        style="background: #fee2e2; color: #dc2626; border-color: #dc2626; padding: 0.6rem 1rem;">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+
+                    <button type="button" id="btn-lawyer-excuse" class="btn hidden"
+                        style="background: #8b5cf6; color: white; border-color: #7c3aed; flex: 1; justify-content: center;">
+                        <i class="fa-solid fa-scale-balanced"></i> Bào chữa
+                    </button>
+
+                    <button type="submit" class="btn btn-primary" style="flex: 2; justify-content: center;">Lưu
+                        ngay</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-debt" class="modal-overlay">
+        <div class="modal-box" style="max-width: 650px;">
+            <div class="card-header">
+                <div class="card-title" style="font-size: 1.5rem;">Quản Lý Nợ</div>
+                <button class="btn-ghost close-modal" style="font-size: 1.25rem;">&times;</button>
+            </div>
+            <div id="debt-list"
+                style="display: flex; flex-direction: column; gap: 1.25rem; max-height: 500px; overflow-y: auto; padding-right: 0.5rem;">
+            </div>
+
+            <div style="margin-top: 2rem; border-top: 2px dashed #e2e8f0; padding-top: 1.5rem;">
+                <div class="form-label" style="font-size: 1rem;">Dự tính tương lai</div>
+                <div style="display: flex; gap: 0.75rem; margin-top: 1rem;">
+                    <input type="text" id="forecast-name" class="form-input" style="flex: 2;"
+                        placeholder="Tên khoản...">
+                    <input type="text" id="forecast-amount" class="form-input" style="flex: 1;"
+                        placeholder="Số tiền...">
+                    <button id="btn-add-forecast" class="btn btn-primary" style="width: auto; padding: 0 1.25rem;"><i
+                            class="fa-solid fa-plus"></i></button>
+                </div>
+                <div id="forecast-list"
+                    style="margin-top: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-loans" class="modal-overlay">
+        <div class="modal-box" style="max-width: 600px;">
+            <div class="card-header">
+                <div class="card-title" style="font-size: 1.5rem;">Sổ Cái Đi Vay</div>
+                <button class="btn-ghost close-modal">&times;</button>
+            </div>
+
+            <div
+                style="background: #eff6ff; padding: 1rem; border-radius: 16px; border: 2px dashed #bfdbfe; margin-bottom: 1.5rem;">
+                <div style="font-weight:bold; color:#1e40af; margin-bottom:0.5rem"><i
+                        class="fa-solid fa-plus-circle"></i> Vay khoản mới</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+                    <input type="text" id="loan-lender" class="form-input" placeholder="Vay của ai? (VD: A.Tuấn)">
+                    <input type="text" id="loan-amount" class="form-input" placeholder="Số tiền gốc..."
+                        onkeyup="this.value=this.value.replace(/[^0-9]/g,'')">
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                    <input type="text" id="loan-interest" class="form-input" placeholder="Lãi dự kiến (nếu có)..."
+                        onkeyup="this.value=this.value.replace(/[^0-9]/g,'')">
+                    <button id="btn-add-loan" class="btn btn-primary"
+                        style="background: #1e40af; justify-content:center;">Lưu khoản vay</button>
+                </div>
+                <small style="color:var(--text-muted); font-style:italic; font-size: 0.75rem">* Tự động tạo giao dịch
+                    "Thu nhập" khi thêm mới.</small>
+            </div>
+
+            <div class="form-label">Danh sách nợ (Trả dần)</div>
+            <div id="loan-list"
+                style="max-height: 400px; overflow-y: auto; display:flex; flex-direction:column; gap:1rem;"></div>
+        </div>
+    </div>
+
+    <div id="modal-zalo" class="modal-overlay">
+        <div class="modal-box" style="max-width: 550px; background: #fff8f0; border: none; padding: 0;">
+
+            <div style="padding: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+                <div style="font-weight: 900; font-size: 1.5rem; text-transform: uppercase;">ZaloPay <span
+                        style="color:var(--primary)">Priority</span></div>
+                <button class="btn-ghost close-modal"
+                    style="background:#fff; border:2px solid #000; width:40px; height:40px; color:#000;">&times;</button>
+            </div>
+
+            <div style="padding: 0 1.5rem 2rem 1.5rem; overflow-y: auto; max-height: 80vh;">
+
+                <div id="zalo-pop-card" class="zalo-pop-card" data-rank="member">
+                    <i class="fa-solid fa-crown zalo-pop-pattern"></i>
+
+                    <div class="zalo-pop-header">
+                        <div class="zalo-pop-logo"><i class="fa-solid fa-wallet"></i> PRIORITY PASS</div>
+                        <div id="zalo-modal-fee" class="zalo-pop-fee-badge">Phí: 20k</div>
+                    </div>
+
+                    <div class="zalo-pop-body">
+                        <div class="zalo-pop-rank-title">Current Rank</div>
+                        <div id="zalo-modal-badge" class="zalo-pop-rank-name">MEMBER</div>
+                        <div id="zalo-modal-accumulated" class="zalo-pop-money">0 ₫</div>
+                    </div>
+
+                    <div class="zalo-pop-footer">
+                        <div>
+                            <div style="opacity:0.7; font-size:0.65rem;">NGÀY XÉT HẠNG</div>
+                            <div id="forecast-date">--/--</div>
+                        </div>
+                        <div style="text-align:right">
+                            <div style="opacity:0.7; font-size:0.65rem;">DỰ KIẾN KỲ SAU</div>
+                            <div id="forecast-next-rank" style="font-size: 1rem; font-weight: 900;">--</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="forecast-status-msg"></div>
+
+                <div class="hack-zone">
+                    <div class="hack-badge"><i class="fa-solid fa-wand-magic-sparkles"></i> REALITY STONE</div>
+
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; margin-top: 10px;">
+                        <label class="form-label" style="margin:0; font-size:0.9rem;">Hack Hạng Thủ Công</label>
+                        <span id="manual-counter" class="badge badge-secondary"
+                            style="background:#fff; border:1px solid #000;">Wait...</span>
+                    </div>
+
+                    <div id="manual-inputs">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                            <div>
+                                <select id="manual-rank-select" class="form-input" style="border:2px solid #000;">
+                                    <option value="">-- Auto --</option>
+                                    <option value="member">Thành viên</option>
+                                    <option value="silver">Bạc</option>
+                                    <option value="gold">Vàng</option>
+                                    <option value="diamond">Kim Cương</option>
+                                </select>
+                            </div>
+                            <div>
+                                <input type="text" id="manual-amount-input" class="form-input"
+                                    placeholder="Nhập số tiền cũ..." style="border:2px solid #000;">
+                            </div>
+                        </div>
+                        <button id="btn-save-manual-zalo" class="btn btn-primary"
+                            style="width:100%; border:2px solid #000; box-shadow: 4px 4px 0px #000;">
+                            <i class="fa-solid fa-bolt"></i> Kích hoạt
+                        </button>
+                    </div>
+
+                    <div id="manual-locked-msg"
+                        style="display:none; text-align:center; padding:1rem; color:var(--danger); font-weight:bold;">
+                        <i class="fa-solid fa-lock"></i> Đã hết lượt hack.
+                    </div>
+
+                    <div style="margin-top: 1rem; padding-top:1rem; border-top: 1px dashed #cbd5e1;">
+                        <label class="form-label" style="font-size:0.8rem">Ngày xét hạng tiếp theo</label>
+                        <input type="date" id="zalo-review-date" class="form-input"
+                            style="background:transparent; border:none; border-bottom:2px solid #94a3b8; border-radius:0;">
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-report" class="modal-overlay">
+        <div class="modal-box" style="max-width: 700px;">
+            <div class="card-header">
+                <div class="card-title" style="font-size: 1.5rem;">Báo Cáo</div>
+                <button class="btn-ghost close-modal" style="font-size: 1.25rem;">&times;</button>
+            </div>
+            <div id="report-summary" class="grid-3" style="text-align: center; margin-bottom: 2.5rem; gap: 1.5rem;">
+            </div>
+
+            <div class="form-label" style="font-size: 1rem; margin-bottom: 1rem;">Top danh mục chi tiêu</div>
+            <div style="display: grid; grid-template-columns: 2fr 3fr; gap: 2rem; align-items: start;">
+                <div id="report-tags"
+                    style="max-height: 300px; overflow-y: auto; padding-right: 0.5rem; display: flex; flex-direction: column; gap: 0.75rem;">
+                </div>
+                <div
+                    style="height: 300px; position:relative; background: #fff; border: 2px solid #000; box-shadow: 4px 4px 0px #eee; border-radius: 20px; padding: 1rem;">
+                    <canvas id="reportChartDetail"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-missed-tx" class="modal-overlay">
+        <div class="modal-box">
+            <div class="card-header">
+                <div class="card-title" id="modal-missed-tx-title" style="font-size: 1.25rem;">Giao Dịch Sót</div>
+                <button class="btn-ghost close-modal">&times;</button>
+            </div>
+            <div id="missed-tx-list"
+                style="max-height: 400px; overflow-y: auto; margin-bottom: 1.5rem; border: 2px solid #e2e8f0; border-radius: 16px; background: #f8fafc;">
+            </div>
+            <div style="text-align: right; border-top: 2px dashed #e2e8f0; padding-top: 1.5rem;">
+                <button class="btn btn-primary" id="btn-save-missed-tx">Cập nhật ngay</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-history" class="modal-overlay">
+        <div class="modal-box" style="max-width: 600px;">
+            <div class="card-header">
+                <div class="card-title" style="font-size: 1.5rem;">Thùng Rác & Hoàn Tác</div>
+                <button class="btn-ghost close-modal" style="font-size: 1.25rem;">&times;</button>
+            </div>
+            <div id="history-list"
+                style="max-height: 500px; overflow-y: auto; padding-right: 0.5rem; display: flex; flex-direction: column; gap: 0.75rem;">
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-receipt" class="modal-overlay">
+        <div class="modal-box"
+            style="background: transparent; border: none; box-shadow: none; max-width: 450px; padding: 0;">
+            <div style="text-align: right; margin-bottom: 10px;">
+                <button class="close-modal"
+                    style="background: white; width:32px; height:32px; font-size:1rem; display: inline-flex;">&times;</button>
+            </div>
+
+            <div id="receipt-capture-area" class="receipt-paper">
+                <div class="receipt-header">
+                    <div style="font-size: 3rem; margin-bottom: 0.5rem;"><i class="fa-solid fa-face-dizzy"></i></div>
+                    <div class="receipt-title">HÓA ĐƠN<br>CUỘC ĐỜI</div>
+                    <div style="font-size: 0.8rem; letter-spacing: 1px;">FINANCE DASHBOARD</div>
+                </div>
+
+                <div class="receipt-meta">
+                    <div class="flex-between"><span>KHÁCH HÀNG:</span> <span style="font-weight:bold">Dân Chơi</span>
+                    </div>
+                    <div class="flex-between"><span>NGÀY:</span> <span id="receipt-date">--/--/----</span></div>
+                    <div class="flex-between"><span>THỜI GIAN:</span> <span id="receipt-time">--:--</span></div>
+                    <div class="flex-between"><span>MÃ ĐƠN:</span> <span>#NGHEO-BEN-VUNG</span></div>
+                </div>
+
+                <div
+                    style="margin-bottom: 1rem; font-weight: bold; border-bottom: 1px solid #eee; padding-bottom: 5px;">
+                    <span>MẶT HÀNG (TOP 5)</span>
+                    <span style="float:right">GIÁ TRỊ</span>
+                </div>
+
+                <div id="receipt-items-list"></div>
+
+                <div class="receipt-total-line">
+                    <span>TỔNG THIỆT HẠI</span>
+                    <span id="receipt-total-amount">0 ₫</span>
+                </div>
+
+                <div class="receipt-footer">
+                    <div id="receipt-quote" style="font-weight: bold; margin-bottom: 1rem; line-height: 1.6;">
+                        "Tiền không tự sinh ra cũng không tự mất đi, nó chỉ chuyển từ ví bạn sang ví người khác."
+                    </div>
+                    <div>*** CẢM ƠN QUÝ KHÁCH ***</div>
+                    <div>(Hẹn gặp lại khi có lương)</div>
+                    <div class="receipt-barcode">||| || ||| || |||</div>
+                </div>
+            </div>
+
+            <button class="btn-download-receipt" id="btn-download-image">
+                <i class="fa-solid fa-camera"></i> Tải ảnh xuống
+            </button>
+        </div>
+    </div>
+
+    <div id="modal-lawyer" class="modal-overlay">
+        <div class="modal-box"
+            style="background: transparent; border: none; box-shadow: none; max-width: 500px; padding: 0;">
+            <div class="lawyer-paper">
+                <div class="lawyer-stamp">ĐÃ KIỂM DUYỆT</div>
+                <div class="lawyer-header">
+                    <div style="font-size: 1.5rem; font-weight: bold; text-transform: uppercase;">Văn Bản Giải Trình
+                    </div>
+                    <div style="font-size: 0.8rem; color: #666;">Số: AI-2025/BC-TC • Trích lục hồ sơ tài chính</div>
+                </div>
+
+                <div id="lawyer-result" class="lawyer-content">
+                    Đang tham vấn tổ tư vấn pháp lý...
+                </div>
+
+                <div class="lawyer-signature">
+                    <div>Kính thư,</div>
+                    <div style="font-family: 'Dancing Script', cursive; font-size: 1.5rem; margin-top:0.5rem">Gemini AI
+                        Lawyer</div>
+                    <div style="font-size: 0.8rem; font-weight: normal; color: #666;">Cố vấn tài chính cấp cao</div>
+                </div>
+
+                <div style="margin-top: 2rem; text-align: center;">
+                    <button class="btn btn-primary"
+                        onclick="document.getElementById('modal-lawyer').classList.remove('active')">Đã hiểu, chốt
+                        đơn!</button>
+                </div>
+            </div>
+            <button class="close-modal" style="position:absolute; top:-15px; right:-15px;">&times;</button>
+        </div>
+    </div>
+
+    <div class="news-ticker-bar" id="news-ticker">
+        <div class="news-label"><i class="fa-solid fa-bolt"></i> TIN NÓNG</div>
+        <div class="news-content-wrapper">
+            <div class="news-content" id="news-text">
+                Hệ thống đang tải dữ liệu kinh tế vĩ mô...
+            </div>
+        </div>
+        <div style="position:absolute; right:0; top:0; height:100%; background:#dc2626; padding:0 10px; display:flex; align-items:center; cursor:pointer;"
+            onclick="document.getElementById('news-ticker').style.display='none'">
+            &times;
+        </div>
+    </div>
+
+    <div id="modal-budget-history" class="modal-overlay">
+        <div class="modal-box" style="max-width: 600px;">
+            <div class="card-header">
+                <div class="card-title" style="font-size: 1.25rem;">Chi Tiết Ngân Sách</div>
+                <button class="btn-ghost close-modal">&times;</button>
+            </div>
+
+            <div
+                style="background: #f0f9ff; padding: 1rem; border-radius: 12px; margin-bottom: 1rem; font-size: 0.9rem; border: 1px dashed #bae6fd;">
+                <i class="fa-solid fa-circle-info" style="color: #0284c7;"></i>
+                Danh sách dưới đây là các khoản <b>Chi tiêu thực tế</b> đang được tính vào ngân sách tháng.
+                <div style="margin-top:4px; font-size: 0.8rem; color: #64748b;">(Đã tự động loại bỏ: Dư nợ chuyển tiếp,
+                    Thu nhập)</div>
+            </div>
+
+            <div id="budget-history-list" style="max-height: 400px; overflow-y: auto; padding-right: 4px;">
+            </div>
+        </div>
+    </div>
+    <div id="custom-popup-overlay" class="modal-overlay" style="z-index: 99999;">
+        <div class="modal-box"
+            style="max-width: 360px; text-align: center; border-radius: 24px; overflow: visible !important;">
+
+            <div id="popup-icon-box" style="
+            width: 80px; height: 80px; margin: -50px auto 1rem auto;
+            background: #fff; border: 3px solid var(--border-color); border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2.5rem; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            position: relative; z-index: 10;
+        ">
+                <i id="popup-icon" class="fa-solid fa-shield-halved"></i>
+            </div>
+
+            <h3 id="popup-title" style="font-size: 1.4rem; margin-bottom: 0.5rem; color: var(--text-main);">Thông báo
+            </h3>
+            <p id="popup-message"
+                style="color: var(--text-muted); font-size: 1rem; line-height: 1.5; margin-bottom: 1.5rem;"></p>
+
+            <input type="password" id="popup-input" class="form-input" maxlength="4" placeholder="----"
+                style="display: none; text-align: center; font-size: 2.5rem; letter-spacing: 1rem; font-weight: 900; margin-bottom: 2rem; height: 70px; border: 3px solid #cbd5e1; caret-color: var(--primary);">
+
+            <div id="popup-actions" style="display: flex; gap: 10px; justify-content: center;">
+                <button id="btn-popup-cancel" class="btn btn-outline" style="flex: 1; display: none;">Hủy</button>
+                <button id="btn-popup-confirm" class="btn btn-primary" style="flex: 1;">Xác nhận</button>
+            </div>
+        </div>
+    </div>
+    <div id="modal-banks" class="modal-overlay">
+        <div class="modal-box" style="max-width: 500px;">
+            <div class="card-header">
+                <div class="card-title" style="font-size: 1.5rem;">Số Dư Tài Khoản</div>
+                <button class="btn-ghost close-modal">&times;</button>
+            </div>
+
+            <div id="bank-list"
+                style="max-height: 400px; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem;">
+            </div>
+
+            <button class="btn btn-primary" style="width: 100%; justify-content: center;"
+                onclick="app.ui.modals.banks.openAdd()">
+                <i class="fa-solid fa-plus"></i> Thêm Tài Khoản
+            </button>
+        </div>
+    </div>
+
+    <div id="modal-add-bank" class="modal-overlay" style="z-index: 100001;">
+        <div class="modal-box" style="max-width: 400px;">
+            <div class="card-header">
+                <div class="card-title" id="modal-bank-title">Thêm Ngân Hàng</div>
+                <button class="btn-ghost"
+                    onclick="document.getElementById('modal-add-bank').classList.remove('active')">&times;</button>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap: 1rem;">
+                <input type="hidden" id="bank-edit-id">
+
+                <div>
+                    <label class="form-label">Tên Ngân Hàng (Khớp với Nguồn tiền)</label>
+                    <input type="text" id="bank-name" class="form-input" placeholder="VD: VCB, MBBank, Momo...">
+                    <small style="font-size: 0.7rem; color: var(--text-muted);">* Nếu đổi tên, hệ thống sẽ tự cập nhật
+                        lịch sử giao dịch cũ theo tên mới.</small>
+                </div>
+                <div>
+                    <label class="form-label">Số Tài Khoản</label>
+                    <input type="text" id="bank-acc-num" class="form-input" placeholder="VD: 1900xxxx">
+                </div>
+                <div>
+                    <label class="form-label">Tên Chủ Tài Khoản</label>
+                    <input type="text" id="bank-owner" class="form-input" placeholder="VD: NGUYEN VAN A">
+                </div>
+                <div>
+                    <label class="form-label">Số Dư Ban Đầu (Hiện tại)</label>
+                    <input type="text" id="bank-init-balance" class="form-input" placeholder="0"
+                        onkeyup="this.value=this.value.replace(/[^0-9]/g,'')">
+                </div>
+                <button class="btn btn-primary" onclick="app.ui.modals.banks.saveNew()">Lưu Thông Tin</button>
+            </div>
+        </div>
+    </div>
+    <div id="modal-bank-detail" class="modal-overlay" style="z-index: 100005;">
+        <div class="modal-box" style="max-width: 800px; height: 80vh; display: flex; flex-direction: column;">
+            <div class="card-header">
+                <div style="display:flex; align-items:center; gap: 10px;">
+                    <button class="btn-ghost"
+                        onclick="document.getElementById('modal-bank-detail').classList.remove('active')"
+                        style="padding:0; width:32px;"><i class="fa-solid fa-arrow-left"></i></button>
+                    <div class="card-title" style="font-size: 1.3rem;" id="bank-detail-title">Lịch sử giao dịch</div>
+                </div>
+                <div id="bank-detail-balance" style="font-weight: 900; font-size: 1.2rem; color: var(--primary);">0đ
+                </div>
+            </div>
+
+            <div style="flex: 1; overflow-y: auto; padding-right: 5px;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                    <thead
+                        style="position: sticky; top: 0; background: white; z-index: 10; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                        <tr style="background: #f8fafc; color: #64748b; text-align: left;">
+                            <th style="padding: 10px;">Thời gian</th>
+                            <th style="padding: 10px;">Nội dung/Thương hiệu</th>
+                            <th style="padding: 10px;">Luồng tiền</th>
+                            <th style="padding: 10px;">Loại</th>
+                            <th style="padding: 10px; text-align: right;">Số tiền</th>
+                            <th style="padding: 10px; text-align: center;">Tình trạng</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bank-detail-list">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div id="modal-wallets" class="modal-overlay">
+        <div class="modal-box" style="max-width: 500px;">
+            <div class="card-header">
+                <div class="card-title" style="font-size: 1.5rem;">Ví Điện Tử</div>
+                <button class="btn-ghost"
+                    onclick="document.getElementById('modal-wallets').classList.remove('active')">&times;</button>
+            </div>
+            <div id="wallet-list"
+                style="max-height: 400px; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem;">
+            </div>
+
+            <button class="btn btn-primary"
+                style="width: 100%; justify-content: center; background: #db2777; color: #ffffff; border: 2px solid #000; box-shadow: 4px 4px 0px #000;"
+                onclick="app.ui.modals.wallets.openAdd()">
+                <i class="fa-solid fa-plus"></i> Thêm Ví Mới
+            </button>
+        </div>
+    </div>
+
+    <div id="modal-add-wallet" class="modal-overlay" style="z-index: 100001;">
+        <div class="modal-box" style="max-width: 400px;">
+            <div class="card-header">
+                <div class="card-title">Thêm Ví Mới</div>
+                <button class="btn-ghost"
+                    onclick="document.getElementById('modal-add-wallet').classList.remove('active')">&times;</button>
+            </div>
+            <div style="display:flex; flex-direction:column; gap: 1rem;">
+                <div>
+                    <label class="form-label">Tên Ví (Phải khớp nguồn tiền)</label>
+                    <input type="text" id="wallet-name" class="form-input" placeholder="VD: Momo, ZaloPay...">
+                </div>
+                <div>
+                    <label class="form-label">Chủ sở hữu</label>
+                    <input type="text" id="wallet-owner" class="form-input" placeholder="VD: Số điện thoại...">
+                </div>
+                <div>
+                    <label class="form-label">Số Dư Tiền Mặt (Nếu có)</label>
+                    <input type="text" id="wallet-init-balance" class="form-input" placeholder="0"
+                        onkeyup="this.value=this.value.replace(/[^0-9]/g,'')">
+                    <small style="color:var(--text-muted); font-size:0.7rem">* Số dư thực tế không bao gồm tín
+                        dụng</small>
+                </div>
+
+                <div style="padding-top: 10px; border-top: 1px dashed #cbd5e1;">
+                    <label class="form-label" style="color:var(--primary); font-weight:bold;">Hạn mức tín dụng (Tổng
+                        được cấp)</label>
+                    <input type="text" id="wallet-credit-limit" class="form-input" placeholder="VD: 10.000.000"
+                        onkeyup="this.value=this.value.replace(/[^0-9]/g,'')">
+                </div>
+                <div>
+                    <label class="form-label" style="color:#059669; font-weight:bold;">Hạn mức tín dụng (Đang có/Còn
+                        lại)</label>
+                    <input type="text" id="wallet-limit-current" class="form-input" placeholder="VD: 8.500.000"
+                        onkeyup="this.value=this.value.replace(/[^0-9]/g,'')">
+                    <small style="color:var(--text-muted); font-size:0.7rem">* Nhập số tiền bạn đang được phép
+                        tiêu</small>
+                </div>
+
+                <button class="btn btn-primary" style="background: #db2777; color: white; border: 2px solid #000;"
+                    onclick="app.ui.modals.wallets.saveNew()">Lưu Ví</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-wallet-detail" class="modal-overlay" style="z-index: 100005;">
+        <div class="modal-box" style="max-width: 800px; height: 80vh; display: flex; flex-direction: column;">
+            <div class="card-header">
+                <div style="display:flex; align-items:center; gap: 10px;">
+                    <button class="btn-ghost"
+                        onclick="document.getElementById('modal-wallet-detail').classList.remove('active')"
+                        style="padding:0; width:32px;"><i class="fa-solid fa-arrow-left"></i></button>
+                    <div class="card-title" style="font-size: 1.3rem;" id="wallet-detail-title">Lịch sử ví</div>
+                </div>
+                <div style="display:flex; align-items:center; gap: 10px;">
+                    <button class="btn btn-sm" onclick="app.ui.modals.wallets.exportPDF()"
+                        style="background:#fee2e2; color:#dc2626; border:1px solid #fca5a5;">
+                        <i class="fa-solid fa-file-pdf"></i> PDF
+                    </button>
+                    <div id="wallet-detail-balance"
+                        style="font-weight: 900; font-size: 1.2rem; color: var(--pink-600);">0đ</div>
+                </div>
+            </div>
+            <div style="flex: 1; overflow-y: auto; padding-right: 5px;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                    <thead
+                        style="position: sticky; top: 0; background: white; z-index: 10; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                        <tr style="background: #fdf2f8; color: #831843; text-align: left;">
+                            <th style="padding: 10px;">Thời gian</th>
+                            <th style="padding: 10px;">Nội dung</th>
+                            <th style="padding: 10px;">Luồng tiền</th>
+                            <th style="padding: 10px; text-align: right;">Số tiền</th>
+                        </tr>
+                    </thead>
+                    <tbody id="wallet-detail-list"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div id="modal-cash" class="modal-overlay">
+        <div class="modal-box" style="max-width: 500px;">
+            <div class="card-header">
+                <div class="card-title" style="font-size: 1.5rem;">Quản Lý Tiền Mặt</div>
+                <button class="btn-ghost close-modal"
+                    onclick="document.getElementById('modal-cash').classList.remove('active')">&times;</button>
+            </div>
+
+            <div id="cash-list"
+                style="max-height: 400px; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem;">
+            </div>
+
+            <button class="btn btn-primary"
+                style="width: 100%; justify-content: center; background: #059669; border-color: #047857;"
+                onclick="app.ui.modals.cash.openAdd()">
+                <i class="fa-solid fa-plus"></i> Thêm Nguồn Tiền
+            </button>
+        </div>
+    </div>
+
+    <div id="modal-add-cash" class="modal-overlay" style="z-index: 100001;">
+        <div class="modal-box" style="max-width: 400px;">
+            <div class="card-header">
+                <div class="card-title" id="modal-cash-title">Thêm Nguồn Tiền</div>
+                <button class="btn-ghost"
+                    onclick="document.getElementById('modal-add-cash').classList.remove('active')">&times;</button>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap: 1rem;">
+                <div>
+                    <label class="form-label">Tên Nguồn (Ví dụ: Ví cầm tay, Heo đất...)</label>
+                    <input type="text" id="cash-name" class="form-input" placeholder="Nhập tên nguồn tiền...">
+                    <small style="font-size: 0.7rem; color: var(--text-muted);">* Tên này sẽ dùng để chọn trong mục
+                        'Nguồn tiền' khi thêm giao dịch.</small>
+                </div>
+                <div>
+                    <label class="form-label">Người giữ tiền</label>
+                    <input type="text" id="cash-keeper" class="form-input" placeholder="Ví dụ: Vợ, Chồng, Tự giữ...">
+                </div>
+                <div>
+                    <label class="form-label">Số Dư Ban Đầu (Hiện có)</label>
+                    <input type="text" id="cash-init-balance" class="form-input" placeholder="0"
+                        onkeyup="this.value=this.value.replace(/[^0-9]/g,'')">
+                </div>
+                <button class="btn btn-primary" style="background: #059669;" onclick="app.ui.modals.cash.saveNew()">Lưu
+                    Thông Tin</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-cash-detail" class="modal-overlay" style="z-index: 100005;">
+        <div class="modal-box" style="max-width: 800px; height: 80vh; display: flex; flex-direction: column;">
+            <div id="cash-detail-content" style="display:flex; flex-direction:column; height:100%"></div>
+        </div>
+    </div>
+
+    <script type="module" src="./js/firebase-cloud.js"></script>
+    <script src="js/1-data.js"></script>
+    <script src="js/2-security.js"></script>
+    <script src="js/3-storage.js"></script>
+    <script src="js/4-logic.js"></script>
+    <script src="js/5-ui.js"></script>
+    <script src="js/6-main.js"></script>
+    <script src="js/7-animations.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- 🧧 LOGIC TỰ ĐỘNG KÍCH HOẠT TẾT 🧧 ---
+            const activateTetTheme = () => {
+                const now = new Date();
+                const month = now.getMonth(); // 0 = Jan, 1 = Feb
+
+                if (month === 0 || month === 1) {
+                    document.body.classList.add('theme-tet');
+                    const subTitle = document.querySelector('.page-subtitle');
+                    if (subTitle) {
+                        subTitle.innerHTML = `<span style="color:#e11d48">🌸 Năm mới phát tài - Tiền vào như nước 🌸</span>`;
+                    }
+                    const brandIcon = document.querySelector('.brand-logo i');
+                    if (brandIcon) {
+                        brandIcon.className = "fa-solid fa-dragon";
+                        brandIcon.style.color = "#f59e0b";
+                    }
+                    const decorations = document.createElement('div');
+                    decorations.innerHTML = `
+                        <div class="tet-lantern-container">
+                            <div class="tet-lantern"></div><div class="tet-lantern"></div>
+                            <div class="tet-lantern"></div><div class="tet-lantern"></div>
+                            <div class="tet-lantern"></div>
+                        </div>
+                        <div class="tet-branch top-left"></div>
+                        <div class="tet-branch bottom-right"></div>
+                    `;
+                    document.body.appendChild(decorations);
+                    console.log("🧧 Tet Mode Activated: Chúc mừng năm mới!");
+                }
+            };
+
+            // --- 🇻🇳 LOGIC TỰ ĐỘNG KÍCH HOẠT ĐẠI LỄ 30/4 - 1/5 🇻🇳 ---
+            const activateHoliday304Theme = () => {
+                const now = new Date();
+                // Lưu ý: getMonth() đếm từ 0. (3 = Tháng 4, 4 = Tháng 5)
+                const month = now.getMonth();
+                const date = now.getDate();
+
+                // Kiểm tra: Nếu là ngày 30/4 HOẶC từ 1/5 đến 10/5
+                const isHoliday = (month === 3 && date === 30) || (month === 4 && date >= 1 && date <= 10);
+
+                // MẸO TEST: Bỏ comment dòng dưới để ép chạy giao diện ngay lập tức
+                // const isHoliday = true; 
+
+                if (isHoliday) {
+                    document.body.classList.add('theme-304');
+
+                    const subTitle = document.querySelector('.page-subtitle');
+                    if (subTitle) {
+                        subTitle.innerHTML = `<span style="color:#dc2626; font-weight: 800;">🇻🇳 Nghỉ lễ vui vẻ - Tiêu xài cẩn thận! 🇻🇳</span>`;
+                    }
+
+                    const brandIcon = document.querySelector('.brand-logo i');
+                    if (brandIcon) {
+                        brandIcon.className = "fa-solid fa-flag";
+                        brandIcon.style.color = "#dc2626";
+                    }
+
+                    // Chèn cờ trang trí
+                    const decorations = document.createElement('div');
+                    decorations.innerHTML = `
+                        <div class="holiday-flags-container">
+                            <div class="holiday-flag left"></div>
+                            <div class="holiday-flag right"></div>
+                        </div>
+                    `;
+                    document.body.appendChild(decorations);
+                    const opt304 = document.getElementById('holiday-304-option-box');
+                    if (opt304) opt304.style.display = 'flex';
+                    console.log("🇻🇳 Holiday 30/4 Mode Activated!");
+                }
+            };
+
+            // --- 🌸 LOGIC TỰ ĐỘNG KÍCH HOẠT 8/3 🌸 ---
+            const activateHoliday83Theme = () => {
+                const now = new Date();
+                const month = now.getMonth(); // Tháng 3 trong JS là số 2 (vì đếm từ 0)
+                const date = now.getDate();
+
+                // Kích hoạt từ ngày 8/3 đến 20/3
+                const isHoliday = (month === 2 && date >= 8 && date <= 20);
+
+                // MẸO TEST: Bỏ comment dòng dưới để ép chạy giao diện ngay lập tức
+                // const isHoliday = true; 
+
+                if (isHoliday) {
+                    document.body.classList.add('theme-83');
+
+                    const subTitle = document.querySelector('.page-subtitle');
+                    if (subTitle) {
+                        subTitle.innerHTML = `<span style="color:#db2777; font-weight: 800;">💖 Chúc mừng 8/3 - Dành trọn yêu thương! 💖</span>`;
+                    }
+
+                    const brandIcon = document.querySelector('.brand-logo i');
+                    if (brandIcon) {
+                        brandIcon.className = "fa-solid fa-heart";
+                        brandIcon.style.color = "#ec4899";
+                    }
+
+                    // Chèn hiệu ứng trái tim bay trang trí
+                    const decorations = document.createElement('div');
+                    decorations.innerHTML = `
+                        <div class="holiday-83-container">
+                            <div class="floating-heart heart-1"><i class="fa-solid fa-heart"></i></div>
+                            <div class="floating-heart heart-2"><i class="fa-solid fa-heart"></i></div>
+                            <div class="floating-heart heart-3"><i class="fa-solid fa-star"></i></div>
+                            <div class="floating-heart heart-4"><i class="fa-solid fa-heart"></i></div>
+                        </div>
+                    `;
+                    document.body.appendChild(decorations);
+                    const opt83 = document.getElementById('holiday-83-option-box');
+                    if (opt83) opt83.style.display = 'flex';
+                    console.log("🌸 Holiday 8/3 Mode Activated!");
+                }
+            };
+
+            // Chạy kiểm tra các sự kiện
+            activateTetTheme();
+            activateHoliday304Theme();
+            activateHoliday83Theme();
+
+            // Logic cũ của App
+            if (typeof app !== 'undefined' && app.security) {
+                app.security.init();
+            } else if (typeof app !== 'undefined') {
+                app.startSession();
+            }
+        });
+
+
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,241 @@
+/* =========================================
+   GIAO DIỆN 8/3: QUỐC TẾ PHỤ NỮ (SUPER MAX SETTINGS)
+   Phong cách: Luxury Pink, Rose-Gold & Glassmorphism
+   ========================================= */
+
+/* --- 0. ÉP BIẾN MÀU TOÀN HỆ THỐNG (LUXURY TONE) --- */
+body.theme-83 {
+    --primary: #be185d !important;      /* Deep Pink */
+    --primary-hover: #9d174d !important; 
+    --success: #ec4899 !important;      /* Neon Pink */
+    --danger: #e11d48 !important;       /* Rose */
+    --bg-main: #fff0f6 !important;      /* Soft Floral White */
+    --text-main: #701a75 !important;    /* Deep Fuchsia */
+    --text-muted: #a21caf !important;
+    --border-color: #fbcfe8 !important; 
+    
+    /* Nền gradient lụa đào chuyển động nhẹ */
+    background: linear-gradient(-45deg, #fdf2f8, #fce7f3, #fff1f2, #f3e8ff) !important;
+    background-size: 400% 400% !important;
+    animation: gradientBG 15s ease infinite !important;
+}
+
+@keyframes gradientBG {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+/* --- TÙY CHỈNH THANH CUỘN (ROSE GOLD SCROLLBAR) --- */
+body.theme-83 ::-webkit-scrollbar { width: 8px; height: 8px; }
+body.theme-83 ::-webkit-scrollbar-track { background: #fdf2f8; border-radius: 10px; }
+body.theme-83 ::-webkit-scrollbar-thumb { 
+    background: linear-gradient(180deg, #f472b6, #be185d); 
+    border-radius: 10px; 
+    border: 1px solid #fbcfe8; 
+}
+
+/* --- 1. MÀN HÌNH KHÓA (LUXURY V.I.P LOUNGE) --- */
+body.theme-83 #security-overlay {
+    background: radial-gradient(circle at center, #831843 0%, #4a044e 100%) !important;
+    color: #fbcfe8 !important;
+    backdrop-filter: blur(10px);
+}
+body.theme-83 .lock-icon-box {
+    background: linear-gradient(135deg, #fda4af, #f43f5e) !important; 
+    color: #fff !important; 
+    box-shadow: 0 0 40px rgba(244, 63, 94, 0.6), inset 0 0 10px rgba(255,255,255,0.5) !important;
+    border: 3px solid #ffe4e6 !important;
+    border-radius: 30% !important; /* Đổi icon thành hình bo tròn đặc biệt */
+    transform: scale(1.2);
+}
+body.theme-83 #security-overlay h2 { color: #ffe4e6 !important; letter-spacing: 2px; text-transform: uppercase; font-weight: 900; }
+body.theme-83 .pin-dot { border-color: #f472b6 !important; border-width: 3px !important; background: rgba(255,255,255,0.1); }
+body.theme-83 .pin-dot.active { background: #f43f5e !important; box-shadow: 0 0 20px #f43f5e, 0 0 10px #fb7185 !important; border-color: #ffe4e6 !important; }
+
+/* Bàn phím số hiệu ứng Pha lê (Glassmorphism) */
+body.theme-83 .num-btn { 
+    background: rgba(253, 164, 175, 0.1) !important; 
+    backdrop-filter: blur(5px);
+    color: #fbcfe8 !important; 
+    border: 1px solid rgba(253, 164, 175, 0.3) !important; 
+    border-radius: 50% !important;
+    font-weight: 300;
+}
+body.theme-83 .num-btn:hover { 
+    background: linear-gradient(135deg, #f43f5e, #be185d) !important; 
+    color: #fff !important; 
+    transform: scale(1.1); 
+    box-shadow: 0 10px 25px rgba(225, 29, 72, 0.5); 
+    border-color: #ffe4e6 !important;
+}
+
+/* --- 2. SIDEBAR & MENU CÔNG CỤ (SOFT PINK) --- */
+body.theme-83 #sidebar { background: rgba(255, 255, 255, 0.85) !important; backdrop-filter: blur(10px); border-right: 2px solid #fbcfe8 !important; }
+body.theme-83 .brand-text { 
+    background: linear-gradient(to right, #be185d, #db2777);
+    -webkit-background-clip: text;
+    color: transparent !important;
+    font-weight: 900; 
+    filter: drop-shadow(2px 2px 0px #fbcfe8);
+}
+body.theme-83 .menu-item { border-radius: 12px; margin: 4px 10px; width: auto; }
+body.theme-83 .menu-item:hover { background: #fdf2f8 !important; border-right: none !important; box-shadow: inset 4px 0 0 #be185d !important; transform: translateX(5px); }
+body.theme-83 .menu-icon { background: #fff1f2 !important; color: #db2777 !important; box-shadow: 2px 2px 8px rgba(219,39,119,0.15); }
+
+/* Widget Zalo Priority - Chuẩn thẻ V.I.P Spa/Beauty */
+body.theme-83 #zalo-widget-card {
+    background: linear-gradient(135deg, #831843 0%, #be185d 50%, #db2777 100%) !important;
+    border: 2px solid #fda4af !important;
+    box-shadow: 0 10px 25px rgba(190, 24, 93, 0.4) !important;
+    border-radius: 20px !important;
+}
+body.theme-83 .zalo-logo-text, body.theme-83 #zalo-accumulated { color: #ffe4e6 !important; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+body.theme-83 .zalo-icon-crown { color: #fda4af !important; filter: drop-shadow(0 0 8px #fda4af); }
+body.theme-83 #zalo-progress { background: linear-gradient(90deg, #f43f5e, #fda4af) !important; box-shadow: 0 0 10px #f43f5e; }
+
+/* --- 3. CÁC CARD THỐNG KÊ (BO TRÒN MỀM MẠI) --- */
+body.theme-83 .stat-card-pop { 
+    border: 1px solid #fbcfe8 !important; 
+    background: rgba(255, 255, 255, 0.9) !important; 
+    border-radius: 24px !important; /* Bo góc tròn hơn */
+    box-shadow: 0 8px 20px rgba(251, 207, 232, 0.5) !important; 
+}
+body.theme-83 .stat-card-pop:hover { transform: translateY(-8px); box-shadow: 0 15px 30px rgba(244, 114, 182, 0.4) !important; border-color: #f472b6 !important; }
+body.theme-83 .stat-icon-circle { background: linear-gradient(135deg, #fdf2f8, #fbcfe8) !important; color: #be185d !important; }
+body.theme-83 .stat-value { color: #9d174d !important; font-size: 1.8rem; }
+
+/* Thay đổi Box Tiêu dùng Ngày (Daily Budget) */
+body.theme-83 #daily-budget-box {
+    background: linear-gradient(to right, #fff, #fdf2f8) !important;
+    border: 2px dashed #f472b6 !important;
+    border-radius: 20px !important;
+}
+body.theme-83 #daily-budget-box .card-title { color: #be185d !important; }
+body.theme-83 #daily-today-bar { background: linear-gradient(90deg, #f472b6, #db2777) !important; box-shadow: 0 0 10px rgba(219,39,119,0.5); }
+
+/* --- 4. KHUNG CHAT AI (CUTE ASSISTANT) --- */
+body.theme-83 .ai-assistant-card { border: 2px solid #fbcfe8 !important; background: #fff !important; border-radius: 20px !important; }
+body.theme-83 .ai-avatar { background: linear-gradient(135deg, #f472b6, #be185d) !important; color: #fff !important; border: 2px solid #ffe4e6; box-shadow: 0 0 10px #fbcfe8; }
+body.theme-83 .chat-bubble { background: #fdf2f8 !important; border-radius: 18px 18px 18px 4px !important; border: 1px solid #fbcfe8 !important; color: #831843 !important; }
+body.theme-83 .btn-send-ai { background: #db2777 !important; color: #fff !important; border-radius: 50% !important; box-shadow: 0 4px 10px rgba(219,39,119,0.4) !important; }
+
+/* --- 5. BẢNG GIAO DỊCH (PINK STRIPES) --- */
+body.theme-83 .table-wrapper table thead tr {
+    background: linear-gradient(90deg, #be185d, #db2777) !important;
+    color: #fff !important;
+    border-radius: 10px;
+}
+body.theme-83 .table-wrapper table tbody tr:nth-child(even) { background: #fff !important; }
+body.theme-83 .table-wrapper table tbody tr:nth-child(odd) { background: #fdf2f8 !important; }
+body.theme-83 .table-wrapper table tbody tr:hover { background: #fbcfe8 !important; transform: scale(1.01); transition: 0.2s; }
+body.theme-83 .badge-secondary { background: #fff1f2 !important; color: #e11d48 !important; border: 1px solid #fda4af !important; border-radius: 20px !important; }
+
+/* --- 6. NÚT FAB THÊM GIAO DỊCH (HIỆU ỨNG NHỊP ĐẬP TRÁI TIM) --- */
+body.theme-83 .fab-btn {
+    background: linear-gradient(135deg, #e11d48, #be185d) !important;
+    color: #fff !important;
+    border: 4px solid #fbcfe8 !important;
+    box-shadow: 0 0 20px rgba(225, 29, 72, 0.6) !important;
+    animation: heartBeat 1.5s infinite; /* Đổi sang nhịp đập tim */
+}
+@keyframes heartBeat {
+    0% { transform: scale(1); }
+    15% { transform: scale(1.15); }
+    30% { transform: scale(1); }
+    45% { transform: scale(1.15); }
+    60% { transform: scale(1); }
+    100% { transform: scale(1); }
+}
+
+/* --- 7. MODALS & NÚT BẤM (ELEGANT UI) --- */
+body.theme-83 .modal-box { 
+    border: none !important; 
+    border-top: 8px solid #db2777 !important; 
+    box-shadow: 0 20px 50px rgba(131, 24, 67, 0.2) !important; 
+    border-radius: 24px !important;
+    background: #fff !important; 
+}
+body.theme-83 .card-title { color: #be185d !important; font-weight: 800; }
+body.theme-83 .btn-primary {
+    background: linear-gradient(45deg, #be185d, #db2777) !important;
+    border: none !important;
+    border-radius: 99px !important; /* Nút tròn dài mềm mại */
+    box-shadow: 0 8px 15px rgba(219, 39, 119, 0.3) !important;
+    color: #fff !important;
+    letter-spacing: 1px;
+}
+body.theme-83 .btn-primary:hover { transform: translateY(-3px); box-shadow: 0 12px 20px rgba(219, 39, 119, 0.4) !important; }
+body.theme-83 .form-input { border: 2px solid #fbcfe8 !important; background: #fdf2f8 !important; border-radius: 12px !important; }
+body.theme-83 .form-input:focus { background: #fff !important; border-color: #f472b6 !important; box-shadow: 0 0 0 4px rgba(244, 114, 182, 0.2) !important; }
+
+/* --- 8. HÓA ĐƠN CUỘC ĐỜI (LOVE LETTER) & LUẬT SƯ --- */
+body.theme-83 #receipt-capture-area {
+    background: #fff1f2 !important;
+    border: 2px dashed #fda4af !important;
+    box-shadow: 5px 5px 20px rgba(225, 29, 72, 0.15) !important;
+    border-radius: 8px;
+}
+body.theme-83 .receipt-header i { color: #e11d48 !important; }
+body.theme-83 .receipt-title { color: #be185d !important; font-family: 'Dancing Script', cursive, serif !important; font-size: 2.5rem; text-transform: capitalize; }
+body.theme-83 .lawyer-paper {
+    background: #fdf2f8 !important;
+    border: 2px solid #fbcfe8 !important;
+    box-shadow: inset 0 0 30px rgba(244, 114, 182, 0.1), 0 10px 20px rgba(0,0,0,0.05) !important;
+}
+body.theme-83 .lawyer-stamp { color: #db2777 !important; border-color: #db2777 !important; border-radius: 50%; padding: 10px; }
+
+/* --- 9. HIỆU ỨNG HOA ANH ĐÀO & TIM BAY KẾT HỢP --- */
+.theme-83 .holiday-83-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999; overflow: hidden; }
+
+/* Trái tim bay từ dưới lên */
+.theme-83 .floating-heart {
+    position: absolute;
+    bottom: -10%;
+    opacity: 0;
+    animation: floatUpHeart 7s ease-in infinite;
+    filter: drop-shadow(0 0 5px rgba(255,255,255,0.8));
+}
+.theme-83 .heart-1 { left: 15%; font-size: 28px; animation-duration: 8s; color: #f43f5e; }
+.theme-83 .heart-2 { left: 85%; font-size: 35px; animation-duration: 10s; animation-delay: 2s; color: #fb7185; }
+
+/* Cánh hoa rơi từ trên xuống */
+.theme-83 .falling-petal {
+    position: absolute;
+    top: -10%;
+    width: 15px; height: 15px;
+    background: linear-gradient(135deg, #fbcfe8, #f472b6);
+    border-radius: 15px 0 15px 0; /* Hình cánh hoa */
+    opacity: 0.8;
+    animation: fallDownPetal 10s linear infinite;
+}
+.theme-83 .petal-1 { left: 20%; animation-duration: 12s; animation-delay: 1s; }
+.theme-83 .petal-2 { left: 50%; animation-duration: 15s; animation-delay: 3s; width: 20px; height: 20px; }
+.theme-83 .petal-3 { left: 75%; animation-duration: 11s; animation-delay: 0s; }
+.theme-83 .petal-4 { left: 95%; animation-duration: 14s; animation-delay: 2s; }
+
+@keyframes floatUpHeart {
+    0% { transform: translateY(0) scale(0.5) rotate(0deg); opacity: 0; }
+    20% { opacity: 0.9; }
+    80% { opacity: 0.9; }
+    100% { transform: translateY(-120vh) scale(1.2) rotate(45deg); opacity: 0; }
+}
+@keyframes fallDownPetal {
+    0% { transform: translateY(0) rotate(0deg) translateX(0); opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { transform: translateY(120vh) rotate(360deg) translateX(50px); opacity: 0; }
+}
+
+/* --- 10. HỌA TIẾT NỀN CHÌM LÃNG MẠN (CẢI TIẾN) --- */
+.theme-83::before {
+    content: '';
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: -1;
+    background-image: 
+        radial-gradient(#fbcfe8 1.5px, transparent 1.5px),
+        radial-gradient(#fbcfe8 1.5px, transparent 1.5px);
+    background-size: 50px 50px;
+    background-position: 0 0, 25px 25px;
+    opacity: 0.4;
+}

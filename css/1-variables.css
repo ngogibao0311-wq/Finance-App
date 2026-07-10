@@ -1,0 +1,171 @@
+:root {
+    /* Palette màu tươi sáng (Candy Colors) */
+    --bg-body: #fff8f0;
+    --bg-sidebar: #ffffff;
+    --bg-card: #ffffff;
+
+    --primary: #8b5cf6;
+    --primary-hover: #7c3aed;
+    --accent: #0ea5e9;
+
+    --text-main: #2d2a32;
+    --text-muted: #757575;
+
+    --success: #10b981;
+    --danger: #ef4444;
+    --warning: #f59e0b;
+
+    /* Comic Style Borders & Shadows */
+    --border-width: 2px;
+    --border-color: #2d2a32;
+    --radius: 20px;
+    --radius-sm: 12px;
+    --shadow-pop: 4px 4px 0px var(--border-color);
+    --shadow-hover: 6px 6px 0px var(--border-color);
+
+    --sidebar-width: 280px;
+    --font-cartoon: 'Nunito', sans-serif;
+
+    /* Zalo Default */
+    --zalo-card-bg: #e0e7ff;
+    --zalo-text-highlight: #3730a3;
+}
+
+/* --- THEMES --- */
+/* 1. Hạng Bạc */
+body.theme-silver {
+    --primary: #475569;
+    --bg-sidebar: #f1f5f9;
+    --zalo-card-bg: #cbd5e1;
+}
+/* 2. Hạng Vàng */
+body.theme-gold {
+    --primary: #d97706;
+    --bg-sidebar: #fffbeb;
+    --zalo-card-bg: #fde68a;
+}
+/* 3. Hạng Kim Cương */
+body.theme-diamond {
+    --primary: #0891b2;
+    --bg-sidebar: #ecfeff;
+    --zalo-card-bg: #67e8f9;
+}
+
+/* --- BASE STYLES --- */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* --- [MỚI] DEFINITION KEYFRAMES CHO BACKGROUND --- */
+@keyframes bgScroll {
+    0% {
+        /* Vị trí ban đầu khớp với thiết lập background-position ở body */
+        background-position: 0 0, 15px 15px;
+    }
+    100% {
+        /* Di chuyển chéo xuống phải 30px (bằng đúng 1 chu kỳ background-size) */
+        /* 0 -> 30, 15 -> 45 */
+        background-position: 30px 30px, 45px 45px;
+    }
+}
+
+body {
+    font-family: var(--font-cartoon);
+    color: var(--text-main);
+    height: 100vh;
+    display: flex;
+    overflow: hidden;
+    font-size: 15px;
+
+    /* --- PHẦN BACKGROUND ĐÃ CẬP NHẬT --- */
+    background-color: #f8fafc;
+    opacity: 1;
+    
+    /* Pattern chấm bi */
+    background-image:  radial-gradient(#cbd5e1 1.5px, transparent 1.5px), radial-gradient(#cbd5e1 1.5px, #f8fafc 1.5px);
+    
+    /* Kích thước 1 ô pattern */
+    background-size: 30px 30px;
+    
+    /* Vị trí ban đầu */
+    background-position: 0 0, 15px 15px; 
+
+    /* Kích hoạt Animation: Chạy trong 3s, đều đặn (linear), lặp vô tận (infinite) */
+    animation: bgScroll 3s linear infinite;
+}
+
+.hidden {
+    display: none !important;
+}
+/* --- TET THEME (Auto activate in Feb) --- */
+body.theme-tet {
+    /* Nền hồng phấn nhẹ nhàng thay vì trắng/xám */
+    --bg-body: #fff1f2; 
+    --bg-sidebar: #fff;
+    
+    /* Màu chủ đạo: Đỏ may mắn */
+    --primary: #e11d48; 
+    --primary-hover: #be123c;
+    
+    /* Màu chữ: Đỏ mận chín */
+    --text-main: #881337; 
+    --text-muted: #9f1239;
+    
+    /* Viền và bóng: Đỏ đậm và Vàng đồng */
+    --border-color: #9f1239;
+    --shadow-pop: 4px 4px 0px #fbbf24; /* Bóng màu vàng */
+    --shadow-hover: 6px 6px 0px #d97706;
+
+    /* Các màu chức năng */
+    --warning: #f59e0b; /* Vàng */
+    --success: #059669; /* Xanh (giữ nguyên để dễ nhìn tiền) */
+    
+    /* Zalo Widget theme Tết */
+    --zalo-card-bg: #ffe4e6;
+}
+
+/* Hiệu ứng nền đặc biệt cho Tết (Hoa đào rơi) */
+body.theme-tet {
+    background-image: 
+        radial-gradient(#fecdd3 2px, transparent 2px), /* Chấm bi hồng */
+        radial-gradient(#fecdd3 2px, #fff1f2 2px);
+    background-size: 40px 40px;
+    animation: bgScroll 4s linear infinite;
+}
+/* --- TET THEME VARIABLES (Rich & Festive) --- */
+body.theme-tet {
+    --bg-body: #fff0f5; /* Màu hồng phấn nhạt (Lavender Blush) */
+    --bg-sidebar: #fff;
+    
+    /* Đỏ may mắn & Vàng thịnh vượng */
+    --primary: #d61c4e; 
+    --primary-hover: #b91c1c;
+    --text-main: #9f1239;
+    --text-muted: #be123c;
+    
+    /* Viền đỏ - Bóng vàng */
+    --border-color: #9f1239;
+    --shadow-pop: 4px 4px 0px #facc15; 
+    --shadow-hover: 6px 6px 0px #fbbf24;
+
+    --zalo-card-bg: #fecdd3; /* Màu hồng đào cho widget Zalo */
+}
+
+/* Pattern nền Hoa Mai/Đào rơi nhẹ */
+body.theme-tet {
+    background-image: 
+        radial-gradient(#fbcfe8 15%, transparent 16%),
+        radial-gradient(#fecaca 15%, transparent 16%);
+    background-size: 60px 60px;
+    background-position: 0 0, 30px 30px;
+    animation: tetBgMove 10s linear infinite;
+}
+
+@keyframes tetBgMove {
+    0% { background-position: 0 0, 30px 30px; }
+    100% { background-position: 0 60px, 30px 90px; }
+}

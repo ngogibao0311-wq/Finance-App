@@ -1,0 +1,831 @@
+/* Receipt (Modern Digital Receipt) */
+.receipt-paper {
+    background: #fff;
+    width: 360px;
+    margin: 0 auto;
+    padding: 2.5rem;
+    font-family: 'Courier New', Courier, monospace;
+    color: #333;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
+    position: relative;
+    border-radius: 12px;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+/* Hiệu ứng răng cưa hoá đơn làm bằng CSS gradient */
+.receipt-paper::before,
+.receipt-paper::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: 10px;
+    background-size: 20px 20px;
+    background-image: linear-gradient(135deg, #fff 25%, transparent 25%), linear-gradient(225deg, #fff 25%, transparent 25%);
+}
+
+.receipt-paper::before {
+    top: -10px;
+    background-position: 0 0;
+    transform: rotate(180deg);
+}
+
+.receipt-paper::after {
+    bottom: -10px;
+    background-position: 0 0;
+}
+
+.receipt-brand {
+    text-align: center;
+    margin-bottom: 2rem;
+    border-bottom: 1px dashed #cbd5e1;
+    padding-bottom: 1.5rem;
+}
+
+.brand-name {
+    font-size: 1.2rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+    display: block;
+    text-transform: uppercase;
+}
+
+.receipt-item-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.receipt-total-box {
+    border-top: 2px solid #333;
+    border-bottom: 2px solid #333;
+    padding: 15px 0;
+    margin: 20px 0;
+    font-size: 1.4rem;
+    font-weight: 800;
+    display: flex;
+    justify-content: space-between;
+}
+
+.btn-download-receipt {
+    background: #1e293b;
+    color: #fff;
+    width: 100%;
+    border-radius: 12px;
+    padding: 1rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    margin-top: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    transition: 0.3s;
+    box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.2);
+}
+
+.btn-download-receipt:hover {
+    transform: translateY(-2px);
+    background: #0f172a;
+}
+
+/* Stamps */
+.stamp-overlay {
+    position: absolute;
+    top: 40%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-15deg);
+    font-size: 3rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    border: 4px solid;
+    padding: 0.5rem 2rem;
+    opacity: 0.7;
+    mix-blend-mode: multiply;
+    pointer-events: none;
+    letter-spacing: 5px;
+    border-radius: 10px;
+}
+
+.stamp-void {
+    color: #dc2626;
+    border-color: #dc2626;
+}
+
+.stamp-paid {
+    color: #059669;
+    border-color: #059669;
+}
+
+/* AI Lawyer - Modern Document */
+.lawyer-paper {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    padding: 3rem;
+    font-family: 'Times New Roman', Times, serif;
+    position: relative;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+    border-radius: 4px;
+}
+
+.lawyer-header {
+    text-align: center;
+    margin-bottom: 2rem;
+    border-bottom: 1px solid #000;
+    padding-bottom: 1rem;
+}
+
+.lawyer-stamp {
+    position: absolute;
+    top: 30px;
+    right: 30px;
+    border: 2px solid #ef4444;
+    color: #ef4444;
+    padding: 0.25rem 0.5rem;
+    font-weight: 700;
+    transform: rotate(-10deg);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.lawyer-content {
+    font-size: 1.15rem;
+    line-height: 1.8;
+    text-align: justify;
+    color: #1f2937;
+}
+
+/* Wanted System - Dark Modern Grid */
+.wanted-board {
+    background: #1c1917;
+    padding: 2rem;
+    border-radius: 24px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 2rem;
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.wanted-poster {
+    background: #f5f5f4;
+    padding: 1rem;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    border-radius: 4px;
+    position: relative;
+    transition: transform 0.3s;
+    cursor: pointer;
+}
+
+.wanted-poster:hover {
+    transform: scale(1.05) translateY(-10px);
+    z-index: 10;
+}
+
+.wanted-photo-box {
+    width: 100%;
+    height: 160px;
+    background: #d6d3d1;
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem;
+    color: #57534e;
+    overflow: hidden;
+    filter: contrast(1.1);
+}
+
+.wanted-amount {
+    font-family: serif;
+    font-size: 1.25rem;
+    font-weight: 900;
+    color: #7f1d1d;
+}
+
+/* Alerts - Clean & Flat */
+.zalo-alert-box {
+    background: #fef2f2;
+    border-left: 4px solid #dc2626;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.1);
+}
+
+.zalo-alert-header {
+    background: transparent;
+    color: #991b1b;
+    padding: 0.75rem 1rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    border-bottom: 1px solid rgba(220, 38, 38, 0.1);
+}
+
+.zalo-alert-body {
+    padding: 1rem;
+    color: #7f1d1d;
+    font-size: 0.9rem;
+}
+
+.momo-alert-box {
+    background: #fdf2f8;
+    border-left: 4px solid #db2777;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    box-shadow: 0 4px 12px rgba(219, 39, 119, 0.1);
+}
+
+.momo-alert-header {
+    background: transparent;
+    color: #9d174d;
+    padding: 0.75rem 1rem;
+    font-weight: 700;
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(219, 39, 119, 0.1);
+}
+/* =========================================
+   TET HOLIDAY SPECIAL DECORATION
+   ========================================= */
+
+/* 1. Biến Sidebar thành phong cách Bao Lì Xì */
+body.theme-tet aside {
+    border: 3px solid #b91c1c;
+    box-shadow: 8px 8px 0px #f59e0b; /* Bóng vàng */
+    background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23fee2e2' fill-opacity='0.4' fill-rule='evenodd'%3E%3Ccircle cx='3' cy='3' r='3'/%3E%3Ccircle cx='13' cy='13' r='3'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* 2. Trang trí Header (Cành đào/mai) */
+body.theme-tet .main-header {
+    position: relative;
+}
+
+body.theme-tet .main-header::after {
+    content: "🌸"; /* Icon hoa */
+    position: absolute;
+    right: 20px;
+    top: -10px;
+    font-size: 3rem;
+    animation: swing 3s ease-in-out infinite;
+    opacity: 0.8;
+}
+
+/* 3. Card thống kê (Thu nhập/Chi tiêu) phong cách Tết */
+body.theme-tet .stat-card-pop {
+    border-color: #b91c1c;
+    box-shadow: 6px 6px 0px #fbbf24;
+}
+
+/* Đổi màu background card sang tone ấm */
+body.theme-tet .theme-income { background: linear-gradient(135deg, #10b981 0%, #047857 100%); border-color: #064e3b; }
+body.theme-tet .theme-expense { background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); border-color: #7f1d1d; }
+body.theme-tet .theme-debt { background: linear-gradient(135deg, #f59e0b 0%, #b45309 100%); border-color: #78350f; }
+
+/* 4. Nút bấm (Button) */
+body.theme-tet .btn-primary {
+    background: #e11d48;
+    border-color: #881337;
+    box-shadow: 4px 4px 0px #fbbf24; /* Nút đỏ bóng vàng */
+}
+
+body.theme-tet .btn-primary:hover {
+    background: #be123c;
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0px #d97706;
+}
+
+/* 5. Giao diện Input/Search */
+body.theme-tet .search-input,
+body.theme-tet .form-input {
+    border: 2px solid #b91c1c;
+    color: #881337;
+}
+
+body.theme-tet .search-input:focus,
+body.theme-tet .form-input:focus {
+    box-shadow: 4px 4px 0px #fbbf24;
+}
+
+/* Animation đung đưa cho hoa */
+@keyframes swing {
+    0% { transform: rotate(10deg); }
+    50% { transform: rotate(-10deg); }
+    100% { transform: rotate(10deg); }
+}
+
+/* Badge Lì xì (Thay thế badge thông thường) */
+body.theme-tet .badge-success {
+    background: #fff1f2;
+    color: #e11d48;
+    border-color: #e11d48;
+}
+/* =========================================
+   🧧 TET HOLIDAY SPECIAL DECORATION (ADVANCED) 🧧
+   ========================================= */
+
+/* 1. LỒNG ĐÈN TREO (Hanging Lanterns) */
+.tet-lantern-container {
+    position: fixed;
+    top: -10px;
+    left: 0;
+    width: 100%;
+    height: 100px;
+    z-index: 9998;
+    pointer-events: none; /* Để không che nút bấm */
+    display: flex;
+    justify-content: space-around;
+    overflow: hidden;
+}
+
+.tet-lantern {
+    position: relative;
+    width: 60px;
+    height: 50px;
+    background: #dc2626;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(220, 38, 38, 0.4);
+    animation: lanternSwing 3s ease-in-out infinite;
+    transform-origin: top center;
+}
+
+.tet-lantern::before { /* Dây treo */
+    content: '';
+    position: absolute;
+    top: -50px;
+    left: 50%;
+    width: 2px;
+    height: 50px;
+    background: #444;
+}
+
+.tet-lantern::after { /* Tua rua phía dưới */
+    content: '';
+    position: absolute;
+    bottom: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 4px;
+    height: 20px;
+    background: #fbbf24;
+    box-shadow: 0 0 5px #fbbf24;
+}
+
+.tet-lantern:nth-child(2n) {
+    background: #f59e0b; /* Lồng đèn vàng xen kẽ */
+    animation-duration: 4s;
+    top: 10px;
+}
+
+@keyframes lanternSwing {
+    0%, 100% { transform: rotate(5deg); }
+    50% { transform: rotate(-5deg); }
+}
+
+/* 2. CÀNH ĐÀO/MAI Ở GÓC (Corner Decor) */
+.tet-branch {
+    position: fixed;
+    width: 150px;
+    height: 150px;
+    z-index: 0; /* Nằm dưới nội dung */
+    pointer-events: none;
+    opacity: 0.6;
+    background-size: contain;
+    background-repeat: no-repeat;
+}
+
+.tet-branch.top-left {
+    top: 0;
+    left: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M0 0 Q 50 50 100 20' stroke='%2378350f' stroke-width='3' fill='none'/%3E%3Ccircle cx='20' cy='20' r='5' fill='%23fecaca'/%3E%3Ccircle cx='40' cy='40' r='6' fill='%23fecaca'/%3E%3Ccircle cx='70' cy='30' r='5' fill='%23fecaca'/%3E%3C/svg%3E");
+}
+
+.tet-branch.bottom-right {
+    bottom: 0;
+    right: 0;
+    transform: rotate(180deg);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M0 0 Q 50 50 100 20' stroke='%2378350f' stroke-width='3' fill='none'/%3E%3Ccircle cx='20' cy='20' r='5' fill='%23fcd34d'/%3E%3Ccircle cx='40' cy='40' r='6' fill='%23fcd34d'/%3E%3Ccircle cx='70' cy='30' r='5' fill='%23fcd34d'/%3E%3C/svg%3E");
+}
+
+/* 3. BIẾN HÓA CÁC CARD (Styling) */
+body.theme-tet aside {
+    border: 3px solid #b91c1c;
+    background: #fff;
+    background-image: radial-gradient(#fee2e2 20%, transparent 20%);
+    background-size: 20px 20px;
+}
+
+/* Nút FAB (Dấu +) thành Đồng Xu May Mắn */
+body.theme-tet .fab-btn {
+    background: #f59e0b; /* Vàng đồng */
+    border: 3px solid #b45309;
+    color: #78350f;
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.6);
+    animation: coinPulse 2s infinite;
+}
+
+body.theme-tet .fab-btn::after {
+    content: "💰";
+    font-size: 1.2rem;
+    position: absolute;
+    top: -10px;
+    right: -5px;
+}
+
+@keyframes coinPulse {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
+    70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+
+/* Card thống kê */
+body.theme-tet .stat-card-pop {
+    border-color: #b91c1c; /* Viền đỏ */
+    background-image: linear-gradient(45deg, rgba(255,255,255,0.1) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.1) 75%, transparent 75%, transparent);
+    background-size: 10px 10px;
+}
+
+/* 4. CHỮ CHÚC MỪNG CHẠY (News Ticker style) */
+body.theme-tet .news-ticker-bar {
+    background: #9f1239;
+    border-top: 3px solid #facc15;
+}
+body.theme-tet .news-label-box {
+    background: #facc15;
+    color: #9f1239;
+}
+/* ======================================================
+   FIX LỖI HIỂN THỊ CARD THỐNG KÊ (STYLE TẾT)
+   ====================================================== */
+
+/* 1. Thiết lập chung cho cả 3 thẻ: Nền trắng, Viền đỏ */
+body.theme-tet .stat-card-pop {
+    background: #ffffff !important;      /* Nền trắng giấy */
+    border: 3px solid #b91c1c !important; /* Viền đỏ đậm */
+    box-shadow: 6px 6px 0px #fbbf24 !important; /* Bóng đổ màu vàng */
+    color: #881337 !important; /* Chữ mặc định màu đỏ mận */
+}
+
+/* 2. Sửa màu số tiền to (QUAN TRỌNG: Chuyển từ Trắng -> Vàng Đồng) */
+body.theme-tet .stat-value {
+    color: #d97706 !important; 
+    text-shadow: 1px 1px 0px rgba(0,0,0,0.1) !important;
+    font-weight: 900;
+}
+
+/* 3. Sửa màu tiêu đề nhỏ (Thu nhập, Chi tiêu...) */
+body.theme-tet .stat-label {
+    color: #be123c !important; /* Đỏ tươi hơn chút */
+    text-shadow: none !important;
+    font-weight: 800;
+}
+
+/* 4. Sửa icon tròn nhỏ bên cạnh tiêu đề */
+body.theme-tet .stat-icon-circle {
+    background: #fee2e2 !important; /* Nền hồng nhạt */
+    color: #b91c1c !important;      /* Icon đỏ đậm */
+    border: 1px solid #fecdd3;
+}
+
+/* 5. Sửa dòng chữ nhỏ chi tiết bên dưới */
+body.theme-tet .stat-detail-box,
+body.theme-tet .stat-detail-box div {
+    color: #9f1239 !important; /* Đỏ trầm dễ đọc */
+    opacity: 1 !important;
+}
+
+/* 6. Làm mờ icon trang trí nền để không rối mắt */
+body.theme-tet .stat-bg-icon {
+    color: #fecaca !important; /* Hồng rất nhạt */
+    opacity: 0.4 !important;
+}
+
+/* --- (Tùy chọn) Ghi đè màu riêng cho từng thẻ nếu muốn khác biệt --- */
+/* Ví dụ: Thẻ Nợ cho nền hơi xám xíu để cảnh báo */
+body.theme-tet .theme-debt.stat-card-pop {
+    background: #ffffff !important;
+    border-color: #c2410c !important; /* Viền cam đậm */
+}
+/* ======================================================
+   🧧 TET MODAL THEME (STYLE POPUP TẾT) 🧧
+   ====================================================== */
+
+/* 1. Khung Popup (Modal Box) */
+body.theme-tet .modal-box {
+    background-color: #fff1f2 !important; /* Nền hồng phấn rất nhạt */
+    border: 4px solid #b91c1c !important; /* Viền đỏ đậm */
+    border-radius: 24px !important;
+    box-shadow: 10px 10px 0px #b45309 !important; /* Bóng đổ màu vàng đồng/nâu */
+    color: #881337 !important; /* Chữ đỏ mận */
+}
+
+/* Thêm họa tiết hoa chìm góc Popup */
+body.theme-tet .modal-box::before {
+    content: "🌸";
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    font-size: 2rem;
+    opacity: 0.3;
+    pointer-events: none;
+    z-index: 0;
+}
+
+body.theme-tet .modal-box::after {
+    content: "🧧";
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    font-size: 1.5rem;
+    opacity: 0.8;
+    pointer-events: none;
+}
+
+/* 2. Tiêu đề Popup */
+body.theme-tet .modal-box .card-title {
+    color: #b91c1c !important; /* Đỏ tươi */
+    text-shadow: 1px 1px 0px #fff !important;
+    font-weight: 900 !important;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 2px dashed #fca5a5;
+    padding-bottom: 10px;
+    width: 100%;
+}
+
+/* 3. Ô nhập liệu (Input/Select) */
+body.theme-tet .modal-box .form-input, 
+body.theme-tet .modal-box select {
+    background: #ffffff !important;
+    border: 2px solid #fda4af !important; /* Viền hồng đậm */
+    color: #be123c !important; /* Chữ khi gõ màu đỏ */
+    font-weight: 700;
+}
+
+/* Khi bấm vào ô nhập liệu */
+body.theme-tet .modal-box .form-input:focus,
+body.theme-tet .modal-box select:focus {
+    border-color: #b91c1c !important;
+    box-shadow: 4px 4px 0px #fbbf24 !important; /* Bóng vàng */
+}
+
+/* 4. Nhãn (Label) */
+body.theme-tet .modal-box .form-label {
+    color: #9f1239 !important; /* Đỏ đậm */
+    font-weight: 800 !important;
+}
+
+/* 5. Nút đóng (X) */
+body.theme-tet .close-modal {
+    background: #b91c1c !important; /* Nền đỏ */
+    color: #fbbf24 !important; /* Chữ X màu vàng */
+    border: 2px solid #fff !important;
+    box-shadow: 2px 2px 0px rgba(0,0,0,0.2) !important;
+}
+
+body.theme-tet .close-modal:hover {
+    transform: rotate(90deg);
+    background: #ef4444 !important;
+}
+
+/* 6. Các nút bấm phụ (Hủy, Xóa...) */
+body.theme-tet .btn-ghost {
+    color: #b91c1c !important;
+}
+body.theme-tet .btn-ghost:hover {
+    background: #ffe4e6 !important;
+}
+
+/* 7. Riêng Modal Zalo (Cần xử lý nền đặc biệt) */
+body.theme-tet #modal-zalo .modal-box {
+    background: #fff7ed !important; /* Màu kem */
+    border: 4px solid #c2410c !important; /* Viền cam đậm */
+}
+
+/* 8. Text phụ (Small text) */
+body.theme-tet small {
+    color: #db2777 !important; /* Hồng tím */
+    font-style: italic;
+}
+/* ======================================================
+   🧧 TET SECURITY SCREEN (MÀN HÌNH KHÓA TẾT) 🧧
+   ====================================================== */
+
+/* 1. Nền màn hình khóa: Đỏ thẫm + Họa tiết kim tuyến */
+body.theme-tet #security-overlay {
+    background-color: #7f1d1d !important; /* Đỏ đô sang trọng */
+    
+    /* Tạo hiệu ứng giấy dó hoặc kim tuyến lấp lánh */
+    background-image: 
+        radial-gradient(#fca5a5 1.5px, transparent 1.5px),
+        radial-gradient(#fcd34d 1.5px, transparent 1.5px) !important;
+    background-size: 30px 30px, 50px 50px !important;
+    background-position: 0 0, 25px 25px !important;
+    
+    animation: tetBgMove 20s linear infinite; /* Chuyển động nhẹ */
+}
+
+/* 2. Hộp chứa Icon Ổ khóa (Biến thành Cục Vàng) */
+body.theme-tet .lock-icon-box {
+    background: #fffbeb !important; /* Màu kem sáng */
+    border: 4px solid #d97706 !important; /* Viền vàng đồng */
+    color: #d97706 !important; /* Icon màu vàng đồng */
+    
+    /* Hiệu ứng phát sáng hào quang */
+    box-shadow: 0 0 30px rgba(251, 191, 36, 0.6) !important;
+    border-radius: 50% !important; /* Bo tròn như đồng xu */
+}
+
+/* Thay icon ổ khóa bằng chữ Lộc hoặc Túi tiền (Optional - dùng CSS) */
+body.theme-tet .lock-icon-box::after {
+    content: "💰"; /* Hoặc dùng icon font khác */
+    font-size: 1.5rem;
+    position: absolute;
+    top: -15px;
+    right: -10px;
+    animation: bounce 1s infinite;
+}
+
+/* 3. Chữ tiêu đề "Private Mode" */
+body.theme-tet #security-overlay h2 {
+    color: #fcd34d !important; /* Chữ màu vàng kim */
+    text-transform: uppercase;
+    text-shadow: 2px 2px 0px #450a0a !important; /* Bóng chữ màu đỏ đen */
+    font-size: 1.8rem;
+    letter-spacing: 2px;
+}
+
+/* Đổi nội dung chữ bằng CSS (Trick) */
+body.theme-tet #security-overlay h2 {
+    visibility: hidden; /* Ẩn chữ cũ */
+    position: relative;
+}
+body.theme-tet #security-overlay h2::before {
+    content: "KÉT SẮT NGÀY TẾT"; /* Chữ mới */
+    visibility: visible;
+    position: absolute;
+    top: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+}
+
+body.theme-tet #security-overlay p {
+    color: #fca5a5 !important; /* Chữ phụ màu hồng nhạt */
+    font-weight: 600;
+}
+
+/* 4. Dãy chấm tròn nhập PIN */
+body.theme-tet .pin-display {
+    background: rgba(0,0,0,0.2) !important;
+    border: 2px solid #fcd34d !important; /* Viền vàng */
+    box-shadow: 0 4px 0px rgba(0,0,0,0.1);
+}
+
+body.theme-tet .pin-dot {
+    background: #991b1b !important; /* Chưa nhập: Màu đỏ tối */
+    border: 1px solid #fca5a5 !important;
+}
+
+body.theme-tet .pin-dot.filled {
+    background: #facc15 !important; /* Đã nhập: Màu vàng rực */
+    box-shadow: 0 0 15px #facc15 !important; /* Phát sáng */
+    transform: scale(1.3);
+    border-color: #fff !important;
+}
+
+/* 5. Bàn phím số (Numpad) */
+body.theme-tet .num-btn {
+    background: #fff !important;
+    border: 2px solid #b91c1c !important; /* Viền đỏ */
+    color: #b91c1c !important; /* Số đỏ */
+    box-shadow: 4px 4px 0px #fbbf24 !important; /* Bóng vàng */
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* Hiệu ứng khi bấm phím */
+body.theme-tet .num-btn:active {
+    background: #facc15 !important; /* Bấm vào ra màu vàng */
+    color: #fff !important;
+    transform: translate(2px, 2px) !important;
+    box-shadow: 0 0 0 !important;
+}
+
+/* Nút xóa (C) và Nút Enter (Mũi tên) */
+body.theme-tet .num-btn:nth-last-child(3) { /* Nút C */
+    color: #ef4444 !important;
+    border-color: #ef4444 !important;
+}
+
+body.theme-tet .num-btn:last-child { /* Nút Enter */
+    background: #facc15 !important;
+    color: #b45309 !important;
+    border-color: #b45309 !important;
+}
+
+/* 6. Trang trí thêm 2 câu đối 2 bên (Chỉ hiện trên Desktop) */
+@media (min-width: 768px) {
+    body.theme-tet #security-overlay::before,
+    body.theme-tet #security-overlay::after {
+        position: absolute;
+        top: 20%;
+        font-size: 2rem;
+        color: #fcd34d;
+        font-weight: 900;
+        writing-mode: vertical-rl; /* Chữ chạy dọc */
+        text-shadow: 2px 2px 0 #000;
+        border: 2px solid #fcd34d;
+        padding: 1rem 0.5rem;
+        background: #991b1b;
+        box-shadow: 5px 5px 0 rgba(0,0,0,0.3);
+    }
+
+    body.theme-tet #security-overlay::before {
+        content: "TIỀN VÀO NHƯ NƯỚC";
+        left: 5%;
+    }
+
+    body.theme-tet #security-overlay::after {
+        content: "LỘC ĐẾN ĐẦY NHÀ";
+        right: 5%;
+    }
+}
+/* ======================================================
+   FIX LỖI GIAO DIỆN MÀN HÌNH KHÓA (SECURITY FIX)
+   ====================================================== */
+
+/* 1. Xử lý tiêu đề "KÉT SẮT NGÀY TẾT" */
+body.theme-tet #security-overlay h2 {
+    visibility: visible !important; /* Hiện lại thẻ h2 để giữ chỗ (flow) */
+    color: transparent !important;  /* Ẩn chữ gốc "Private Mode" đi */
+    position: relative;
+    
+    /* Tăng chiều cao để chứa đủ chữ mới, tránh đè xuống dưới */
+    min-height: 60px; 
+    margin-bottom: 1rem !important; 
+    
+    /* Căn giữa flex để text giả (pseudo) nằm chính giữa */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+}
+
+body.theme-tet #security-overlay h2::before {
+    content: "KÉT SẮT NGÀY TẾT";
+    visibility: visible;
+    position: absolute;
+    
+    /* Căn giữa tuyệt đối trong thẻ h2 */
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    
+    width: 100%;
+    text-align: center;
+    
+    /* Style chữ */
+    color: #fcd34d !important; /* Vàng kim */
+    font-size: 2rem !important; /* To rõ hơn */
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-shadow: 3px 3px 0px #7f1d1d, 4px 4px 0px rgba(0,0,0,0.2) !important;
+    white-space: nowrap; /* Cấm xuống dòng lung tung */
+}
+
+/* 2. Đẩy dòng hướng dẫn "Nhập PIN..." xuống xa hơn */
+body.theme-tet #security-overlay p {
+    margin-top: 0.5rem !important;
+    margin-bottom: 2.5rem !important; /* Tăng khoảng cách với ô nhập PIN */
+    color: #fecaca !important; /* Hồng phấn sáng cho dễ đọc trên nền đỏ */
+    font-size: 1rem !important;
+    opacity: 0.9;
+    position: relative;
+    z-index: 5;
+}
+
+/* 3. Chỉnh lại Icon Ổ khóa (Cục vàng) */
+body.theme-tet .lock-icon-box {
+    margin-bottom: 1.5rem !important; /* Thu gọn khoảng cách trên */
+    transform: scale(1.1); /* Phóng to nhẹ cho hoành tráng */
+}
+
+/* 4. Chỉnh lại ô nhập PIN (Chấm tròn) */
+body.theme-tet .pin-display {
+    margin-bottom: 2.5rem !important;
+    background: rgba(0,0,0,0.3) !important; /* Nền tối hơn xíu cho nổi chấm */
+    border-color: #fcd34d !important;
+    padding: 15px 30px !important;
+}
+
+/* 5. (Fix thêm) Đảm bảo Background phủ kín và đẹp */
+body.theme-tet #security-overlay {
+    /* Đảm bảo flexbox căn giữa chuẩn */
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center !important;
+    padding-bottom: 50px; /* Đẩy nội dung lên trên một chút cho cân đối mắt */
+}

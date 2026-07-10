@@ -1,0 +1,1117 @@
+/* Cards */
+.glass-card {
+    background: var(--bg-card);
+    border: var(--border-width) solid var(--border-color);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    box-shadow: var(--shadow-pop);
+    display: flex;
+    flex-direction: column;
+    transition: 0.3s;
+}
+
+.glass-card:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: var(--shadow-hover);
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.25rem;
+}
+
+.card-title {
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.card-title i {
+    color: var(--primary);
+    font-size: 1.3rem;
+}
+
+/* Stats Grid */
+.grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+}
+
+.stat-card {
+    background: #fff;
+}
+
+.stat-icon-box {
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    margin-bottom: 1rem;
+    border: var(--border-width) solid var(--border-color);
+    box-shadow: 2px 2px 0px var(--border-color);
+    color: var(--text-main);
+}
+
+.bg-income {
+    background: #a7f3d0;
+}
+
+.bg-expense {
+    background: #fecaca;
+}
+
+.bg-debt {
+    background: #fde68a;
+}
+
+.stat-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.8rem;
+    font-weight: 800;
+    margin: 0.25rem 0;
+    letter-spacing: -1px;
+}
+
+/* Table */
+.table-wrapper {
+    overflow-x: auto;
+    margin: 0 -1.5rem -1.5rem -1.5rem;
+    border-top: var(--border-width) solid var(--border-color);
+}
+
+table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+th {
+    text-align: left;
+    padding: 1rem 1.5rem;
+    background: #f0f9ff;
+    color: var(--text-main);
+    font-size: 0.8rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    border-bottom: var(--border-width) solid var(--border-color);
+}
+
+td {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px dashed #cbd5e1;
+    color: var(--text-main);
+    vertical-align: middle;
+    font-weight: 600;
+}
+
+tr:last-child td {
+    border-bottom: none;
+}
+
+tr:hover td {
+    background: #fffbe6;
+}
+
+.tx-amount {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+/* Cancelled Row */
+.tx-cancelled td {
+    color: #9ca3af !important;
+    text-decoration: line-through;
+    opacity: 0.8;
+    background-color: #f3f4f6;
+}
+
+.tx-cancelled .badge {
+    background: #e4e4e7 !important;
+    color: #71717a !important;
+    border-color: #71717a !important;
+    text-decoration: none !important;
+}
+
+/* Badges */
+.badge {
+    padding: 0.3rem 0.8rem;
+    border-radius: 99px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 2px solid var(--border-color);
+    box-shadow: 1px 1px 0px rgba(0, 0, 0, 0.1);
+}
+
+.badge-success {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.badge-warning {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.badge-secondary {
+    background: #f4f4f5;
+    color: #52525b;
+}
+
+/* Buttons & FAB */
+.btn {
+    border: var(--border-width) solid var(--border-color);
+    padding: 0.6rem 1.2rem;
+    border-radius: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: 0.1s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    font-family: var(--font-cartoon);
+    box-shadow: 3px 3px 0px var(--border-color);
+}
+
+.btn:active {
+    transform: translate(3px, 3px);
+    box-shadow: 0 0 0;
+}
+
+.btn-primary {
+    background: var(--primary);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: var(--primary-hover);
+}
+
+.btn-outline {
+    background: white;
+    color: var(--text-main);
+}
+
+.btn-outline:hover {
+    background: #f0f9ff;
+}
+
+.btn-ghost {
+    background: white;
+    border: 2px solid transparent;
+    color: var(--text-muted);
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-ghost:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: var(--text-main);
+}
+
+.fab-btn {
+    position: fixed;
+    bottom: 50px !important;
+    right: 30px;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--warning);
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: var(--border-width) solid var(--border-color);
+    box-shadow: 5px 5px 0px var(--border-color);
+    font-size: 1.8rem;
+    cursor: pointer;
+    transition: 0.2s;
+    z-index: 100;
+}
+
+.fab-btn:hover {
+    transform: scale(1.1) rotate(10deg);
+    background: #fbbf24;
+}
+
+.fab-btn:active {
+    transform: translate(5px, 5px);
+    box-shadow: 0 0 0;
+}
+
+/* Modal */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(2px);
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.modal-overlay.active {
+    display: flex;
+    animation: bounceIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.modal-box {
+    background: white;
+    width: 100%;
+    max-width: 500px;
+    border-radius: 24px;
+    padding: 1.5rem;
+    border: 3px solid var(--border-color);
+    box-shadow: 8px 8px 0px rgba(0, 0, 0, 0.5);
+    position: relative;
+    max-height: 90vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.close-modal {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #fee2e2;
+    border: 2px solid var(--border-color);
+    color: var(--danger);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: 0.2s;
+    font-size: 1.2rem;
+    box-shadow: 2px 2px 0px var(--border-color);
+}
+
+.close-modal:hover {
+    transform: scale(1.1);
+    background: #fecaca;
+}
+
+.close-modal:active {
+    transform: translate(2px, 2px);
+    box-shadow: 0 0 0;
+}
+
+/* Forms */
+.form-input {
+    width: 100%;
+    padding: 0.8rem 1rem;
+    background: #fff;
+    border: 2px solid #cbd5e1;
+    border-radius: 12px;
+    color: var(--text-main);
+    font-size: 1rem;
+    font-weight: 600;
+    transition: 0.2s;
+    margin-bottom: 0.5rem;
+    font-family: var(--font-cartoon);
+}
+
+.form-input:focus {
+    border-color: var(--primary);
+    box-shadow: 4px 4px 0px #e9d5ff;
+}
+
+.form-label {
+    display: block;
+    font-size: 0.9rem;
+    font-weight: 800;
+    color: var(--text-main);
+    margin: 0.5rem 0;
+}
+
+/* --- NEW CHART UI --- */
+.chart-container-wrapper {
+    position: relative;
+    height: 300px;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.chart-center-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    pointer-events: none;
+}
+
+.chart-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.chart-balance {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.5rem;
+    font-weight: 900;
+    color: var(--text-main);
+    margin-top: 4px;
+}
+
+/* --- SỬA/THAY THẾ ĐOẠN NÀY --- */
+
+/* 1. Giảm chiều cao khung chat xuống cho gọn */
+.ai-assistant-card {
+    background: #fff;
+    border-radius: 20px;
+    /* Bo góc mềm hơn chút */
+    border: 2px solid var(--border-color);
+    box-shadow: 6px 6px 0px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+    height: 340px;
+    /* <--- GIẢM TỪ 500px XUỐNG 340px */
+    overflow: hidden;
+    position: relative;
+}
+
+/* 2. Header chat nhỏ gọn hơn */
+.chat-header {
+    padding: 0.6rem 1rem;
+    /* Giảm padding */
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 50px;
+    /* Cố định chiều cao header */
+}
+
+/* 3. Phần nội dung chat tự co giãn */
+.chat-log {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    background-color: #ffffff;
+    background-image: radial-gradient(#f1f5f9 1px, transparent 1px);
+    background-size: 16px 16px;
+}
+
+/* 4. Khung nhập liệu nhỏ gọn */
+.chat-input-area {
+    padding: 0.6rem;
+    background: #fff;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    height: 60px;
+    /* Cố định chiều cao footer */
+}
+
+.chat-input {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    /* Chữ nhỏ lại xíu cho gọn */
+}
+
+.btn-send-ai {
+    width: 38px;
+    /* Nhỏ lại */
+    height: 38px;
+    font-size: 0.9rem;
+}
+
+/* 5. Class mới cho khung Chart gọn */
+.compact-chart-card {
+    height: 340px;
+    /* Đồng bộ chiều cao với AI */
+    padding: 1rem !important;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Chat Bubbles */
+.chat-msg {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    max-width: 85%;
+    animation: msg-pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.chat-msg.user {
+    align-self: flex-end;
+    flex-direction: row-reverse;
+}
+
+.chat-bubble {
+    padding: 12px 16px;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    position: relative;
+    word-wrap: break-word;
+}
+
+.chat-msg.ai .chat-bubble {
+    background: #f1f5f9;
+    color: var(--text-main);
+    border-radius: 18px 18px 18px 4px;
+    border: 1px solid #e2e8f0;
+}
+
+.chat-msg.user .chat-bubble {
+    background: var(--primary);
+    color: white;
+    border-radius: 18px 18px 4px 18px;
+    box-shadow: 4px 4px 0px rgba(139, 92, 246, 0.2);
+}
+
+.chat-time {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+    opacity: 0.7;
+}
+
+.chat-msg.user .chat-time {
+    text-align: right;
+}
+
+/* Typing Indicator */
+.typing-indicator {
+    display: flex;
+    gap: 4px;
+    padding: 8px 12px;
+    background: #f1f5f9;
+    border-radius: 18px;
+    width: fit-content;
+}
+
+.typing-dot {
+    width: 6px;
+    height: 6px;
+    background: #94a3b8;
+    border-radius: 50%;
+    animation: typing 1.4s infinite ease-in-out both;
+}
+
+.typing-dot:nth-child(1) {
+    animation-delay: -0.32s;
+}
+
+.typing-dot:nth-child(2) {
+    animation-delay: -0.16s;
+}
+
+@keyframes typing {
+
+    0%,
+    80%,
+    100% {
+        transform: scale(0);
+    }
+
+    40% {
+        transform: scale(1);
+    }
+}
+
+@keyframes msg-pop {
+    0% {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Chat Input Area */
+.chat-input-area {
+    padding: 1rem;
+    background: #fff;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.chat-input-wrapper {
+    flex: 1;
+    position: relative;
+}
+
+.chat-input {
+    width: 100%;
+    padding: 12px 16px;
+    padding-right: 40px;
+    border-radius: 99px;
+    border: 2px solid #e2e8f0;
+    background: #f8fafc;
+    font-family: var(--font-cartoon);
+    font-size: 0.95rem;
+    transition: 0.2s;
+}
+
+.chat-input:focus {
+    background: #fff;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1);
+}
+
+.btn-send-ai {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: var(--text-main);
+    color: white;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: 0.2s;
+    font-size: 1.1rem;
+}
+
+.btn-send-ai:hover {
+    transform: scale(1.1) rotate(-10deg);
+    background: var(--primary);
+}
+
+.btn-send-ai:active {
+    transform: scale(0.9);
+}
+
+/* Year/Month Filters */
+.year-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.8rem 1rem;
+    color: var(--text-main);
+    font-weight: 800;
+    cursor: pointer;
+    border-radius: 12px;
+    margin-top: 0.5rem;
+    border: 2px solid transparent;
+    transition: 0.2s;
+}
+
+.year-header:hover {
+    background: #fff;
+    border-color: var(--border-color);
+    box-shadow: 3px 3px 0px #eee;
+}
+
+.year-months {
+    margin-left: 10px;
+    padding-left: 10px;
+    border-left: 3px dashed #cbd5e1;
+}
+
+.month-item {
+    padding: 0.6rem 1rem;
+    border-radius: 10px;
+    margin-bottom: 4px;
+    font-weight: 700;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: 0.2s;
+    display: flex;
+    align-items: center;
+}
+
+.month-item:hover {
+    color: var(--primary);
+    background: #fdf2f8;
+    transform: translateX(5px);
+}
+
+.month-item.active {
+    background: var(--primary);
+    color: white;
+    box-shadow: 3px 3px 0px var(--border-color);
+    border: 2px solid var(--border-color);
+}
+
+@keyframes bounceIn {
+    0% {
+        opacity: 0;
+        transform: scale(0.3);
+    }
+
+    50% {
+        opacity: 1;
+        transform: scale(1.05);
+    }
+
+    70% {
+        transform: scale(0.9);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Custom Popup Styles */
+#custom-popup-overlay.active .modal-box {
+    animation: popup-bounce 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes popup-bounce {
+    0% {
+        transform: scale(0.5);
+        opacity: 0;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Các loại icon màu sắc */
+.icon-success {
+    color: var(--success);
+    background: #d1fae5 !important;
+}
+
+.icon-error {
+    color: var(--danger);
+    background: #fee2e2 !important;
+}
+
+.icon-warning {
+    color: var(--warning);
+    background: #fef3c7 !important;
+}
+
+.icon-info {
+    color: var(--primary);
+    background: #ede9fe !important;
+}
+/* --- BANK CARD UI --- */
+.bank-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.bank-card {
+    position: relative;
+    height: 200px;
+    border-radius: 24px;
+    padding: 20px;
+    color: white;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s;
+    box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: box-shadow 0.3s ease, filter 0.3s ease;
+}
+
+.bank-card:hover {
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4);
+    filter: brightness(1.1);
+    z-index: 10;
+}
+
+/* Các mẫu màu thẻ (Gradient) */
+.card-theme-1 { background: linear-gradient(135deg, #1e3a8a, #3b82f6); } /* Xanh biển */
+.card-theme-2 { background: linear-gradient(135deg, #0f766e, #2dd4bf); } /* Xanh ngọc */
+.card-theme-3 { background: linear-gradient(135deg, #7e22ce, #d946ef); } /* Tím mộng mơ */
+.card-theme-4 { background: linear-gradient(135deg, #be123c, #fb7185); } /* Hồng đỏ */
+.card-theme-5 { background: linear-gradient(135deg, #1f2937, #4b5563); } /* Đen sang trọng */
+
+/* Họa tiết nền mờ ảo */
+.card-bg-deco {
+    position: absolute;
+    top: -50px;
+    right: -50px;
+    width: 200px;
+    height: 200px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    filter: blur(40px);
+    z-index: 0;
+}
+
+/* Nội dung bên trong thẻ */
+.card-content {
+    position: relative;
+    z-index: 1;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.bank-logo {
+    font-size: 1.1rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    opacity: 0.9;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.card-delete-btn {
+    background: rgba(0, 0, 0, 0.2);
+    border: none;
+    color: rgba(255, 255, 255, 0.7);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.card-delete-btn:hover {
+    background: rgba(220, 38, 38, 0.8);
+    color: white;
+}
+
+/* Chip điện tử */
+.card-chip-row {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-top: 10px;
+}
+
+.emv-chip {
+    width: 45px;
+    height: 35px;
+    background: linear-gradient(135deg, #fcd34d, #d97706);
+    border-radius: 6px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: inset 0 0 5px rgba(0,0,0,0.2);
+}
+
+/* Vẽ đường mạch trên chip bằng CSS */
+.emv-chip::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 0; right: 0; height: 1px;
+    background: rgba(0,0,0,0.3);
+}
+.emv-chip::after {
+    content: '';
+    position: absolute;
+    left: 50%; top: 0; bottom: 0; width: 1px;
+    background: rgba(0,0,0,0.3);
+}
+
+.contactless-icon {
+    font-size: 1.5rem;
+    opacity: 0.8;
+    transform: rotate(90deg);
+}
+
+/* Số tài khoản */
+.card-number {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-shadow: 2px 2px 0px rgba(0,0,0,0.2);
+    margin-top: 5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Phần dưới cùng */
+.card-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+}
+
+.card-holder-label, .card-balance-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    opacity: 0.7;
+    margin-bottom: 2px;
+}
+
+.card-holder-name {
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 1px;
+}
+
+.card-balance-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.3rem;
+    font-weight: 800;
+}
+/* --- NEW HISTORY UI (APP STYLE) --- */
+.history-header-card {
+    background: linear-gradient(135deg, #0f172a, #334155);
+    border-radius: 20px;
+    padding: 24px;
+    color: white;
+    box-shadow: 0 10px 20px -5px rgba(15, 23, 42, 0.4);
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 20px;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+/* Hiệu ứng nền header */
+.history-header-card::after {
+    content: '';
+    position: absolute;
+    top: -50%; right: -20%;
+    width: 200px; height: 200px;
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.4) 0%, transparent 70%);
+    filter: blur(40px);
+}
+
+.h-balance-label { font-size: 0.75rem; text-transform: uppercase; opacity: 0.7; letter-spacing: 1px; margin-bottom: 4px; }
+.h-balance-val { font-size: 2rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; letter-spacing: -1px; }
+.h-account-info { font-size: 0.9rem; opacity: 0.9; margin-top: 4px; display: flex; align-items: center; gap: 6px; }
+
+/* Danh sách giao dịch */
+.h-date-group { margin-bottom: 16px; }
+.h-date-label {
+    font-size: 0.8rem; font-weight: 700; color: #64748b;
+    margin-bottom: 8px; padding-left: 4px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    position: sticky; top: 0; background: #fff; z-index: 5;
+    padding-top: 4px; padding-bottom: 4px;
+}
+
+.h-item {
+    display: flex; align-items: center;
+    padding: 12px 16px;
+    background: #fff;
+    border: 1px solid #f1f5f9;
+    border-radius: 16px;
+    margin-bottom: 8px;
+    transition: all 0.2s ease;
+    cursor: default;
+}
+
+.h-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px -4px rgba(0,0,0,0.05);
+    border-color: #cbd5e1;
+}
+
+.h-icon {
+    width: 46px; height: 46px;
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.2rem;
+    margin-right: 14px;
+    flex-shrink: 0;
+}
+.h-icon.in { background: #dcfce7; color: #16a34a; }
+.h-icon.out { background: #fee2e2; color: #ef4444; }
+
+.h-info { flex: 1; overflow: hidden; }
+.h-title { font-weight: 700; font-size: 0.95rem; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.h-sub { font-size: 0.75rem; color: #94a3b8; margin-top: 3px; display:flex; align-items:center; gap:6px; }
+
+.h-amount-box { text-align: right; margin-left: 10px; flex-shrink: 0; }
+.h-amount { font-family: 'JetBrains Mono', monospace; font-weight: 800; font-size: 1rem; }
+.h-status { font-size: 0.65rem; font-weight: 600; margin-top: 3px; }
+
+.txt-green { color: #16a34a; }
+.txt-red { color: #dc2626; }
+.txt-gray { color: #94a3b8; text-decoration: line-through; }
+/* =========================================
+   Thêm vào cuối file 3-components.css
+   Áp dụng hiệu ứng nhấn mặc định
+========================================= */
+
+/* Áp dụng class press-effect cho tất cả thẻ button và các phần tử có class .btn */
+button, .btn, .clickable-card {
+    /* Kế thừa các thuộc tính transition từ 6-effects.css */
+    @extend .press-effect; 
+    /* LƯU Ý: Nếu bạn không dùng SASS/Preprocessor, hãy copy nội dung của .press-effect ở bước 1 vào đây thay vì dùng @extend */
+}
+
+/* NẾU DÙNG CSS THUẦN (VANILLA CSS) - HÃY DÙNG CÁCH NÀY TRONG 3-components.css: */
+button:active,
+.btn:active,
+.clickable-card:active {
+     transform: scale(0.95);
+     transition: transform 0.1s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+/* [THÊM MỚI] Style Tết Nguyên Đán */
+tr.tet-style td {
+    background-color: #fff1f2 !important; /* Nền đỏ phấn */
+    border-bottom: 1px solid #fecdd3 !important;
+}
+
+tr.tet-style:hover td {
+    background-color: #ffe4e6 !important;
+}
+
+tr.tet-style td div {
+    color: #be123c !important; /* Chữ đỏ đậm */
+}
+
+tr.tet-style .tx-amount {
+    color: #d97706 !important; /* Số tiền màu vàng đồng */
+    text-shadow: 1px 1px 0px rgba(251, 191, 36, 0.2);
+}
+
+tr.tet-style .badge {
+    background: #fef2f2 !important;
+    color: #9f1239 !important;
+    border-color: #f43f5e !important;
+}
+/* =========================================
+   [FIX] ẨN NÚT MENU TRÊN MÁY TÍNH
+   Chỉ hiện nút 3 gạch trên điện thoại
+   ========================================= */
+@media screen and (min-width: 769px) {
+    .mobile-menu-toggle {
+        display: none !important;
+    }
+}
+/* === CỐ ĐỊNH HEADER POPUP THÊM GIAO DỊCH === */
+#modal-tx .modal-box {
+    overflow: hidden !important; /* Khóa cuộn của toàn bộ vỏ popup */
+    padding-bottom: 0 !important; /* Bỏ padding đáy để form tự quản lý */
+}
+
+#modal-tx #form-tx {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto; /* Chỉ cho phép cuộn riêng phần form nhập liệu */
+    padding-bottom: 1.5rem; /* Trả lại khoảng cách đáy cho form */
+    padding-right: 5px; /* Tạo một chút không gian cho thanh cuộn */
+}
+/* =========================================
+   STYLE VĨNH VIỄN CHO LỊCH SỬ GIAO DỊCH LỄ
+========================================= */
+/* Style 8/3: Tone Hồng xịn xò */
+tr.holiday-83-style td {
+    background-color: #fdf2f8 !important; 
+    border-bottom: 1px solid #fbcfe8 !important;
+}
+tr.holiday-83-style:hover td { background-color: #fce7f3 !important; }
+tr.holiday-83-style td div { color: #831843 !important; } 
+tr.holiday-83-style .tx-amount { color: #db2777 !important; text-shadow: 1px 1px 0px rgba(219, 39, 119, 0.2); }
+tr.holiday-83-style .badge { background: #fff1f2 !important; color: #be185d !important; border-color: #f472b6 !important; }
+
+/* Style 30/4: Tone Đỏ - Vàng sao */
+tr.holiday-304-style td {
+    background-color: #fef2f2 !important; 
+    border-bottom: 1px solid #fca5a5 !important;
+}
+tr.holiday-304-style:hover td { background-color: #fee2e2 !important; }
+tr.holiday-304-style td div { color: #7f1d1d !important; } 
+tr.holiday-304-style .tx-amount { color: #d97706 !important; text-shadow: 1px 1px 0px rgba(250, 204, 21, 0.5); } 
+tr.holiday-304-style .badge { background: #fffbeb !important; color: #dc2626 !important; border-color: #facc15 !important; }
+/* =========================================
+   FIX LỖI: THANH NGÂN SÁCH (THỰC CHI & NỢ)
+========================================= */
+
+/* 1. Phần nền của toàn bộ thanh (Màu xám nhạt để dễ nhìn) */
+.budget-track {
+    background-color: #e2e8f0 !important; 
+    border: 1px solid #cbd5e1; 
+    border-radius: 99px; 
+    overflow: hidden; 
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05); 
+    display: flex; /* Dùng flex để các vạch màu nối tiếp nhau mượt hơn */
+}
+
+/* 2. Thanh nét liền (Thực chi) - Mặc định là màu Xanh lá khi Ổn định */
+.budget-bar {
+    background-color: #10b981 !important; /* Xanh lá - Success */
+    height: 100%;
+    box-shadow: 2px 0 4px rgba(0,0,0,0.1); /* Tạo viền sáng để tách biệt với nét đứt */
+    transition: width 0.5s ease, background-color 0.3s;
+}
+
+/* 3. Thanh nét liền khi Tiêu hơi lố (Cảnh báo - Vàng) */
+.budget-bar.warning {
+    background-color: #f59e0b !important; 
+}
+
+/* 4. Thanh nét liền khi Sắp cạn ví hoặc Vỡ Kế Hoạch (Nguy hiểm - Đỏ) */
+.budget-bar.danger, 
+.budget-bar.budget-overload {
+    background-color: #ef4444 !important; 
+}
+/* 5. Ép thanh nét đứt (Nợ dự kiến) luôn luôn có màu ĐỎ */
+.budget-track > div:nth-child(2) {
+    background-color: #ef4444 !important; /* Màu đỏ */
+}
+/* Mở rộng popup giao dịch */
+.modal-content {
+    max-width: 650px !important; /* Bạn có thể tăng lên 700px hoặc 800px tùy ý thích */
+}
+
+/* Nếu bạn chỉ muốn mở rộng riêng popup thêm giao dịch (không ảnh hưởng popup khác) */
+#modal-transaction .modal-content,
+#modal-tx .modal-content {
+    max-width: 650px !important; 
+}
+/* Ép tất cả các Popup, Modal Giải trình/Bào chữa nổi lên lớp trên cùng */
+#custom-popup-overlay,
+[id*="popup"],
+[id*="explain"],
+[id*="reason"],
+[id*="defend"] {
+    z-index: 999999999 !important;
+}
