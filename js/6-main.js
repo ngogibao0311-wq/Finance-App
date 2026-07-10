@@ -1357,6 +1357,409 @@ app.events = {
     }
 };
 
+// ======================================================
+// CÔNG CỤ XUẤT PDF - XUẤT EXCEL - NHẬP EXCEL
+// ======================================================
+
+app.dataTools = {
+    open() {
+        const modal = document.getElementById('modal-data-tools');
+
+        if (modal) {
+            modal.classList.add('active');
+        }
+    },
+
+    close() {
+        const modal = document.getElementById('modal-data-tools');
+
+        if (modal) {
+            modal.classList.remove('active');
+        }
+    },
+
+    // Gọi lại chức năng xuất PDF cũ
+    runPdf() {
+        this.close();
+
+        const oldPdfButton = document.getElementById('btn-export-excel');
+
+        if (!oldPdfButton) {
+            return app.ui.popup.show(
+                'Không tìm thấy chức năng xuất PDF.',
+                'error'
+            );
+        }
+
+        // Chờ popup đóng rồi mới gọi popup PDF cũ
+        setTimeout(() => {
+            oldPdfButton.click();
+        }, 150);
+    },
+
+    // --------------------------------------------------
+    // XUẤT EXCEL
+    // --------------------------------------------------
+    exportExcel() {
+        if (!window.XLSX) {
+            return app.ui.popup.show(
+                'Thư viện Excel chưa tải xong. Hãy tải lại trang.',
+                'error'
+            );
+        }
+
+        const transactions = app.data.transactions || [];
+
+        if (transactions.length === 0) {
+            return app.ui.popup.show(
+                'Chưa có giao dịch nào để xuất.',
+                'warning'
+            );
+        }
+
+        try {
+            // Chuyển dữ liệu sang dạng Excel có thể đọc được
+            const excelRows = transactions.map(transaction => {
+                const row = {};
+
+                Object.entries(transaction).forEach(([key, value]) => {
+                    // Nếu có object hoặc array thì lưu dưới dạng JSON
+                    if (value !== null && typeof value === 'object') {
+                        row[key] = JSON.stringify(value);
+                    } else {
+                        row[key] = value;
+                    }
+                });
+
+                return row;
+            });
+
+            const workbook = XLSX.utils.book_new();
+            const worksheet = XLSX.utils.json_to_sheet(excelRows);
+
+            // Độ rộng một số cột
+            worksheet['!cols'] = [
+                { wch: 16 }, // id
+                { wch: 14 }, // type
+                { wch: 14 }, // status
+                { wch: 18 }, // amount
+                { wch: 35 }, // place
+                { wch: 25 }, // brand
+                { wch: 25 }, // source
+                { wch: 25 }, // destination
+                { wch: 28 }, // date
+                { wch: 30 }  // tags
+            ];
+
+            XLSX.utils.book_append_sheet(
+                workbook,
+                worksheet,
+                'Transactions'
+            );
+
+            const now = new Date();
+
+            const dateName = [
+                now.getFullYear(),
+                String(now.getMonth() + 1).padStart(2, '0'),
+                String(now.getDate()).padStart(2, '0')
+            ].join('-');
+
+            const fileName = `FinDash_Backup_${dateName}.xlsx`;
+
+            XLSX.writeFile(workbook, fileName);
+
+            this.close();
+
+            app.ui.popup.show(
+                `✅ Đã xuất Excel thành công:<br><b>${fileName}</b>`,
+                'success'
+            );
+        } catch (error) {
+            console.error('Lỗi xuất Excel:', error);
+
+            app.ui.popup.show(
+                `Lỗi khi xuất Excel: ${error.message}`,
+                'error'
+            );
+        }
+    },
+
+    // --------------------------------------------------
+    // NHẬP EXCEL
+    // --------------------------------------------------
+    importExcel(input) {
+        const file = input.files && input.files[0];
+
+        if (!file) {
+            return;
+        }
+
+        if (!window.XLSX) {
+            input.value = '';
+
+            return app.ui.popup.show(
+                'Thư viện Excel chưa tải xong. Hãy tải lại trang.',
+                'error'
+            );
+        }
+
+        const reader = new FileReader();
+
+        reader.onload = event => {
+            try {
+                const workbook = XLSX.read(
+                    event.target.result,
+                    { type: 'array' }
+                );
+
+                // Ưu tiên sheet Transactions
+                const sheetName = workbook.SheetNames.includes('Transactions')
+                    ? 'Transactions'
+                    : workbook.SheetNames[0];
+
+                if (!sheetName) {
+                    throw new Error('File Excel không có sheet dữ liệu.');
+                }
+
+                const worksheet = workbook.Sheets[sheetName];
+
+                const rows = XLSX.utils.sheet_to_json(
+                    worksheet,
+                    { defval: '' }
+                );
+
+                if (rows.length === 0) {
+                    throw new Error('File Excel không có giao dịch.');
+                }
+
+                const booleanFields = new Set([
+                    'isUnknownTime',
+                    'isCashback',
+                    'isTet',
+                    'is83',
+                    'is304',
+                    'isRefFullyLocked',
+                    'isOrderCodeFullyLocked',
+                    'excludeFromBudget',
+                    'excludeFromDashboard',
+                    'skipZalo'
+                ]);
+
+                const numberFields = new Set([
+                    'id',
+                    'amount',
+                    'discountAmount',
+                    'discountValue'
+                ]);
+
+                const parseBoolean = value => {
+                    if (typeof value === 'boolean') {
+                        return value;
+                    }
+
+                    const normalized = String(value)
+                        .trim()
+                        .toLowerCase();
+
+                    return [
+                        'true',
+                        '1',
+                        'yes',
+                        'có',
+                        'co',
+                        'x'
+                    ].includes(normalized);
+                };
+
+                const parseNumber = value => {
+                    if (typeof value === 'number') {
+                        return value;
+                    }
+
+                    const cleaned = String(value)
+                        .replace(/[^\d.-]/g, '');
+
+                    const number = Number(cleaned);
+
+                    return Number.isFinite(number) ? number : 0;
+                };
+
+                const parseDate = value => {
+                    // Excel có thể lưu ngày dưới dạng số
+                    if (
+                        typeof value === 'number' &&
+                        XLSX.SSF &&
+                        XLSX.SSF.parse_date_code
+                    ) {
+                        const excelDate = XLSX.SSF.parse_date_code(value);
+
+                        if (excelDate) {
+                            return new Date(
+                                excelDate.y,
+                                excelDate.m - 1,
+                                excelDate.d,
+                                excelDate.H || 12,
+                                excelDate.M || 0,
+                                excelDate.S || 0
+                            ).toISOString();
+                        }
+                    }
+
+                    const date = new Date(value);
+
+                    if (!Number.isNaN(date.getTime())) {
+                        return date.toISOString();
+                    }
+
+                    return new Date().toISOString();
+                };
+
+                const parsePossibleJSON = value => {
+                    if (typeof value !== 'string') {
+                        return value;
+                    }
+
+                    const trimmed = value.trim();
+
+                    if (
+                        !trimmed.startsWith('{') &&
+                        !trimmed.startsWith('[')
+                    ) {
+                        return value;
+                    }
+
+                    try {
+                        return JSON.parse(trimmed);
+                    } catch {
+                        return value;
+                    }
+                };
+
+                const importedTransactions = rows.map((row, index) => {
+                    const transaction = {};
+
+                    Object.entries(row).forEach(([rawKey, rawValue]) => {
+                        const key = rawKey.trim();
+
+                        if (!key) {
+                            return;
+                        }
+
+                        if (booleanFields.has(key)) {
+                            transaction[key] = parseBoolean(rawValue);
+                        } else if (numberFields.has(key)) {
+                            transaction[key] = parseNumber(rawValue);
+                        } else {
+                            transaction[key] = parsePossibleJSON(rawValue);
+                        }
+                    });
+
+                    // Nếu Excel không có ID thì tự tạo ID mới
+                    if (!transaction.id) {
+                        transaction.id = Date.now() + index;
+                    }
+
+                    transaction.amount =
+                        Number(transaction.amount) || 0;
+
+                    transaction.type =
+                        transaction.type || 'Chi tiêu';
+
+                    transaction.status =
+                        transaction.status || 'paid';
+
+                    transaction.place =
+                        transaction.place || 'Nhập từ Excel';
+
+                    transaction.source =
+                        transaction.source || 'Không xác định';
+
+                    transaction.tags =
+                        transaction.tags || '';
+
+                    transaction.date =
+                        parseDate(transaction.date);
+
+                    return transaction;
+                });
+
+                // Gộp dữ liệu theo ID
+                const transactionMap = new Map(
+                    (app.data.transactions || []).map(transaction => [
+                        String(transaction.id),
+                        transaction
+                    ])
+                );
+
+                let addedCount = 0;
+                let updatedCount = 0;
+
+                importedTransactions.forEach(transaction => {
+                    const key = String(transaction.id);
+
+                    if (transactionMap.has(key)) {
+                        const oldTransaction = transactionMap.get(key);
+
+                        transactionMap.set(key, {
+                            ...oldTransaction,
+                            ...transaction
+                        });
+
+                        updatedCount++;
+                    } else {
+                        transactionMap.set(key, transaction);
+                        addedCount++;
+                    }
+                });
+
+                app.data.transactions = Array
+                    .from(transactionMap.values())
+                    .sort((a, b) => {
+                        return new Date(b.date) - new Date(a.date);
+                    });
+
+                // Lưu xuống IndexedDB
+                app.storage.save();
+
+                // Vẽ lại giao diện
+                app.ui.init();
+                app.ui.renderAll();
+
+                this.close();
+
+                app.ui.popup.show(
+                    `✅ Nhập Excel thành công!<br>` +
+                    `Thêm mới: <b>${addedCount}</b><br>` +
+                    `Cập nhật: <b>${updatedCount}</b>`,
+                    'success'
+                );
+            } catch (error) {
+                console.error('Lỗi nhập Excel:', error);
+
+                app.ui.popup.show(
+                    `Không thể nhập Excel:<br>${error.message}`,
+                    'error'
+                );
+            } finally {
+                // Cho phép chọn lại chính file vừa nhập
+                input.value = '';
+            }
+        };
+
+        reader.onerror = () => {
+            input.value = '';
+
+            app.ui.popup.show(
+                'Không thể đọc file Excel.',
+                'error'
+            );
+        };
+
+        reader.readAsArrayBuffer(file);
+    }
+};
+
 document.addEventListener('DOMContentLoaded', () => app.init());
 
 document.addEventListener('contextmenu', function (e) {

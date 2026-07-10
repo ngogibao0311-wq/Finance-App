@@ -18,6 +18,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <!-- Thư viện Excel SheetJS -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 
     <link rel="stylesheet" href="css/1-variables.css">
@@ -118,11 +122,16 @@
                         class="fa-solid fa-cloud-arrow-down"></i></div>
                 <span class="menu-text">Tải Cloud</span>
             </div>
-            <div class="menu-item" id="btn-export-excel">
-                <div class="menu-icon" style="background:#fecdd3; color:#e11d48; border-radius:50%; padding:4px;"><i
-                        class="fa-solid fa-file-pdf"></i></div>
-                <span class="menu-text">Xuất PDF</span>
+            <div class="menu-item" id="btn-data-tools" onclick="app.dataTools.open()">
+                <div class="menu-icon" style="background:#f3e8ff; color:#7c3aed; border-radius:50%; padding:4px;">
+                    <i class="fa-solid fa-file-export"></i>
+                </div>
+
+                <span class="menu-text">Xuất / Nhập dữ liệu</span>
             </div>
+
+            <!-- Nút ẩn này giữ lại chức năng xuất PDF cũ -->
+            <button type="button" id="btn-export-excel" style="display:none;"></button>
             <div class="menu-item" onclick="app.ui.modals.reports.open()">
                 <div class="menu-icon" style="background:#fae8ff; color:#d946ef; border-radius:50%; padding:4px;"><i
                         class="fa-solid fa-chart-pie"></i></div>
@@ -1247,6 +1256,86 @@
     <div id="modal-cash-detail" class="modal-overlay" style="z-index: 100005;">
         <div class="modal-box" style="max-width: 800px; height: 80vh; display: flex; flex-direction: column;">
             <div id="cash-detail-content" style="display:flex; flex-direction:column; height:100%"></div>
+        </div>
+    </div>
+
+    <!-- POPUP XUẤT / NHẬP DỮ LIỆU -->
+    <div id="modal-data-tools" class="modal-overlay" style="z-index:100020;">
+        <div class="modal-box" style="max-width:460px;">
+
+            <div class="card-header">
+                <div class="card-title">
+                    <i class="fa-solid fa-database"></i>
+                    Xuất / Nhập dữ liệu
+                </div>
+
+                <button type="button" class="btn-ghost" onclick="app.dataTools.close()">
+                    &times;
+                </button>
+            </div>
+
+            <p style="color:var(--text-muted); margin-bottom:20px;">
+                Chọn thao tác bạn muốn thực hiện.
+            </p>
+
+            <div style="display:flex; flex-direction:column; gap:12px;">
+
+                <!-- XUẤT PDF -->
+                <button type="button" class="btn" onclick="app.dataTools.runPdf()" style="
+                    width:100%;
+                    justify-content:flex-start;
+                    padding:14px;
+                    background:#fee2e2;
+                    color:#dc2626;
+                    border:1px solid #fca5a5;
+                ">
+                    <i class="fa-solid fa-file-pdf" style="font-size:20px; width:28px;"></i>
+
+                    <span>
+                        <b>Xuất PDF</b><br>
+                        <small>Xuất báo cáo giao dịch dạng PDF</small>
+                    </span>
+                </button>
+
+                <!-- XUẤT EXCEL -->
+                <button type="button" class="btn" onclick="app.dataTools.exportExcel()" style="
+                    width:100%;
+                    justify-content:flex-start;
+                    padding:14px;
+                    background:#dcfce7;
+                    color:#15803d;
+                    border:1px solid #86efac;
+                ">
+                    <i class="fa-solid fa-file-excel" style="font-size:20px; width:28px;"></i>
+
+                    <span>
+                        <b>Xuất Excel</b><br>
+                        <small>Sao lưu toàn bộ giao dịch thành file Excel</small>
+                    </span>
+                </button>
+
+                <!-- NHẬP EXCEL -->
+                <button type="button" class="btn" onclick="document.getElementById('input-import-excel').click()" style="
+                    width:100%;
+                    justify-content:flex-start;
+                    padding:14px;
+                    background:#dbeafe;
+                    color:#1d4ed8;
+                    border:1px solid #93c5fd;
+                ">
+                    <i class="fa-solid fa-file-import" style="font-size:20px; width:28px;"></i>
+
+                    <span>
+                        <b>Nhập Excel</b><br>
+                        <small>Thêm hoặc cập nhật giao dịch từ Excel</small>
+                    </span>
+                </button>
+
+            </div>
+
+            <!-- Ô chọn file Excel ẩn -->
+            <input type="file" id="input-import-excel" accept=".xlsx,.xls" style="display:none;"
+                onchange="app.dataTools.importExcel(this)">
         </div>
     </div>
 
