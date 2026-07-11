@@ -1402,9 +1402,6 @@ app.dataTools = {
         }, 150);
     },
 
-    // --------------------------------------------------
-    // XUẤT EXCEL
-    // --------------------------------------------------
     exportExcel() {
         if (!window.XLSX) {
             return app.ui.popup.show(
@@ -1413,78 +1410,404 @@ app.dataTools = {
             );
         }
 
-        const transactions = app.data.transactions || [];
-
-        if (transactions.length === 0) {
-            return app.ui.popup.show(
-                'Chưa có giao dịch nào để xuất.',
-                'warning'
-            );
-        }
-
         try {
-            // Chuyển dữ liệu sang dạng Excel có thể đọc được
-            const excelRows = transactions.map(transaction => {
+            const workbook = XLSX.utils.book_new();
+
+            // Chuyển object/array lồng nhau thành chuỗi JSON
+            const serializeValue = value => {
+                if (value === null || value === undefined) {
+                    return '';
+                }
+
+                if (value instanceof Date) {
+                    return value.toISOString();
+                }
+
+                if (typeof value === 'object') {
+                    try {
+                        return JSON.stringify(value);
+                    } catch {
+                        return String(value);
+                    }
+                }
+
+                return value;
+            };
+
+            // Chuyển một object thành một dòng Excel
+            const serializeRecord = record => {
+                if (
+                    !record ||
+                    typeof record !== 'object' ||
+                    Array.isArray(record)
+                ) {
+                    return {
+                        value: serializeValue(record)
+                    };
+                }
+
                 const row = {};
 
-                Object.entries(transaction).forEach(([key, value]) => {
-                    // Nếu có object hoặc array thì lưu dưới dạng JSON
-                    if (value !== null && typeof value === 'object') {
-                        row[key] = JSON.stringify(value);
-                    } else {
-                        row[key] = value;
-                    }
+                Object.entries(record).forEach(([key, value]) => {
+                    row[key] = serializeValue(value);
                 });
 
                 return row;
-            });
+            };
 
-            const workbook = XLSX.utils.book_new();
-            const worksheet = XLSX.utils.json_to_sheet(excelRows);
+            // Chuyển object dạng map thành nhiều dòng
+            const mapToRows = (objectMap, idColumn = 'key') => {
+                if (!objectMap || typeof objectMap !== 'object') {
+                    return [];
+                }
 
-            // Độ rộng một số cột
-            worksheet['!cols'] = [
-                { wch: 16 }, // id
-                { wch: 14 }, // type
-                { wch: 14 }, // status
-                { wch: 18 }, // amount
-                { wch: 35 }, // place
-                { wch: 25 }, // brand
-                { wch: 25 }, // source
-                { wch: 25 }, // destination
-                { wch: 28 }, // date
-                { wch: 30 }  // tags
-            ];
+                return Object.entries(objectMap).map(([key, value]) => {
+                    if (
+                        value &&
+                        typeof value === 'object' &&
+                        !Array.isArray(value)
+                    ) {
+                        return {
+                            [idColumn]: key,
+                            ...serializeRecord(value)
+                        };
+                    }
 
-            XLSX.utils.book_append_sheet(
-                workbook,
-                worksheet,
-                'Transactions'
+                    return {
+                        [idColumn]: key,
+                        value: serializeValue(value)
+                    };
+                });
+            };
+
+            // Tự động thêm sheet và chỉnh độ rộng cột
+            const appendSheet = (sheetName, rows) => {
+                let safeRows = Array.isArray(rows) ? rows : [];
+
+                if (safeRows.length === 0) {
+                    safeRows = [{
+                        Thong_bao: 'Không có dữ liệu'
+                    }];
+                }
+
+                safeRows = safeRows.map(serializeRecord);
+
+                const worksheet = XLSX.utils.json_to_sheet(safeRows);
+
+                const headers = [
+                    ...new Set(
+                        safeRows.flatMap(row => Object.keys(row))
+                    )
+                ];
+
+                worksheet['!cols'] = headers.map(header => {
+                    let maxLength = Math.max(
+                        String(header).length,
+                        10
+                    );
+
+                    safeRows.forEach(row => {
+                        const cellLength = String(
+                            row[header] ?? ''
+                        ).length;
+
+                        maxLength = Math.max(
+                            maxLength,
+                            cellLength
+                        );
+                    });
+
+                    return {
+                        // Không để cột JSON rộng quá mức
+                        wch: Math.min(maxLength + 2, 50)
+                    };
+                });
+
+                XLSX.utils.book_append_sheet(
+                    workbook,
+                    worksheet,
+                    sheetName.substring(0, 31)
+                );
+            };
+
+            const transactions =
+                app.data.transactions || [];
+
+            const forecasts =
+                app.data.forecasts || [];
+
+            const installmentPlans =
+                app.data.installmentPlans || {};
+
+            const createdStatements =
+                app.data.createdStatements || {};
+
+            const loans =
+                app.data.loans || [];
+
+            const accounts =
+                app.data.accounts || [];
+
+            const cashWallets =
+                app.data.cashWallets || [];
+
+            /*
+             * Loại API key khỏi file Excel.
+             * Không nên đưa Gemini key hoặc token bí mật vào file.
+             */
+            const cleanConfigs = JSON.parse(
+                JSON.stringify(app.data.configs || {})
             );
 
+            delete cleanConfigs.apiKeys;
+
+            const debtOverrides =
+                cleanConfigs.debtOverrides || {};
+
+            // Tách điều chỉnh nợ thành sheet riêng
+            delete cleanConfigs.debtOverrides;
+
+            // ==========================================
+            // SHEET 1: TOÀN BỘ GIAO DỊCH
+            // Giữ tên Transactions để chức năng nhập cũ vẫn đọc được
+            // ==========================================
+            appendSheet(
+                'Transactions',
+                transactions
+            );
+
+            // ==========================================
+            // SHEET 2: QUẢN LÝ NỢ
+            // Các giao dịch chi tiêu chưa thanh toán
+            // ==========================================
+            const debtRows = transactions
+                .filter(transaction => {
+                    return (
+                        transaction.type === 'Chi tiêu' &&
+                        transaction.status === 'pending'
+                    );
+                })
+                .map(transaction => {
+                    let statementDate = '';
+                    let dueDate = '';
+
+                    try {
+                        if (
+                            app.logic &&
+                            typeof app.logic.getBillingInfo === 'function'
+                        ) {
+                            const billingInfo =
+                                app.logic.getBillingInfo(
+                                    transaction.source,
+                                    transaction.date
+                                );
+
+                            if (billingInfo?.statementDate) {
+                                statementDate =
+                                    new Date(
+                                        billingInfo.statementDate
+                                    ).toISOString();
+                            }
+
+                            if (billingInfo?.dueDate) {
+                                dueDate =
+                                    new Date(
+                                        billingInfo.dueDate
+                                    ).toISOString();
+                            }
+                        }
+                    } catch (error) {
+                        console.warn(
+                            'Không tính được hạn nợ:',
+                            error
+                        );
+                    }
+
+                    return {
+                        id: transaction.id,
+                        nguon_no: transaction.source || '',
+                        noi_dung: transaction.place || '',
+                        thuong_hieu: transaction.brand || '',
+                        so_tien: transaction.amount || 0,
+                        ngay_giao_dich: transaction.date || '',
+                        ngay_sao_ke: statementDate,
+                        han_thanh_toan: dueDate,
+                        ma_giao_dich: transaction.refId || '',
+                        ma_don_hang: transaction.orderCode || '',
+                        tags: transaction.tags || '',
+                        ghi_chu: transaction.note || '',
+                        trang_thai: transaction.status || ''
+                    };
+                });
+
+            appendSheet(
+                'Quan_ly_no',
+                debtRows
+            );
+
+            // ==========================================
+            // SHEET 3: KẾ HOẠCH TRẢ GÓP
+            // payments được lưu dưới dạng JSON trong một ô
+            // ==========================================
+            appendSheet(
+                'Tra_gop',
+                mapToRows(
+                    installmentPlans,
+                    'plan_id'
+                )
+            );
+
+            // ==========================================
+            // SHEET 4: SAO KÊ ĐÃ TẠO
+            // ==========================================
+            appendSheet(
+                'Sao_ke',
+                mapToRows(
+                    createdStatements,
+                    'statement_id'
+                )
+            );
+
+            // ==========================================
+            // SHEET 5: QUẢN LÝ VAY
+            // ==========================================
+            appendSheet(
+                'Khoan_vay',
+                loans
+            );
+
+            // ==========================================
+            // SHEET 6: NGÂN HÀNG
+            // ==========================================
+            appendSheet(
+                'Ngan_hang',
+                accounts
+            );
+
+            // ==========================================
+            // SHEET 7: VÍ TIỀN MẶT
+            // ==========================================
+            appendSheet(
+                'Vi_tien_mat',
+                cashWallets
+            );
+
+            // ==========================================
+            // SHEET 8: DỰ BÁO
+            // ==========================================
+            appendSheet(
+                'Du_bao',
+                forecasts
+            );
+
+            // ==========================================
+            // SHEET 9: CẤU HÌNH
+            // ==========================================
+            const configRows = Object
+                .entries(cleanConfigs)
+                .map(([key, value]) => ({
+                    cau_hinh: key,
+                    gia_tri: serializeValue(value)
+                }));
+
+            appendSheet(
+                'Cau_hinh',
+                configRows
+            );
+
+            // ==========================================
+            // SHEET 10: ĐIỀU CHỈNH NỢ THỦ CÔNG
+            // Bao gồm tiền gốc/phạt đã sửa trong Quản lý nợ
+            // ==========================================
+            appendSheet(
+                'Dieu_chinh_no',
+                mapToRows(
+                    debtOverrides,
+                    'nhom_no'
+                )
+            );
+
+            // ==========================================
+            // SHEET 11: BACKUP JSON ĐẦY ĐỦ
+            // Chia nhỏ để không vượt giới hạn ký tự của ô Excel
+            // ==========================================
+            const completeBackup = {
+                version: 2,
+                exportedAt: new Date().toISOString(),
+                transactions,
+                configs: cleanConfigs,
+                debtOverrides,
+                forecasts,
+                installmentPlans,
+                createdStatements,
+                loans,
+                accounts,
+                cashWallets
+            };
+
+            const backupJSON =
+                JSON.stringify(completeBackup);
+
+            const chunkSize = 30000;
+            const backupChunks = [];
+
+            for (
+                let index = 0;
+                index < backupJSON.length;
+                index += chunkSize
+            ) {
+                backupChunks.push({
+                    phan:
+                        Math.floor(index / chunkSize) + 1,
+                    noi_dung_json:
+                        backupJSON.substring(
+                            index,
+                            index + chunkSize
+                        )
+                });
+            }
+
+            appendSheet(
+                'Backup_JSON',
+                backupChunks
+            );
+
+            // Tên file
             const now = new Date();
 
             const dateName = [
                 now.getFullYear(),
                 String(now.getMonth() + 1).padStart(2, '0'),
-                String(now.getDate()).padStart(2, '0')
+                String(now.getDate()).padStart(2, '0'),
+                String(now.getHours()).padStart(2, '0'),
+                String(now.getMinutes()).padStart(2, '0')
             ].join('-');
 
-            const fileName = `FinDash_Backup_${dateName}.xlsx`;
+            const fileName =
+                `FinDash_Full_Backup_${dateName}.xlsx`;
 
-            XLSX.writeFile(workbook, fileName);
+            XLSX.writeFile(
+                workbook,
+                fileName
+            );
 
             this.close();
 
             app.ui.popup.show(
-                `✅ Đã xuất Excel thành công:<br><b>${fileName}</b>`,
+                `✅ Đã xuất toàn bộ dữ liệu Excel.<br>` +
+                `<b>${fileName}</b><br><br>` +
+                `Bao gồm giao dịch, quản lý nợ, trả góp, ` +
+                `vay, ngân hàng, ví tiền mặt, sao kê và cấu hình.`,
                 'success'
             );
         } catch (error) {
-            console.error('Lỗi xuất Excel:', error);
+            console.error(
+                'Lỗi xuất toàn bộ Excel:',
+                error
+            );
 
             app.ui.popup.show(
-                `Lỗi khi xuất Excel: ${error.message}`,
+                `Lỗi khi xuất Excel:<br>${error.message}`,
                 'error'
             );
         }
@@ -1496,9 +1819,7 @@ app.dataTools = {
     importExcel(input) {
         const file = input.files && input.files[0];
 
-        if (!file) {
-            return;
-        }
+        if (!file) return;
 
         if (!window.XLSX) {
             input.value = '';
@@ -1518,54 +1839,86 @@ app.dataTools = {
                     { type: 'array' }
                 );
 
-                // Ưu tiên sheet Transactions
-                const sheetName = workbook.SheetNames.includes('Transactions')
-                    ? 'Transactions'
-                    : workbook.SheetNames[0];
+                const hasSheet = name =>
+                    workbook.SheetNames.includes(name);
 
-                if (!sheetName) {
-                    throw new Error('File Excel không có sheet dữ liệu.');
-                }
+                const readSheet = name => {
+                    if (!hasSheet(name)) return [];
 
-                const worksheet = workbook.Sheets[sheetName];
+                    const worksheet = workbook.Sheets[name];
 
-                const rows = XLSX.utils.sheet_to_json(
-                    worksheet,
-                    { defval: '' }
-                );
+                    return XLSX.utils
+                        .sheet_to_json(worksheet, { defval: '' })
+                        .filter(row => {
+                            // Bỏ dòng thông báo được tạo khi sheet trống
+                            return !(
+                                Object.keys(row).length === 1 &&
+                                row.Thong_bao
+                            );
+                        });
+                };
 
-                if (rows.length === 0) {
-                    throw new Error('File Excel không có giao dịch.');
-                }
+                const parsePossibleJSON = value => {
+                    if (typeof value !== 'string') return value;
 
-                const booleanFields = new Set([
-                    'isUnknownTime',
-                    'isCashback',
-                    'isTet',
-                    'is83',
-                    'is304',
-                    'isRefFullyLocked',
-                    'isOrderCodeFullyLocked',
-                    'excludeFromBudget',
-                    'excludeFromDashboard',
-                    'skipZalo'
-                ]);
+                    const text = value.trim();
 
-                const numberFields = new Set([
-                    'id',
-                    'amount',
-                    'discountAmount',
-                    'discountValue'
-                ]);
+                    if (!text) return '';
 
-                const parseBoolean = value => {
-                    if (typeof value === 'boolean') {
+                    if (
+                        !text.startsWith('{') &&
+                        !text.startsWith('[')
+                    ) {
                         return value;
                     }
 
-                    const normalized = String(value)
-                        .trim()
-                        .toLowerCase();
+                    try {
+                        return JSON.parse(text);
+                    } catch {
+                        return value;
+                    }
+                };
+
+                const parseConfigValue = value => {
+                    if (typeof value !== 'string') return value;
+
+                    const text = value.trim();
+
+                    if (!text) return '';
+
+                    try {
+                        if (
+                            text.startsWith('{') ||
+                            text.startsWith('[') ||
+                            text === 'true' ||
+                            text === 'false' ||
+                            text === 'null' ||
+                            /^-?\d+(\.\d+)?$/.test(text)
+                        ) {
+                            return JSON.parse(text);
+                        }
+                    } catch {
+                        // Giữ nguyên chuỗi
+                    }
+
+                    return value;
+                };
+
+                const parseNumber = value => {
+                    if (typeof value === 'number') {
+                        return Number.isFinite(value) ? value : 0;
+                    }
+
+                    const cleaned = String(value ?? '')
+                        .replace(/[^\d.-]/g, '');
+
+                    const number = Number(cleaned);
+
+                    return Number.isFinite(number) ? number : 0;
+                };
+
+                const parseBoolean = value => {
+                    if (typeof value === 'boolean') return value;
 
                     return [
                         'true',
@@ -1574,30 +1927,21 @@ app.dataTools = {
                         'có',
                         'co',
                         'x'
-                    ].includes(normalized);
-                };
-
-                const parseNumber = value => {
-                    if (typeof value === 'number') {
-                        return value;
-                    }
-
-                    const cleaned = String(value)
-                        .replace(/[^\d.-]/g, '');
-
-                    const number = Number(cleaned);
-
-                    return Number.isFinite(number) ? number : 0;
+                    ].includes(
+                        String(value ?? '')
+                            .trim()
+                            .toLowerCase()
+                    );
                 };
 
                 const parseDate = value => {
-                    // Excel có thể lưu ngày dưới dạng số
                     if (
                         typeof value === 'number' &&
                         XLSX.SSF &&
                         XLSX.SSF.parse_date_code
                     ) {
-                        const excelDate = XLSX.SSF.parse_date_code(value);
+                        const excelDate =
+                            XLSX.SSF.parse_date_code(value);
 
                         if (excelDate) {
                             return new Date(
@@ -1620,49 +1964,179 @@ app.dataTools = {
                     return new Date().toISOString();
                 };
 
-                const parsePossibleJSON = value => {
-                    if (typeof value !== 'string') {
-                        return value;
-                    }
+                const parseRow = row => {
+                    const result = {};
 
-                    const trimmed = value.trim();
+                    Object.entries(row || {}).forEach(
+                        ([rawKey, rawValue]) => {
+                            const key = String(rawKey).trim();
 
-                    if (
-                        !trimmed.startsWith('{') &&
-                        !trimmed.startsWith('[')
-                    ) {
-                        return value;
-                    }
+                            if (!key) return;
 
-                    try {
-                        return JSON.parse(trimmed);
-                    } catch {
-                        return value;
-                    }
+                            result[key] =
+                                parsePossibleJSON(rawValue);
+                        }
+                    );
+
+                    return result;
                 };
 
-                const importedTransactions = rows.map((row, index) => {
-                    const transaction = {};
+                const isPlainObject = value => {
+                    return (
+                        value !== null &&
+                        typeof value === 'object' &&
+                        !Array.isArray(value)
+                    );
+                };
 
-                    Object.entries(row).forEach(([rawKey, rawValue]) => {
-                        const key = rawKey.trim();
+                const deepMerge = (target, source) => {
+                    if (!isPlainObject(source)) {
+                        return source;
+                    }
 
-                        if (!key) {
-                            return;
+                    const output = isPlainObject(target)
+                        ? { ...target }
+                        : {};
+
+                    Object.entries(source).forEach(
+                        ([key, value]) => {
+                            if (isPlainObject(value)) {
+                                output[key] = deepMerge(
+                                    output[key],
+                                    value
+                                );
+                            } else if (Array.isArray(value)) {
+                                output[key] =
+                                    JSON.parse(JSON.stringify(value));
+                            } else {
+                                output[key] = value;
+                            }
                         }
+                    );
 
-                        if (booleanFields.has(key)) {
-                            transaction[key] = parseBoolean(rawValue);
-                        } else if (numberFields.has(key)) {
-                            transaction[key] = parseNumber(rawValue);
-                        } else {
-                            transaction[key] = parsePossibleJSON(rawValue);
+                    return output;
+                };
+
+                const mergeArray = (
+                    currentData,
+                    importedData,
+                    getKey
+                ) => {
+                    const result = Array.isArray(currentData)
+                        ? [...currentData]
+                        : [];
+
+                    const indexMap = new Map();
+
+                    result.forEach((item, index) => {
+                        const key = getKey(item);
+
+                        if (key !== null && key !== undefined) {
+                            indexMap.set(String(key), index);
                         }
                     });
 
-                    // Nếu Excel không có ID thì tự tạo ID mới
+                    let added = 0;
+                    let updated = 0;
+
+                    (Array.isArray(importedData)
+                        ? importedData
+                        : []
+                    ).forEach(item => {
+                        const key = getKey(item);
+
+                        if (
+                            key !== null &&
+                            key !== undefined &&
+                            indexMap.has(String(key))
+                        ) {
+                            const index =
+                                indexMap.get(String(key));
+
+                            result[index] = {
+                                ...result[index],
+                                ...item
+                            };
+
+                            updated++;
+                        } else {
+                            result.push(item);
+
+                            if (
+                                key !== null &&
+                                key !== undefined
+                            ) {
+                                indexMap.set(
+                                    String(key),
+                                    result.length - 1
+                                );
+                            }
+
+                            added++;
+                        }
+                    });
+
+                    return {
+                        data: result,
+                        added,
+                        updated
+                    };
+                };
+
+                const normalizeTransaction = (
+                    rawRow,
+                    index = 0
+                ) => {
+                    const transaction = parseRow(rawRow);
+
+                    const numberFields = [
+                        'id',
+                        'amount',
+                        'discountAmount',
+                        'discountValue',
+                        'tempExtraFee'
+                    ];
+
+                    numberFields.forEach(field => {
+                        if (
+                            transaction[field] !== undefined &&
+                            transaction[field] !== ''
+                        ) {
+                            transaction[field] =
+                                parseNumber(transaction[field]);
+                        }
+                    });
+
+                    const booleanFields = [
+                        'isUnknownTime',
+                        'isCashback',
+                        'isTet',
+                        'is83',
+                        'is304',
+                        'isRefFullyLocked',
+                        'isOrderCodeFullyLocked',
+                        'excludeFromBudget',
+                        'excludeFromDashboard',
+                        'skipZalo',
+                        'isDeferred',
+                        'isSourceFixed',
+                        'isDateFixed',
+                        'isBrandFixed'
+                    ];
+
+                    booleanFields.forEach(field => {
+                        if (
+                            transaction[field] !== undefined &&
+                            transaction[field] !== ''
+                        ) {
+                            transaction[field] =
+                                parseBoolean(transaction[field]);
+                        }
+                    });
+
                     if (!transaction.id) {
-                        transaction.id = Date.now() + index;
+                        transaction.id =
+                            Date.now() + index;
                     }
 
                     transaction.amount =
@@ -1683,71 +2157,556 @@ app.dataTools = {
                     transaction.tags =
                         transaction.tags || '';
 
-                    transaction.date =
-                        parseDate(transaction.date);
+                    if (transaction.date) {
+                        transaction.date =
+                            parseDate(transaction.date);
+                    } else {
+                        transaction.date =
+                            new Date().toISOString();
+                    }
 
                     return transaction;
-                });
+                };
 
-                // Gộp dữ liệu theo ID
-                const transactionMap = new Map(
-                    (app.data.transactions || []).map(transaction => [
-                        String(transaction.id),
-                        transaction
-                    ])
-                );
+                const rowsToMap = (
+                    rows,
+                    primaryKey
+                ) => {
+                    const result = {};
 
-                let addedCount = 0;
-                let updatedCount = 0;
+                    rows.forEach((rawRow, index) => {
+                        const row = parseRow(rawRow);
 
-                importedTransactions.forEach(transaction => {
-                    const key = String(transaction.id);
+                        const key =
+                            row[primaryKey] ??
+                            row.id ??
+                            row.key ??
+                            index;
 
-                    if (transactionMap.has(key)) {
-                        const oldTransaction = transactionMap.get(key);
+                        delete row[primaryKey];
 
-                        transactionMap.set(key, {
-                            ...oldTransaction,
-                            ...transaction
-                        });
-
-                        updatedCount++;
-                    } else {
-                        transactionMap.set(key, transaction);
-                        addedCount++;
-                    }
-                });
-
-                app.data.transactions = Array
-                    .from(transactionMap.values())
-                    .sort((a, b) => {
-                        return new Date(b.date) - new Date(a.date);
+                        result[String(key)] = row;
                     });
 
-                // Lưu xuống IndexedDB
+                    return result;
+                };
+
+                const configRowsToObject = rows => {
+                    const result = {};
+
+                    rows.forEach(rawRow => {
+                        const row = parseRow(rawRow);
+
+                        const key =
+                            row.cau_hinh ??
+                            row.key;
+
+                        if (!key) return;
+
+                        const value =
+                            row.gia_tri ??
+                            row.value ??
+                            '';
+
+                        result[String(key)] =
+                            parseConfigValue(value);
+                    });
+
+                    return result;
+                };
+
+                const debtRowsToTransactions = rows => {
+                    return rows.map((rawRow, index) => {
+                        const row = parseRow(rawRow);
+
+                        return normalizeTransaction({
+                            id:
+                                row.id ||
+                                Date.now() + index,
+
+                            type: 'Chi tiêu',
+
+                            status:
+                                row.trang_thai ||
+                                row.status ||
+                                'pending',
+
+                            amount:
+                                row.so_tien ??
+                                row.amount ??
+                                0,
+
+                            place:
+                                row.noi_dung ||
+                                row.place ||
+                                'Khoản nợ',
+
+                            brand:
+                                row.thuong_hieu ||
+                                row.brand ||
+                                '',
+
+                            source:
+                                row.nguon_no ||
+                                row.source ||
+                                'Không xác định',
+
+                            destination:
+                                row.destination || '',
+
+                            date:
+                                row.ngay_giao_dich ||
+                                row.date ||
+                                new Date().toISOString(),
+
+                            refId:
+                                row.ma_giao_dich ||
+                                row.refId ||
+                                '',
+
+                            orderCode:
+                                row.ma_don_hang ||
+                                row.orderCode ||
+                                '',
+
+                            tags:
+                                row.tags || '',
+
+                            note:
+                                row.ghi_chu ||
+                                row.note ||
+                                ''
+                        }, index);
+                    });
+                };
+
+                // ==========================================
+                // 1. ĐỌC BACKUP JSON ĐẦY ĐỦ
+                // ==========================================
+                let importedData = {};
+
+                const backupRows =
+                    readSheet('Backup_JSON');
+
+                if (backupRows.length > 0) {
+                    const backupText = backupRows
+                        .sort((a, b) => {
+                            return (
+                                parseNumber(a.phan) -
+                                parseNumber(b.phan)
+                            );
+                        })
+                        .map(row => {
+                            return String(
+                                row.noi_dung_json || ''
+                            );
+                        })
+                        .join('');
+
+                    if (backupText) {
+                        importedData =
+                            JSON.parse(backupText);
+                    }
+                }
+
+                /*
+                 * Các sheet riêng được đọc sau Backup_JSON.
+                 * Vì vậy nếu người dùng sửa trực tiếp một sheet,
+                 * dữ liệu sheet đó sẽ được ưu tiên.
+                 */
+
+                // ==========================================
+                // 2. GIAO DỊCH
+                // ==========================================
+                if (hasSheet('Transactions')) {
+                    importedData.transactions =
+                        readSheet('Transactions')
+                            .map(normalizeTransaction);
+                }
+
+                // Sheet Quản lý nợ cập nhật lại các giao dịch pending
+                if (hasSheet('Quan_ly_no')) {
+                    const debtTransactions =
+                        debtRowsToTransactions(
+                            readSheet('Quan_ly_no')
+                        );
+
+                    const mergedDebts = mergeArray(
+                        importedData.transactions || [],
+                        debtTransactions,
+                        transaction => transaction.id
+                    );
+
+                    importedData.transactions =
+                        mergedDebts.data;
+                }
+
+                // ==========================================
+                // 3. TRẢ GÓP
+                // ==========================================
+                if (hasSheet('Tra_gop')) {
+                    importedData.installmentPlans =
+                        rowsToMap(
+                            readSheet('Tra_gop'),
+                            'plan_id'
+                        );
+                }
+
+                // ==========================================
+                // 4. SAO KÊ
+                // ==========================================
+                if (hasSheet('Sao_ke')) {
+                    importedData.createdStatements =
+                        rowsToMap(
+                            readSheet('Sao_ke'),
+                            'statement_id'
+                        );
+                }
+
+                // ==========================================
+                // 5. KHOẢN VAY
+                // ==========================================
+                if (hasSheet('Khoan_vay')) {
+                    importedData.loans =
+                        readSheet('Khoan_vay')
+                            .map(parseRow);
+                }
+
+                // ==========================================
+                // 6. NGÂN HÀNG
+                // ==========================================
+                if (hasSheet('Ngan_hang')) {
+                    importedData.accounts =
+                        readSheet('Ngan_hang')
+                            .map(parseRow);
+                }
+
+                // ==========================================
+                // 7. VÍ TIỀN MẶT
+                // ==========================================
+                if (hasSheet('Vi_tien_mat')) {
+                    importedData.cashWallets =
+                        readSheet('Vi_tien_mat')
+                            .map(parseRow);
+                }
+
+                // ==========================================
+                // 8. DỰ BÁO
+                // ==========================================
+                if (hasSheet('Du_bao')) {
+                    importedData.forecasts =
+                        readSheet('Du_bao')
+                            .map(parseRow);
+                }
+
+                // ==========================================
+                // 9. CẤU HÌNH
+                // ==========================================
+                if (hasSheet('Cau_hinh')) {
+                    importedData.configs =
+                        deepMerge(
+                            importedData.configs || {},
+                            configRowsToObject(
+                                readSheet('Cau_hinh')
+                            )
+                        );
+                }
+
+                // ==========================================
+                // 10. ĐIỀU CHỈNH NỢ
+                // ==========================================
+                if (hasSheet('Dieu_chinh_no')) {
+                    importedData.debtOverrides =
+                        rowsToMap(
+                            readSheet('Dieu_chinh_no'),
+                            'nhom_no'
+                        );
+                }
+
+                /*
+                 * Hỗ trợ file Excel cũ chỉ có một sheet.
+                 * Sheet đầu tiên sẽ được hiểu là Transactions.
+                 */
+                const recognizedSheets = [
+                    'Transactions',
+                    'Quan_ly_no',
+                    'Tra_gop',
+                    'Sao_ke',
+                    'Khoan_vay',
+                    'Ngan_hang',
+                    'Vi_tien_mat',
+                    'Du_bao',
+                    'Cau_hinh',
+                    'Dieu_chinh_no',
+                    'Backup_JSON'
+                ];
+
+                const hasRecognizedSheet =
+                    workbook.SheetNames.some(name =>
+                        recognizedSheets.includes(name)
+                    );
+
+                if (
+                    !hasRecognizedSheet &&
+                    workbook.SheetNames.length > 0
+                ) {
+                    const firstSheet =
+                        workbook.Sheets[
+                        workbook.SheetNames[0]
+                        ];
+
+                    importedData.transactions =
+                        XLSX.utils
+                            .sheet_to_json(
+                                firstSheet,
+                                { defval: '' }
+                            )
+                            .map(normalizeTransaction);
+                }
+
+                if (
+                    !importedData ||
+                    Object.keys(importedData).length === 0
+                ) {
+                    throw new Error(
+                        'File Excel không có dữ liệu FinDash hợp lệ.'
+                    );
+                }
+
+                // Không cho file Excel thay thế Gemini API Key
+                const currentApiKeys =
+                    app.data.configs?.apiKeys || {};
+
+                const currentDebtOverrides =
+                    app.data.configs?.debtOverrides || {};
+
+                let totalAdded = 0;
+                let totalUpdated = 0;
+
+                // ==========================================
+                // CẬP NHẬT GIAO DỊCH
+                // ==========================================
+                if (
+                    Array.isArray(
+                        importedData.transactions
+                    )
+                ) {
+                    const transactionResult =
+                        mergeArray(
+                            app.data.transactions || [],
+                            importedData.transactions,
+                            transaction =>
+                                transaction.id
+                        );
+
+                    app.data.transactions =
+                        transactionResult.data.sort(
+                            (a, b) =>
+                                new Date(b.date) -
+                                new Date(a.date)
+                        );
+
+                    totalAdded +=
+                        transactionResult.added;
+
+                    totalUpdated +=
+                        transactionResult.updated;
+                }
+
+                // ==========================================
+                // CẬP NHẬT DỰ BÁO
+                // ==========================================
+                if (
+                    Array.isArray(
+                        importedData.forecasts
+                    )
+                ) {
+                    const result = mergeArray(
+                        app.data.forecasts || [],
+                        importedData.forecasts,
+                        item =>
+                            item.id ??
+                            item.name ??
+                            null
+                    );
+
+                    app.data.forecasts = result.data;
+                    totalAdded += result.added;
+                    totalUpdated += result.updated;
+                }
+
+                // ==========================================
+                // CẬP NHẬT KHOẢN VAY
+                // ==========================================
+                if (Array.isArray(importedData.loans)) {
+                    const result = mergeArray(
+                        app.data.loans || [],
+                        importedData.loans,
+                        loan => {
+                            if (loan.id !== undefined) {
+                                return `id:${loan.id}`;
+                            }
+
+                            return [
+                                loan.lender || '',
+                                loan.createdDate ||
+                                loan.date ||
+                                '',
+                                loan.originalAmount ||
+                                loan.amount ||
+                                ''
+                            ].join('|');
+                        }
+                    );
+
+                    app.data.loans = result.data;
+                    totalAdded += result.added;
+                    totalUpdated += result.updated;
+                }
+
+                // ==========================================
+                // CẬP NHẬT NGÂN HÀNG
+                // ==========================================
+                if (
+                    Array.isArray(
+                        importedData.accounts
+                    )
+                ) {
+                    const result = mergeArray(
+                        app.data.accounts || [],
+                        importedData.accounts,
+                        account =>
+                            account.id ??
+                            account.accountId ??
+                            account.bankName ??
+                            account.name ??
+                            null
+                    );
+
+                    app.data.accounts = result.data;
+                    totalAdded += result.added;
+                    totalUpdated += result.updated;
+                }
+
+                // ==========================================
+                // CẬP NHẬT VÍ TIỀN MẶT
+                // ==========================================
+                if (
+                    Array.isArray(
+                        importedData.cashWallets
+                    )
+                ) {
+                    const result = mergeArray(
+                        app.data.cashWallets || [],
+                        importedData.cashWallets,
+                        wallet =>
+                            wallet.id ??
+                            wallet.walletId ??
+                            wallet.name ??
+                            null
+                    );
+
+                    app.data.cashWallets = result.data;
+                    totalAdded += result.added;
+                    totalUpdated += result.updated;
+                }
+
+                // ==========================================
+                // CẬP NHẬT TRẢ GÓP
+                // ==========================================
+                const importedInstallments =
+                    importedData.installmentPlans ||
+                    importedData.installments;
+
+                if (isPlainObject(importedInstallments)) {
+                    app.data.installmentPlans =
+                        deepMerge(
+                            app.data.installmentPlans || {},
+                            importedInstallments
+                        );
+                }
+
+                // ==========================================
+                // CẬP NHẬT SAO KÊ
+                // ==========================================
+                const importedStatements =
+                    importedData.createdStatements ||
+                    importedData.statements;
+
+                if (isPlainObject(importedStatements)) {
+                    app.data.createdStatements =
+                        deepMerge(
+                            app.data.createdStatements || {},
+                            importedStatements
+                        );
+                }
+
+                // ==========================================
+                // CẬP NHẬT CẤU HÌNH
+                // ==========================================
+                const importedConfigs = {
+                    ...(importedData.configs || {})
+                };
+
+                const overridesInsideConfigs =
+                    importedConfigs.debtOverrides || {};
+
+                delete importedConfigs.apiKeys;
+                delete importedConfigs.debtOverrides;
+
+                app.data.configs = deepMerge(
+                    app.data.configs || {},
+                    importedConfigs
+                );
+
+                // Luôn giữ API key đang có trên máy
+                app.data.configs.apiKeys =
+                    currentApiKeys;
+
+                // Cập nhật phần chỉnh sửa nợ thủ công
+                app.data.configs.debtOverrides =
+                    deepMerge(
+                        currentDebtOverrides,
+                        deepMerge(
+                            overridesInsideConfigs,
+                            importedData.debtOverrides || {}
+                        )
+                    );
+
+                // Sửa lại tag nếu hệ thống có hàm này
+                if (app.logic.fixAllTags) {
+                    app.logic.fixAllTags();
+                }
+
+                // Lưu toàn bộ xuống IndexedDB
                 app.storage.save();
 
-                // Vẽ lại giao diện
+                // Cập nhật giao diện
                 app.ui.init();
                 app.ui.renderAll();
 
                 this.close();
 
                 app.ui.popup.show(
-                    `✅ Nhập Excel thành công!<br>` +
-                    `Thêm mới: <b>${addedCount}</b><br>` +
-                    `Cập nhật: <b>${updatedCount}</b>`,
+                    `✅ Đã nhập và cập nhật toàn bộ dữ liệu!<br><br>` +
+                    `Thêm mới: <b>${totalAdded}</b><br>` +
+                    `Cập nhật: <b>${totalUpdated}</b><br><br>` +
+                    `Đã phục hồi giao dịch, nợ, trả góp, ` +
+                    `vay, ngân hàng, ví tiền mặt, sao kê và cấu hình.`,
                     'success'
                 );
             } catch (error) {
-                console.error('Lỗi nhập Excel:', error);
+                console.error(
+                    'Lỗi nhập toàn bộ Excel:',
+                    error
+                );
 
                 app.ui.popup.show(
                     `Không thể nhập Excel:<br>${error.message}`,
                     'error'
                 );
             } finally {
-                // Cho phép chọn lại chính file vừa nhập
+                // Cho phép chọn lại cùng một file
                 input.value = '';
             }
         };
