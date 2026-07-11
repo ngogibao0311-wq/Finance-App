@@ -937,16 +937,26 @@ app.events = {
             });
         }
 
-        ['cloud-bin-id', 'cloud-api-key', 'gemini-key', 'zalo-review-date'].forEach(id => {
-            document.getElementById(id).addEventListener('change', (e) => {
+        ['gemini-key', 'zalo-review-date'].forEach(id => {
+            const input = document.getElementById(id);
+
+            if (!input) return;
+
+            input.addEventListener('change', e => {
                 if (id === 'zalo-review-date') {
                     app.data.configs.zaloReviewDate = e.target.value;
                     app.logic.updateFees();
                     app.ui.renderZaloWidget();
                 }
-                if (id === 'cloud-bin-id') app.data.configs.apiKeys.cloudBin = e.target.value;
-                if (id === 'cloud-api-key') app.data.configs.apiKeys.cloudKey = e.target.value;
-                if (id === 'gemini-key') app.data.configs.apiKeys.gemini = e.target.value;
+
+                if (id === 'gemini-key') {
+                    if (!app.data.configs.apiKeys) {
+                        app.data.configs.apiKeys = {};
+                    }
+
+                    app.data.configs.apiKeys.gemini = e.target.value;
+                }
+
                 app.storage.save();
             });
         });
@@ -1157,53 +1167,48 @@ app.events = {
             }
         });
 
-        // Cloud sync buttons
-        // --- TÌM ĐOẠN NÀY TRONG 6-main.js ---
-        // 1. LƯU DỮ LIỆU LÊN CLOUD
+        // LƯU DỮ LIỆU LÊN FIREBASE CLOUD
         document.getElementById('btn-sync-cloud').onclick = async () => {
-            // Gọi hàm lưu sang GitHub Gist đã viết trong 3-storage.js
             const btn = document.getElementById('btn-sync-cloud');
             const originalContent = btn.innerHTML;
 
-            // Hiệu ứng Loading
-            btn.innerHTML = `<div class="menu-icon"><i class="fa-solid fa-spinner fa-spin"></i></div><span class="menu-text">Đang lưu...</span>`;
+            btn.innerHTML = `
+        <div class="menu-icon">
+            <i class="fa-solid fa-spinner fa-spin"></i>
+        </div>
+        <span class="menu-text">Đang lưu...</span>
+    `;
+
             btn.style.pointerEvents = 'none';
 
             try {
-                // Cập nhật key từ input vào data trước khi lưu
-                app.data.configs.apiKeys.cloudBin = document.getElementById('cloud-bin-id').value.trim();
-                app.data.configs.apiKeys.cloudKey = document.getElementById('cloud-api-key').value.trim();
-
-                // Gọi hàm chính từ file storage
                 await app.storage.saveToCloud();
-
-            } catch (e) {
-                console.error(e);
-                // app.storage.saveToCloud đã có alert lỗi rồi, không cần alert lại ở đây
+            } catch (error) {
+                console.error('Lỗi lưu Cloud:', error);
             } finally {
-                // Trả lại nút bấm
                 btn.innerHTML = originalContent;
                 btn.style.pointerEvents = 'auto';
             }
         };
 
-        // 2. TẢI DỮ LIỆU TỪ CLOUD
+        // TẢI DỮ LIỆU TỪ FIREBASE CLOUD
         document.getElementById('btn-load-cloud').onclick = async () => {
             const btn = document.getElementById('btn-load-cloud');
             const originalContent = btn.innerHTML;
 
-            btn.innerHTML = `<div class="menu-icon"><i class="fa-solid fa-spinner fa-spin"></i></div><span class="menu-text">Đang tải...</span>`;
+            btn.innerHTML = `
+        <div class="menu-icon">
+            <i class="fa-solid fa-spinner fa-spin"></i>
+        </div>
+        <span class="menu-text">Đang tải...</span>
+    `;
+
             btn.style.pointerEvents = 'none';
 
             try {
-                app.data.configs.apiKeys.cloudBin = document.getElementById('cloud-bin-id').value.trim();
-                app.data.configs.apiKeys.cloudKey = document.getElementById('cloud-api-key').value.trim();
-
-                // Gọi hàm chính từ file storage
                 await app.storage.loadFromCloud();
-
-            } catch (e) {
-                console.error(e);
+            } catch (error) {
+                console.error('Lỗi tải Cloud:', error);
             } finally {
                 btn.innerHTML = originalContent;
                 btn.style.pointerEvents = 'auto';

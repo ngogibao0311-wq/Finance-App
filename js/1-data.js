@@ -12,7 +12,7 @@ const app = {
             zaloLevel: 'standard',
             zaloReviewDate: '2025-06-30',
             guestMode: false,
-            apiKeys: { gemini: '', cloudBin: '', cloudKey: '' },
+            apiKeys: { gemini: '' },
             sidebarCollapsed: false,
             manualZaloRank: null,
             manualZaloAmount: null,

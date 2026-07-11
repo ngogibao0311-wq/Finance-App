@@ -304,10 +304,17 @@ app.ui = {
     },
 
     init() {
-        document.getElementById('cloud-bin-id').value = app.data.configs.apiKeys.cloudBin;
-        document.getElementById('cloud-api-key').value = app.data.configs.apiKeys.cloudKey;
-        document.getElementById('gemini-key').value = app.data.configs.apiKeys.gemini;
-        document.getElementById('zalo-review-date').value = app.data.configs.zaloReviewDate;
+        const geminiKeyInput = document.getElementById('gemini-key');
+
+        if (geminiKeyInput) {
+            geminiKeyInput.value =
+                app.data.configs.apiKeys?.gemini || '';
+        }
+
+        document.getElementById('zalo-review-date').value =
+            app.data.configs.zaloReviewDate;
+
+        // Các đoạn code còn lại giữ nguyên
         // 1. Lấy limit của tháng ĐANG CHỌN
         const currentMonth = app.data.filter.month;
         // Thêm ?. để kiểm tra an toàn, tránh lỗi khi object chưa được khởi tạo

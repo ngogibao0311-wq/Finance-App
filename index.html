@@ -188,22 +188,30 @@
                 </div>
             </div>
             <div id="config-inputs" style="display: flex; flex-direction: column; gap: 8px;">
-                <div style="display: flex; gap: 5px;">
-                    <input type="text" id="cloud-bin-id" class="config-input" placeholder="GitHub Gist ID"
-                        style="flex: 1; margin-bottom: 0;">
-                    <button class="btn-ghost" onclick="app.logic.copyToClipboard('cloud-bin-id')" title="Sao chép ID"
-                        style="padding: 0 10px; border: 2px solid var(--border-color); border-radius: 8px;">
-                        <i class="fa-regular fa-copy"></i>
-                    </button>
-                </div>
+                <div id="cloud-config-status" style="padding:10px; border:2px solid #bae6fd; border-radius:10px;
+    background:#f0f9ff; color:#075985;">
 
-                <div style="display: flex; gap: 5px;">
-                    <input type="password" id="cloud-api-key" class="config-input" placeholder="GitHub Token (Classic)"
-                        style="flex: 1; margin-bottom: 0;">
-                    <button class="btn-ghost" onclick="app.logic.copyToClipboard('cloud-api-key')" title="Sao chép Key"
-                        style="padding: 0 10px; border: 2px solid var(--border-color); border-radius: 8px;">
-                        <i class="fa-regular fa-copy"></i>
-                    </button>
+                    <div style="display:flex; align-items:center;
+        justify-content:space-between; gap:8px;
+        font-size:0.82rem; font-weight:800;">
+
+                        <span>
+                            <i class="fa-solid fa-cloud"></i>
+                            Cloud Firebase
+                        </span>
+
+                        <span style="font-size:0.68rem; padding:3px 7px;
+            border-radius:999px; background:#dcfce7;
+            color:#166534; white-space:nowrap;">
+                            Không cần GitHub Key
+                        </span>
+                    </div>
+
+                    <div style="margin-top:5px; font-size:0.72rem;
+        line-height:1.4; color:#0369a1;">
+                        Bấm <b>Lưu Cloud</b> hoặc <b>Tải Cloud</b>,
+                        sau đó đăng nhập Google khi hệ thống yêu cầu.
+                    </div>
                 </div>
 
                 <div style="display: flex; gap: 5px;">
