@@ -1989,34 +1989,98 @@ app.dataTools = {
                     );
                 };
 
-                const deepMerge = (target, source) => {
-                    if (!isPlainObject(source)) {
-                        return source;
-                    }
-
-                    const output = isPlainObject(target)
-                        ? { ...target }
-                        : {};
-
-                    Object.entries(source).forEach(
-                        ([key, value]) => {
-                            if (isPlainObject(value)) {
-                                output[key] = deepMerge(
-                                    output[key],
-                                    value
-                                );
-                            } else if (Array.isArray(value)) {
-                                output[key] =
-                                    JSON.parse(JSON.stringify(value));
-                            } else {
-                                output[key] = value;
-                            }
-                        }
+                const isEmptyImportedValue = value => {
+                    return (
+                        value === '' ||
+                        value === null ||
+                        value === undefined
                     );
-
-                    return output;
                 };
 
+                /*
+                 * Excel được ưu tiên nếu có giá trị.
+                 * Ô trống trong Excel không được xóa dữ liệu cũ.
+                 */
+                const mergeImportedData = (currentValue, importedValue) => {
+                    if (isEmptyImportedValue(importedValue)) {
+                        return currentValue;
+                    }
+
+                    if (Array.isArray(importedValue)) {
+                        return JSON.parse(
+                            JSON.stringify(importedValue)
+                        );
+                    }
+
+                    if (isPlainObject(importedValue)) {
+                        const result = isPlainObject(currentValue)
+                            ? { ...currentValue }
+                            : {};
+
+                        Object.entries(importedValue).forEach(
+                            ([key, value]) => {
+                                if (isEmptyImportedValue(value)) {
+                                    return;
+                                }
+
+                                result[key] = mergeImportedData(
+                                    result[key],
+                                    value
+                                );
+                            }
+                        );
+
+                        return result;
+                    }
+
+                    return importedValue;
+                };
+
+                /*
+                 * Chuẩn hóa object trước khi so sánh.
+                 * Không phụ thuộc thứ tự thuộc tính trong object.
+                 */
+                const normalizeForCompare = value => {
+                    if (
+                        value === undefined ||
+                        value === null ||
+                        value === ''
+                    ) {
+                        return null;
+                    }
+
+                    if (Array.isArray(value)) {
+                        return value.map(normalizeForCompare);
+                    }
+
+                    if (isPlainObject(value)) {
+                        return Object.keys(value)
+                            .sort()
+                            .reduce((result, key) => {
+                                result[key] =
+                                    normalizeForCompare(value[key]);
+
+                                return result;
+                            }, {});
+                    }
+
+                    return value;
+                };
+
+                const isSameData = (firstValue, secondValue) => {
+                    return JSON.stringify(
+                        normalizeForCompare(firstValue)
+                    ) === JSON.stringify(
+                        normalizeForCompare(secondValue)
+                    );
+                };
+
+                /*
+                 * Gộp dữ liệu dạng mảng:
+                 * - Trùng và giống: bỏ qua.
+                 * - Trùng khóa nhưng khác: cập nhật.
+                 * - Chưa tồn tại: thêm.
+                 */
                 const mergeArray = (
                     currentData,
                     importedData,
@@ -2031,55 +2095,180 @@ app.dataTools = {
                     result.forEach((item, index) => {
                         const key = getKey(item);
 
-                        if (key !== null && key !== undefined) {
+                        if (
+                            key !== null &&
+                            key !== undefined &&
+                            key !== ''
+                        ) {
                             indexMap.set(String(key), index);
                         }
                     });
 
                     let added = 0;
                     let updated = 0;
+                    let skipped = 0;
 
                     (Array.isArray(importedData)
                         ? importedData
                         : []
-                    ).forEach(item => {
-                        const key = getKey(item);
+                    ).forEach(importedItem => {
+                        const key = getKey(importedItem);
 
                         if (
                             key !== null &&
                             key !== undefined &&
+                            key !== '' &&
                             indexMap.has(String(key))
                         ) {
                             const index =
                                 indexMap.get(String(key));
 
-                            result[index] = {
-                                ...result[index],
-                                ...item
-                            };
+                            const currentItem =
+                                result[index];
 
-                            updated++;
-                        } else {
-                            result.push(item);
+                            const mergedItem =
+                                mergeImportedData(
+                                    currentItem,
+                                    importedItem
+                                );
 
                             if (
-                                key !== null &&
-                                key !== undefined
+                                isSameData(
+                                    currentItem,
+                                    mergedItem
+                                )
                             ) {
-                                indexMap.set(
-                                    String(key),
-                                    result.length - 1
-                                );
+                                // Có trên web rồi và không thay đổi
+                                skipped++;
+                                return;
                             }
 
-                            added++;
+                            // Có cùng ID nhưng Excel có dữ liệu khác
+                            result[index] = mergedItem;
+                            updated++;
+
+                            return;
                         }
+
+                        /*
+                         * Trường hợp không có ID:
+                         * kiểm tra toàn bộ nội dung để tránh nhập trùng.
+                         */
+                        const duplicated = result.some(
+                            currentItem =>
+                                isSameData(
+                                    currentItem,
+                                    importedItem
+                                )
+                        );
+
+                        if (duplicated) {
+                            skipped++;
+                            return;
+                        }
+
+                        const newItem =
+                            mergeImportedData(
+                                undefined,
+                                importedItem
+                            );
+
+                        result.push(newItem);
+
+                        if (
+                            key !== null &&
+                            key !== undefined &&
+                            key !== ''
+                        ) {
+                            indexMap.set(
+                                String(key),
+                                result.length - 1
+                            );
+                        }
+
+                        added++;
                     });
 
                     return {
                         data: result,
                         added,
-                        updated
+                        updated,
+                        skipped
+                    };
+                };
+
+                /*
+                 * Gộp dữ liệu dạng object/map:
+                 * dùng cho trả góp, sao kê, cấu hình,
+                 * điều chỉnh nợ...
+                 */
+                const mergeObjectMap = (
+                    currentMap,
+                    importedMap
+                ) => {
+                    const result = isPlainObject(currentMap)
+                        ? { ...currentMap }
+                        : {};
+
+                    let added = 0;
+                    let updated = 0;
+                    let skipped = 0;
+
+                    if (!isPlainObject(importedMap)) {
+                        return {
+                            data: result,
+                            added,
+                            updated,
+                            skipped
+                        };
+                    }
+
+                    Object.entries(importedMap).forEach(
+                        ([key, importedValue]) => {
+                            if (
+                                !Object.prototype.hasOwnProperty.call(
+                                    result,
+                                    key
+                                )
+                            ) {
+                                result[key] =
+                                    mergeImportedData(
+                                        undefined,
+                                        importedValue
+                                    );
+
+                                added++;
+                                return;
+                            }
+
+                            const currentValue = result[key];
+
+                            const mergedValue =
+                                mergeImportedData(
+                                    currentValue,
+                                    importedValue
+                                );
+
+                            if (
+                                isSameData(
+                                    currentValue,
+                                    mergedValue
+                                )
+                            ) {
+                                skipped++;
+                                return;
+                            }
+
+                            result[key] = mergedValue;
+                            updated++;
+                        }
+                    );
+
+                    return {
+                        data: result,
+                        added,
+                        updated,
+                        skipped
                     };
                 };
 
@@ -2404,7 +2593,7 @@ app.dataTools = {
                 // ==========================================
                 if (hasSheet('Cau_hinh')) {
                     importedData.configs =
-                        deepMerge(
+                        mergeImportedData(
                             importedData.configs || {},
                             configRowsToObject(
                                 readSheet('Cau_hinh')
@@ -2482,6 +2671,7 @@ app.dataTools = {
 
                 let totalAdded = 0;
                 let totalUpdated = 0;
+                let totalSkipped = 0;
 
                 // ==========================================
                 // CẬP NHẬT GIAO DỊCH
@@ -2511,6 +2701,9 @@ app.dataTools = {
 
                     totalUpdated +=
                         transactionResult.updated;
+
+                    totalSkipped +=
+                        transactionResult.skipped;
                 }
 
                 // ==========================================
@@ -2533,6 +2726,7 @@ app.dataTools = {
                     app.data.forecasts = result.data;
                     totalAdded += result.added;
                     totalUpdated += result.updated;
+                    totalSkipped += result.skipped;
                 }
 
                 // ==========================================
@@ -2562,6 +2756,7 @@ app.dataTools = {
                     app.data.loans = result.data;
                     totalAdded += result.added;
                     totalUpdated += result.updated;
+                    totalSkipped += result.skipped;
                 }
 
                 // ==========================================
@@ -2586,6 +2781,7 @@ app.dataTools = {
                     app.data.accounts = result.data;
                     totalAdded += result.added;
                     totalUpdated += result.updated;
+                    totalSkipped += result.skipped;
                 }
 
                 // ==========================================
@@ -2609,6 +2805,7 @@ app.dataTools = {
                     app.data.cashWallets = result.data;
                     totalAdded += result.added;
                     totalUpdated += result.updated;
+                    totalSkipped += result.skipped;
                 }
 
                 // ==========================================
@@ -2619,11 +2816,18 @@ app.dataTools = {
                     importedData.installments;
 
                 if (isPlainObject(importedInstallments)) {
-                    app.data.installmentPlans =
-                        deepMerge(
+                    const installmentResult =
+                        mergeObjectMap(
                             app.data.installmentPlans || {},
                             importedInstallments
                         );
+
+                    app.data.installmentPlans =
+                        installmentResult.data;
+
+                    totalAdded += installmentResult.added;
+                    totalUpdated += installmentResult.updated;
+                    totalSkipped += installmentResult.skipped;
                 }
 
                 // ==========================================
@@ -2634,11 +2838,18 @@ app.dataTools = {
                     importedData.statements;
 
                 if (isPlainObject(importedStatements)) {
-                    app.data.createdStatements =
-                        deepMerge(
+                    const statementResult =
+                        mergeObjectMap(
                             app.data.createdStatements || {},
                             importedStatements
                         );
+
+                    app.data.createdStatements =
+                        statementResult.data;
+
+                    totalAdded += statementResult.added;
+                    totalUpdated += statementResult.updated;
+                    totalSkipped += statementResult.skipped;
                 }
 
                 // ==========================================
@@ -2654,24 +2865,42 @@ app.dataTools = {
                 delete importedConfigs.apiKeys;
                 delete importedConfigs.debtOverrides;
 
-                app.data.configs = deepMerge(
-                    app.data.configs || {},
-                    importedConfigs
-                );
+                const configResult =
+                    mergeObjectMap(
+                        app.data.configs || {},
+                        importedConfigs
+                    );
 
-                // Luôn giữ API key đang có trên máy
+                app.data.configs =
+                    configResult.data;
+
+                // Không cho Excel ghi đè API Key trên máy
                 app.data.configs.apiKeys =
                     currentApiKeys;
 
+                totalAdded += configResult.added;
+                totalUpdated += configResult.updated;
+                totalSkipped += configResult.skipped;
+
                 // Cập nhật phần chỉnh sửa nợ thủ công
-                app.data.configs.debtOverrides =
-                    deepMerge(
-                        currentDebtOverrides,
-                        deepMerge(
-                            overridesInsideConfigs,
-                            importedData.debtOverrides || {}
-                        )
+                const importedOverrides =
+                    mergeImportedData(
+                        overridesInsideConfigs,
+                        importedData.debtOverrides || {}
                     );
+
+                const overrideResult =
+                    mergeObjectMap(
+                        currentDebtOverrides,
+                        importedOverrides
+                    );
+
+                app.data.configs.debtOverrides =
+                    overrideResult.data;
+
+                totalAdded += overrideResult.added;
+                totalUpdated += overrideResult.updated;
+                totalSkipped += overrideResult.skipped;
 
                 // Sửa lại tag nếu hệ thống có hàm này
                 if (app.logic.fixAllTags) {
@@ -2688,11 +2917,11 @@ app.dataTools = {
                 this.close();
 
                 app.ui.popup.show(
-                    `✅ Đã nhập và cập nhật toàn bộ dữ liệu!<br><br>` +
-                    `Thêm mới: <b>${totalAdded}</b><br>` +
-                    `Cập nhật: <b>${totalUpdated}</b><br><br>` +
-                    `Đã phục hồi giao dịch, nợ, trả góp, ` +
-                    `vay, ngân hàng, ví tiền mặt, sao kê và cấu hình.`,
+                    `✅ Đã kiểm tra và nhập dữ liệu Excel!<br><br>` +
+                    `➕ Thêm mới: <b>${totalAdded}</b><br>` +
+                    `🔄 Cập nhật khác biệt: <b>${totalUpdated}</b><br>` +
+                    `⏭️ Bỏ qua do đã giống: <b>${totalSkipped}</b><br><br>` +
+                    `Dữ liệu giống hoàn toàn sẽ không bị nhập lại.`,
                     'success'
                 );
             } catch (error) {
