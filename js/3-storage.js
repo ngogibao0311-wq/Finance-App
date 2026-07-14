@@ -147,8 +147,14 @@ app.storage = {
             updatedAt: new Date().toISOString()
         };
 
+        // --- BẢN VÁ LỖI NẰM Ở ĐÂY ---
+        // Dùng JSON.parse(JSON.stringify()) để lọc sạch toàn bộ các giá trị "undefined" 
+        // trong tất cả mảng/object trước khi đẩy lên Firebase
+        const safeDataToFirebase = JSON.parse(JSON.stringify(fullData));
+
         try {
-            const result = await window.firebaseCloud.save(fullData);
+            // Đẩy bản data đã làm sạch lên Cloud
+            const result = await window.firebaseCloud.save(safeDataToFirebase);
 
             alert(
                 "✅ Đã sao lưu lên Firebase thành công!\n" +

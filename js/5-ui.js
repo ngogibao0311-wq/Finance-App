@@ -3234,7 +3234,7 @@ app.ui = {
                 const [filterY, filterM] = app.data.filter.month.split('-').map(Number);
                 // Kiểm tra xem kỳ sao kê của nhóm này có khớp với tháng đang xem trên bộ lọc không
                 const isCurrentCycle = data.statementDate.getFullYear() === filterY && (data.statementDate.getMonth() + 1) === filterM;
-                
+
                 const cardBg = isCurrentCycle ? '#eff6ff' : 'white'; // Nền xanh dương nhạt cho kỳ hiện tại
                 const cardBorder = isCurrentCycle ? '#bfdbfe' : '#f1f5f9'; // Viền xanh
                 const highlightBadge = isCurrentCycle ? `<span style="font-size:0.6rem; background:#3b82f6; color:white; padding:2px 6px; border-radius:4px; margin-left:6px; font-weight:bold; white-space:nowrap;">Kỳ này</span>` : '';
@@ -3246,10 +3246,10 @@ app.ui = {
         ${selectBoxHTML} 
         
         <div style="flex: 1; display: flex; flex-direction: column; gap: 4px;">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                
-                <div style="font-weight: 700; color: ${isCurrentMonth ? '#1e3a8a' : '#334155'}; font-size: 0.9rem; line-height: 1.4; padding-right: 8px; display:flex; align-items:center; flex-wrap:wrap;">
-                    <span>${t.place}</span> ${highlightBadge}
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+        
+        <div style="font-weight: 700; color: ${isCurrentCycle ? '#1e3a8a' : '#334155'}; font-size: 0.9rem; line-height: 1.4; padding-right: 8px; display:flex; align-items:center; flex-wrap:wrap;">
+            <span>${t.place}</span> ${highlightBadge}
                     <button onclick="event.stopPropagation(); app.ui.modals.transaction.open(${t.id})" 
                             title="Xem/Sửa chi tiết"
                             style="border:none; background:rgba(0,0,0,0.05); width:24px; height:24px; border-radius:50%; margin-left:8px; cursor:pointer; color:#64748b; display:flex; align-items:center; justify-content:center; transition:0.2s;"
