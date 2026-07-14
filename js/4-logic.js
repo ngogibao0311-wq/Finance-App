@@ -681,7 +681,10 @@ app.logic = {
 
         if (sourceLower.includes('shopee') || sourceLower.includes('spay')) {
             const day = txDate.getDate();
-            const statementCutoffDay = 14;
+            
+            // SỬA TẠI ĐÂY: Đổi 14 thành 13
+            const statementCutoffDay = 13; 
+            
             const dueDay = 2;
 
             let sMonth = txDate.getMonth();
@@ -692,6 +695,7 @@ app.logic = {
                 if (sMonth > 11) { sMonth = 0; sYear++; }
             }
 
+            // Dòng này đã tự động gán giờ là 23:59:59 cho ngày chốt sổ
             dueResult.statementDate = new Date(sYear, sMonth, statementCutoffDay, 23, 59, 59);
 
             let dMonth = sMonth + 1;
