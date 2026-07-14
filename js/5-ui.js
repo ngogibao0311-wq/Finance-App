@@ -1095,6 +1095,375 @@ app.ui = {
         }
     },
     // -----------------------------------------------------
+    payUpcomingCreditGroup(encodedGroupKey) {
+        let groupKey = encodedGroupKey;
+
+        try {
+            groupKey = decodeURIComponent(
+                encodedGroupKey
+            );
+        } catch (e) {
+            console.warn(
+                'Không thể giải mã nhóm tín dụng:',
+                e
+            );
+        }
+
+        const getFreshGroup = () => {
+            return app.logic
+                .getUpcomingDebts()
+                .items
+                .find(item =>
+                    item.isCreditGroup === true &&
+                    item.groupKey === groupKey
+                );
+        };
+
+        const getGroupCounts = item => {
+            const transactionCount =
+                Array.isArray(item?.txIds)
+                    ? item.txIds.length
+                    : 0;
+
+            const installmentCount =
+                Array.isArray(item?.installmentRefs)
+                    ? item.installmentRefs.length
+                    : 0;
+
+            return {
+                transactionCount,
+                installmentCount,
+                totalCount:
+                    transactionCount +
+                    installmentCount
+            };
+        };
+
+        const item = getFreshGroup();
+        const firstCounts = getGroupCounts(item);
+
+        if (
+            !item ||
+            firstCounts.totalCount === 0
+        ) {
+            app.ui.popup.show(
+                'Không tìm thấy nhóm tín dụng hoặc nhóm này đã được thanh toán.',
+                'info'
+            );
+
+            return;
+        }
+
+        const totalPay =
+            (Number(item.amount) || 0) +
+            (Number(item.penalty) || 0);
+
+        const countText = [
+            firstCounts.transactionCount > 0
+                ? `${firstCounts.transactionCount} giao dịch`
+                : '',
+
+            firstCounts.installmentCount > 0
+                ? `${firstCounts.installmentCount} kỳ trả góp`
+                : ''
+        ]
+            .filter(Boolean)
+            .join(' + ');
+
+        app.ui.popup.confirm(
+            `Trả hết <b>${item.name}</b> – ` +
+            `${item.statementLabel || 'kỳ sao kê'}?` +
+            `<br><br>` +
+
+            `<b>${app.logic.formatCurrency(
+                totalPay
+            )}</b> cho ${countText}.<br>` +
+
+            `<span style="
+            font-size:0.8rem;
+            color:var(--text-muted)
+        ">` +
+            `Toàn bộ giao dịch và kỳ trả góp trong nhóm sẽ được đánh dấu đã trả.` +
+            `</span>`,
+
+            () => {
+                /*
+                 * Đọc lại dữ liệu để tránh trường hợp
+                 * người dùng vừa thay đổi khoản nợ.
+                 */
+                const freshItem = getFreshGroup();
+
+                if (!freshItem) {
+                    app.ui.popup.show(
+                        'Nhóm tín dụng đã thay đổi hoặc đã được thanh toán.',
+                        'info'
+                    );
+
+                    return;
+                }
+
+                /*
+                 * Các giao dịch tín dụng thường.
+                 */
+                const idSet = new Set(
+                    (
+                        Array.isArray(
+                            freshItem.txIds
+                        )
+                            ? freshItem.txIds
+                            : []
+                    ).map(id => String(id))
+                );
+
+                const pendingTxs =
+                    app.data.transactions.filter(t =>
+                        t.status === 'pending' &&
+                        idSet.has(String(t.id))
+                    );
+
+                /*
+                 * Các kỳ trả góp nằm trong cùng
+                 * kỳ sao kê.
+                 */
+                const pendingInstallments = [];
+
+                (
+                    Array.isArray(
+                        freshItem.installmentRefs
+                    )
+                        ? freshItem.installmentRefs
+                        : []
+                ).forEach(ref => {
+                    const plan =
+                        app.data.installmentPlans?.[
+                        ref.planId
+                        ];
+
+                    if (
+                        !plan ||
+                        !Array.isArray(plan.payments)
+                    ) {
+                        return;
+                    }
+
+                    const payment =
+                        plan.payments.find(p =>
+                            p.date ===
+                            ref.paymentDate
+                        );
+
+                    if (
+                        !payment ||
+                        payment.paid
+                    ) {
+                        return;
+                    }
+
+                    const totalDue =
+                        (Number(payment.amount) || 0) +
+                        (
+                            Number(
+                                payment.penaltyAmt
+                            ) || 0
+                        );
+
+                    const paidAmount =
+                        Number(
+                            payment.paidAmount
+                        ) || 0;
+
+                    const remaining = Math.max(
+                        0,
+                        totalDue - paidAmount
+                    );
+
+                    if (remaining > 0) {
+                        pendingInstallments.push({
+                            plan,
+                            payment,
+                            ref,
+                            totalDue,
+                            remaining
+                        });
+                    }
+                });
+
+                if (
+                    pendingTxs.length === 0 &&
+                    pendingInstallments.length === 0
+                ) {
+                    app.ui.popup.show(
+                        'Các khoản trong nhóm này đã được thanh toán.',
+                        'info'
+                    );
+
+                    app.ui.renderAll();
+                    return;
+                }
+
+                const paymentDate =
+                    app.logic.getPaymentDate();
+
+                /*
+                 * Đánh dấu các giao dịch tín dụng
+                 * thường là đã trả.
+                 */
+                pendingTxs.forEach(t => {
+                    t.status = 'paid';
+                    t.paidAt = paymentDate;
+                    t.paidByGroup =
+                        freshItem.groupKey;
+                });
+
+                /*
+                 * Đánh dấu tất cả kỳ trả góp
+                 * trong nhóm là đã trả đủ.
+                 */
+                pendingInstallments.forEach(
+                    ({ payment, totalDue }) => {
+                        payment.paidAmount =
+                            totalDue;
+
+                        payment.paid = true;
+                        payment.paidAt =
+                            paymentDate;
+
+                        payment.paidByGroup =
+                            freshItem.groupKey;
+                    }
+                );
+
+                const destination =
+                    freshItem.source ||
+                    freshItem.name;
+
+                const baseId = Date.now();
+
+                const penalty =
+                    Number(
+                        freshItem.penalty
+                    ) || 0;
+
+                const principal =
+                    Number(
+                        freshItem.amount
+                    ) || 0;
+
+                /*
+                 * Tạo giao dịch trả tiền phạt,
+                 * nếu có.
+                 */
+                if (penalty > 0) {
+                    app.data.transactions.push({
+                        id: baseId,
+
+                        type: 'Chi tiêu',
+
+                        place:
+                            `Thanh toán phạt kỳ sao kê ` +
+                            `(${freshItem.name})`,
+
+                        source: 'Tiền mặt',
+                        destination: destination,
+
+                        amount: penalty,
+                        date: paymentDate,
+
+                        tags:
+                            '#nop_phat ' +
+                            '#tra_het_ky_sao_ke',
+
+                        status: 'paid',
+
+                        creditGroupKey:
+                            freshItem.groupKey
+                    });
+                }
+
+                /*
+                 * Tạo duy nhất một giao dịch thanh toán
+                 * cho toàn bộ nhóm.
+                 */
+                if (principal > 0) {
+                    const hasInstallment =
+                        pendingInstallments.length > 0;
+
+                    app.data.transactions.push({
+                        id: baseId + 1,
+
+                        type: 'Chi tiêu',
+
+                        place:
+                            `Trả hết kỳ sao kê ` +
+                            `(${freshItem.name})`,
+
+                        source: 'Tiền mặt',
+                        destination: destination,
+
+                        amount: principal,
+                        date: paymentDate,
+
+                        tags:
+                            `#thanh_toan_no ` +
+                            `${hasInstallment
+                                ? '#tra_gop '
+                                : ''
+                            }` +
+                            `#tra_het_ky_sao_ke`,
+
+                        status: 'paid',
+
+                        creditGroupKey:
+                            freshItem.groupKey,
+
+                        paidCreditTxIds:
+                            pendingTxs.map(
+                                t => t.id
+                            ),
+
+                        paidInstallmentRefs:
+                            pendingInstallments.map(
+                                ({ ref }) => ({
+                                    ...ref
+                                })
+                            )
+                    });
+                }
+
+                if (
+                    freshItem.overrideKey &&
+                    app.data.configs.debtOverrides
+                ) {
+                    delete app.data.configs
+                        .debtOverrides[
+                        freshItem.overrideKey
+                    ];
+                }
+
+                app.storage.save();
+                app.ui.renderAll();
+
+                if (
+                    app.effects &&
+                    typeof app.effects
+                        .triggerConfetti ===
+                    'function'
+                ) {
+                    app.effects.triggerConfetti();
+                }
+
+                app.ui.popup.show(
+                    `Đã trả hết ${freshItem.name} ` +
+                    `(${freshItem.statementLabel || 'kỳ sao kê'}) ` +
+                    `với tổng ${app.logic.formatCurrency(
+                        principal + penalty
+                    )}.`,
+
+                    'success'
+                );
+            }
+        );
+    },
 
     renderUpcomingDebts() {
         const data = app.logic.getUpcomingDebts();
@@ -1176,14 +1545,56 @@ app.ui = {
 
             // Tính toán ngày đếm ngược (Countdown)
             let dueDateObj;
-            if (item.date.includes('-') && item.date.length > 5) {
-                // Trường hợp Trả góp (YYYY-MM)
-                const [y, m] = item.date.split('-');
-                dueDateObj = new Date(y, m, targetDay);
+
+            if (item.dueDateISO) {
+                const [dueY, dueM, dueD] =
+                    item.dueDateISO
+                        .split('-')
+                        .map(Number);
+
+                dueDateObj = new Date(
+                    dueY,
+                    dueM - 1,
+                    dueD,
+                    23,
+                    59,
+                    59
+                );
+
+                targetDay = dueD;
+            } else if (
+                item.date.includes('-') &&
+                item.date.length > 5
+            ) {
+                // Trường hợp trả góp YYYY-MM.
+                const [itemY, itemM] =
+                    item.date
+                        .split('-')
+                        .map(Number);
+
+                dueDateObj = new Date(
+                    itemY,
+                    itemM - 1,
+                    targetDay,
+                    23,
+                    59,
+                    59
+                );
             } else {
-                // Trường hợp Zalo/Shopee/MoMo (D/M) -> Lấy tháng kế tiếp của bộ lọc
-                const [fY, fM] = app.data.filter.month.split('-').map(Number);
-                dueDateObj = new Date(fY, fM, targetDay);
+                // Dữ liệu cũ chưa có dueDateISO.
+                const [fY, fM] =
+                    app.data.filter.month
+                        .split('-')
+                        .map(Number);
+
+                dueDateObj = new Date(
+                    fY,
+                    fM,
+                    targetDay,
+                    23,
+                    59,
+                    59
+                );
             }
 
             const daysLeft = Math.ceil((dueDateObj - today) / (1000 * 60 * 60 * 24));
@@ -1193,8 +1604,27 @@ app.ui = {
             const dayStr = String(targetDay).padStart(2, '0');
 
             if (item.isOverdue) {
-                statusBadge = `<span style="background:#fee2e2; color:#991b1b; padding:2px 8px; border-radius:99px; font-size:0.65rem; font-weight:700;">Quá hạn ${item.overdueDays} ngày</span>`;
-                cardBorder = `border-left: 4px solid #ef4444;`;
+                const overdueCount =
+                    item.overdueDays ??
+                    item.daysOverdue ??
+                    Math.max(
+                        1,
+                        Math.abs(daysLeft)
+                    );
+
+                statusBadge =
+                    `<span style="` +
+                    `background:#fee2e2; ` +
+                    `color:#991b1b; ` +
+                    `padding:2px 8px; ` +
+                    `border-radius:99px; ` +
+                    `font-size:0.65rem; ` +
+                    `font-weight:700;">` +
+                    `Quá hạn ${overdueCount} ngày` +
+                    `</span>`;
+
+                cardBorder =
+                    `border-left: 4px solid #ef4444;`;
             } else if (daysLeft <= 5 && daysLeft >= 0) {
                 statusBadge = `<span style="background:#fef3c7; color:#92400e; padding:2px 8px; border-radius:99px; font-size:0.65rem; font-weight:700;">Còn ${daysLeft} ngày</span>`;
             } else {
@@ -1247,6 +1677,105 @@ app.ui = {
             }
 
             // 5. RENDER CARD
+            // Đếm giao dịch tín dụng thường
+            const regularCount =
+                Array.isArray(item.txIds)
+                    ? item.txIds.length
+                    : 0;
+
+            // Đếm các kỳ trả góp đã được gộp vào nhóm
+            const installmentCount =
+                Array.isArray(item.installmentRefs)
+                    ? item.installmentRefs.length
+                    : 0;
+
+            // Tổng số khoản trong cùng kỳ sao kê
+            const totalGroupCount =
+                regularCount + installmentCount;
+
+            // Tạo nội dung hiển thị số khoản
+            const groupCountText = [
+                regularCount > 0
+                    ? `${regularCount} giao dịch`
+                    : '',
+
+                installmentCount > 0
+                    ? `${installmentCount} kỳ trả góp`
+                    : ''
+            ]
+                .filter(Boolean)
+                .join(' + ');
+
+            // Dòng kỳ sao kê và số khoản
+            const groupMetaHTML =
+                item.isCreditGroup
+                    ? `
+        <div style="
+            font-size:0.7rem;
+            color:#64748b;
+            margin-top:2px;
+        ">
+            <i class="fa-solid fa-layer-group"></i>
+
+            ${item.statementLabel || ''}
+
+            ${groupCountText
+                        ? `
+                    <span style="margin:0 4px;">•</span>
+                    ${groupCountText}
+                    `
+                        : ''
+                    }
+        </div>
+        `
+                    : '';
+
+            // Nút trả toàn bộ kỳ sao kê
+            const payAllHTML =
+                item.isCreditGroup &&
+                    totalGroupCount > 0
+                    ? `
+        <div style="
+            display:flex;
+            justify-content:flex-end;
+            margin-top:10px;
+        ">
+            <button
+                type="button"
+
+                onclick="
+                    event.stopPropagation();
+
+                    app.ui.payUpcomingCreditGroup(
+                        '${encodeURIComponent(item.groupKey)}'
+                    )
+                "
+
+                style="
+                    width:auto;
+                    border:none;
+                    border-radius:9px;
+                    padding:8px 14px;
+                    cursor:pointer;
+                    background:${brandColor};
+                    color:white;
+                    font-weight:800;
+                    font-size:0.76rem;
+                    display:inline-flex;
+                    align-items:center;
+                    justify-content:center;
+                    gap:6px;
+                    box-shadow:
+                        0 3px 8px
+                        rgba(15,23,42,0.12);
+                "
+            >
+                <i class="fa-solid fa-circle-check"></i>
+                Trả hết kỳ này
+            </button>
+        </div>
+        `
+                    : '';
             const hiddenClass = index >= 3 ? 'upcoming-hidden-item' : '';
             const hiddenStyle = index >= 3 ? 'display:none;' : '';
 
@@ -1261,7 +1790,11 @@ app.ui = {
                             ${brandLogo}
                             <div>
                                 <div style="font-weight:700; font-size:0.95rem; color:#334155; line-height:1.2;">${item.name}</div>
-                                <div style="font-size:0.75rem; color:#94a3b8;">${item.date}</div>
+                                <div style="font-size:0.75rem; color:#94a3b8;">
+    Hạn ${item.date}
+</div>
+
+${groupMetaHTML}
                             </div>
                         </div>
                         ${statusBadge}
@@ -1275,7 +1808,8 @@ app.ui = {
                     </div>
 
                     ${minPayHTML}
-                </div>
+${payAllHTML}
+</div>
             </div>`;
         }).join('');
 
@@ -2638,17 +3172,12 @@ app.ui = {
             // [FIX QUAN TRỌNG 1] TẠO DANH SÁCH ID CỦA NHÓM NÀY
             // Để khi trả nợ, chỉ gạch đúng các giao dịch này, không gạch nhầm tháng sau
             const groupTxIds = data.txs.map(t => t.id).join(',');
-            const groupedTxCount = data.txs.filter(
-                t => !(t.tags || '').includes('#phi_dich_vu')
-            ).length || data.txs.length;
 
             let penaltyHTML = '';
             let lateFee = 0;
             const source = data.source;
             const dueDate = data.dueDate;
             const statementDate = data.statementDate;
-            const statementLabel =
-                `${String(statementDate.getMonth() + 1).padStart(2, '0')}/${statementDate.getFullYear()}`;
 
             const now = new Date();
             const diffTime = now - dueDate;
@@ -3024,44 +3553,17 @@ app.ui = {
             const isMomo = source.includes('MoMo');
 
             // [FIX 3] THÊM data-ids VÀO NÚT TRẢ TOÀN BỘ
-            actionsHTML += `<div class="action-row" style="gap:12px; align-items:center;">
-    <input type="checkbox"
-           class="pay-all-check"
-           data-source="${source}"
-           data-amount="${totalPay}"
-           data-fee="${data.fee}"
-           data-penalty="${lateFee}"
-           data-ids="${groupTxIds}"
-           data-count="${groupedTxCount}"
-           data-statement="${statementLabel}"
-           style="display:none;">
-
-    <div style="display:flex; flex-direction:column; gap:2px; flex:1;">
-        <b style="font-size:0.85rem;">
-            ${groupedTxCount} giao dịch · Kỳ ${statementLabel}
-        </b>
-
-        <span style="font-size:0.72rem; color:var(--text-muted);">
-            Thanh toán toàn bộ gốc, phí và phạt của nhóm này
-        </span>
-    </div>
-
-    <button type="button"
-            class="btn btn-primary btn-sm"
-            style="white-space:nowrap; display:inline-flex; align-items:center; gap:6px;"
-            onclick="
-                const input = this.closest('.action-row').querySelector('.pay-all-check');
-                input.checked = true;
-                input.dispatchEvent(new Event('change', { bubbles: true }));
-            ">
-        <i class="fa-solid fa-circle-check"></i>
-        Trả hết kỳ
-    </button>
-
-    <span class="text-success"
-          style="font-weight:800; white-space:nowrap;">
-        ${app.logic.formatCurrency(totalPay)}
-    </span>
+            actionsHTML += `<div class="action-row">
+    <label style="display:flex; align-items:center; gap:0.5rem">
+        <input type="checkbox" class="pay-all-check" 
+               data-source="${source}" 
+               data-amount="${totalPay}" 
+               data-fee="${data.fee}" 
+               data-penalty="${lateFee}" 
+               data-ids="${groupTxIds}"> 
+        Trả toàn bộ
+    </label>
+    <span class="text-success">${app.logic.formatCurrency(totalPay)}</span>
 </div>`;
             // --- TÌM ĐOẠN NÀY ---
             const isShopee = source.toLowerCase().includes('shopee') || source.toLowerCase().includes('spay');
@@ -3153,10 +3655,10 @@ app.ui = {
                 }
 
                 actionsHTML = `<div class="action-row" style="flex-direction: column; align-items: flex-start;">
-                                ${minPayHTML}
-                            </div>
-                            ${actionsHTML}
-                            `;
+    ${minPayHTML}
+</div>
+${actionsHTML}
+`;
 
                 let installmentHTML = '';
                 if (isOpenWindow) {
@@ -3212,44 +3714,7 @@ app.ui = {
             // ----------------------------------------------------
 
             /* --- [GIAO DIỆN MỚI] DANH SÁCH CHI TIẾT KHOẢN NỢ --- */
-            const txListHTML = data.txs.length > 0 ? `
-    <details style="
-        background:#f8fafc;
-        border:1px solid #e2e8f0;
-        border-radius:8px;
-        margin-bottom:12px;
-        overflow:hidden;
-    ">
-        <summary style="
-            cursor:pointer;
-            padding:10px 12px;
-            font-size:0.82rem;
-            font-weight:700;
-            color:#475569;
-            display:flex;
-            align-items:center;
-            justify-content:space-between;
-            gap:8px;
-        ">
-            <span>
-                <i class="fa-solid fa-layer-group"></i>
-                ${data.txs.length} giao dịch tín dụng đã gộp
-            </span>
-
-            <span style="
-                font-family:var(--font-mono);
-                color:var(--primary);
-            ">
-                ${app.logic.formatCurrency(data.total + data.fee)}
-            </span>
-        </summary>
-
-        <div style="
-            padding:10px;
-            border-top:1px dashed #cbd5e1;
-            max-height:300px;
-            overflow-y:auto;
-        ">
+            const txListHTML = data.txs.length > 0 ? `<div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; margin-bottom: 12px; max-height: 300px; overflow-y: auto;">
                 ${data.txs.map(t => {
                 const isShopee = source.toLowerCase().includes('shopee') || source.toLowerCase().includes('spay');
 
@@ -3349,13 +3814,9 @@ app.ui = {
         </div>
     </div>`;
             }).join('')}
-        </div>
-    </details>` : '';
+            </div>` : '';
 
-            const planLabel = `${source}
-    <span style="font-size:0.7em; font-weight:normal; opacity:0.7">
-        (Kỳ ${statementLabel} · ${groupedTxCount} GD)
-    </span>`;
+            const planLabel = `${source} <span style="font-size:0.7em; font-weight:normal; opacity:0.7">(Kỳ ${statementDate.getMonth() + 1})</span>`;
             const addMissedTxBtn = `<i class="fa-solid fa-circle-plus" style="cursor:pointer; color:var(--primary); margin-left:0.5rem;" onclick="app.ui.modals.missedTx.open('${source}', '${data.safeDateStr}')" title="Thêm giao dịch sót vào kỳ này"></i>`;
 
             htmlBuilder += `<div class="plan">

@@ -3,20 +3,20 @@ app.logic = {
         if (app.data.configs.guestMode) return '**** ₫';
         return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
     },
-    
+
     getFilteredTxs() {
         let filteredTxs = app.data.transactions.filter(t => t.date.startsWith(app.data.filter.month));
-        
+
         return filteredTxs.sort((a, b) => {
             const dayA = new Date(a.date).toISOString().slice(0, 10);
             const dayB = new Date(b.date).toISOString().slice(0, 10);
-            
+
             if (dayA !== dayB) return new Date(b.date) - new Date(a.date);
-            
+
             // Đưa Không rõ giờ xuống cuối ngày
             if (a.isUnknownTime && !b.isUnknownTime) return 1;
             if (!a.isUnknownTime && b.isUnknownTime) return -1;
-            
+
             return new Date(b.date) - new Date(a.date) || b.id - a.id;
         });
     },
@@ -107,8 +107,11 @@ app.logic = {
 
         // --- LÀM LẠI TOÀN BỘ LOGIC ZALO PAY (FIX TRIỆT ĐỂ) ---
         const zaloTxs = allPendingTxs.filter(t => {
-            const s = t.source.toLowerCase();
-            return s.includes('zalo') || s.includes('priority') || s.includes('paylater');
+            const s = (t.source || '').toLowerCase();
+
+            // Không dùng "paylater" chung vì sẽ bắt nhầm
+            // ShopeePay và TikTok PayLater.
+            return s.includes('zalo') || s.includes('priority');
         });
 
         const zaloGroups = {};
@@ -221,8 +224,11 @@ app.logic = {
 
         // --- XỬ LÝ MOMO ---
         const momoTxs = allPendingTxs.filter(t => {
-            const s = t.source.toLowerCase();
-            return s.includes('momo') || s.includes('ví trả sau');
+            const s = (t.source || '').toLowerCase();
+
+            // Chỉ nhận nguồn có chữ MoMo, tránh bắt nhầm
+            // "Ví Trả Sau ShopeePay".
+            return s.includes('momo');
         });
 
         if (momoTxs.length > 0) {
@@ -443,38 +449,606 @@ app.logic = {
             });
         }
 
-        // --- XỬ LÝ TRẢ GÓP ---
-        if (app.data.installmentPlans) {
-            Object.values(app.data.installmentPlans).forEach(plan => {
-                plan.payments.forEach(payment => {
-                    if (payment.date <= filterMonthStr && !payment.paid) {
-                        const totalDue = payment.amount + (payment.penaltyAmt || 0);
-                        const remaining = totalDue - (payment.paidAmount || 0);
+        // ===== GOM CÁC GIAO DỊCH TÍN DỤNG THEO NỀN TẢNG + KỲ SAO KÊ =====
+        // Các khối phía trên vẫn được giữ để không phá logic cũ.
+        // Tại đây loại các thẻ tín dụng cũ và dựng lại theo từng kỳ sao kê.
 
-                        if (remaining > 0) {
-                            // --- THUẬT TOÁN TÍNH NGÀY QUÁ HẠN (TRẢ GÓP) ---
-                            const [py, pm] = payment.date.split('-').map(Number);
-                            const dueDateObj = new Date(py, pm, 0); // Lấy ngày cuối cùng của tháng trả góp
-                            const now = new Date();
+        items = items.filter(item =>
+            !['zalo', 'momo', 'shopee', 'tiktok', 'credit'].includes(item.type)
+        );
 
-                            // Reset giờ về 0 để tính tròn ngày
-                            now.setHours(0, 0, 0, 0);
-                            dueDateObj.setHours(0, 0, 0, 0);
+        // Tính lại tổng tín dụng theo từng kỳ sao kê.
+        // Các khoản trả góp và khoản vay sẽ được cộng tiếp ở phía dưới.
+        budgetPendingTotal = 0;
 
-                            const diffTime = now.getTime() - dueDateObj.getTime();
-                            const overdueDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-                            // ---------------------------------------------
+        const detectCreditPlatform = (source = '') => {
+            const raw = String(source || '').trim();
+            const s = raw.toLowerCase();
 
-                            budgetPendingTotal += remaining;
-                            items.push({
-                                type: 'installment',
-                                name: `Trả góp ${plan.source}`,
-                                amount: remaining,
-                                date: payment.date,
-                                isOverdue: overdueDays > 0,
-                                overdueDays: overdueDays > 0 ? overdueDays : 0 // Trả ra số ngày trễ
-                            });
+            if (s.includes('zalo') || s.includes('priority')) {
+                return {
+                    key: 'zalo',
+                    type: 'zalo',
+                    name: 'Zalo Pay',
+                    sourceName: 'Trả sau Zalo Pay'
+                };
+            }
+
+            if (s.includes('momo')) {
+                return {
+                    key: 'momo',
+                    type: 'momo',
+                    name: 'Ví Trả Sau MoMo',
+                    sourceName: 'Ví Trả Sau MoMo'
+                };
+            }
+
+            if (
+                s.includes('shopee') ||
+                s.includes('spay') ||
+                s.includes('airpay')
+            ) {
+                return {
+                    key: 'shopee',
+                    type: 'shopee',
+                    name: 'ShopeePay SPayLater',
+                    sourceName: 'Ví Trả Sau ShopeePay'
+                };
+            }
+
+            if (s.includes('tiktok')) {
+                return {
+                    key: 'tiktok',
+                    type: 'tiktok',
+                    name: 'TikTok PayLater',
+                    sourceName: 'TikTok PayLater'
+                };
+            }
+
+            const isOtherCredit =
+                s.includes('tín dụng') ||
+                s.includes('thẻ') ||
+                s.includes('credit') ||
+                s.includes('trả sau') ||
+                s.includes('paylater');
+
+            if (!isOtherCredit) return null;
+
+            const normalizedName = app.logic.normalizeSource(
+                raw || 'Tín dụng khác'
+            );
+
+            return {
+                key: `credit-${normalizedName
+                    .toLowerCase()
+                    .replace(/\s+/g, '-')}`,
+                type: 'credit',
+                name: normalizedName,
+                sourceName: normalizedName
+            };
+        };
+
+        const creditGroups = {};
+
+        allPendingTxs.forEach(t => {
+            const platform = detectCreditPlatform(t.source);
+
+            if (!platform) return;
+
+            const billing = app.logic.getBillingInfo(
+                t.source,
+                t.date
+            );
+
+            if (!billing || !billing.dueDate) return;
+
+            const dueDate = billing.dueDate;
+
+            const safeDateStr =
+                `${dueDate.getFullYear()}-` +
+                `${String(dueDate.getMonth() + 1).padStart(2, '0')}-` +
+                `${String(dueDate.getDate()).padStart(2, '0')}`;
+
+            // Một nhóm được xác định bởi:
+            // Nền tảng + ngày đến hạn của kỳ sao kê.
+            const groupKey = `${platform.key}::${safeDateStr}`;
+
+            if (!creditGroups[groupKey]) {
+                creditGroups[groupKey] = {
+                    ...platform,
+                    dueDate: dueDate,
+                    statementDate: billing.statementDate || dueDate,
+                    safeDateStr: safeDateStr,
+                    amount: 0,
+                    extraFee: 0,
+                    txs: []
+                };
+            }
+
+            const amount = Number(t.amount) || 0;
+            let fee = 0;
+
+            // Giữ quy tắc phí dịch vụ cũ của ShopeePay.
+            if (platform.type === 'shopee') {
+                const brandLower = String(
+                    t.brand || ''
+                ).toLowerCase();
+
+                const tagsLower = String(
+                    t.tags || ''
+                ).toLowerCase();
+
+                const isShopeeFood =
+                    brandLower.includes('shopeefood');
+
+                const isService =
+                    tagsLower.includes('#nạp tiền') ||
+                    tagsLower.includes('#nạp thẻ') ||
+                    tagsLower.includes('dịch vụ') ||
+                    tagsLower.includes('quét qr');
+
+                if (isShopeeFood || isService) {
+                    fee = Math.round(amount * 0.0295);
+                }
+            }
+
+            // Giữ quy tắc phí cũ của TikTok PayLater.
+            if (platform.type === 'tiktok') {
+                fee = Math.round(amount * 0.0295);
+            }
+
+            creditGroups[groupKey].amount += amount + fee;
+            creditGroups[groupKey].extraFee += fee;
+            creditGroups[groupKey].txs.push(t);
+        });
+
+        Object.entries(creditGroups)
+            .sort(([, a], [, b]) => a.dueDate - b.dueDate)
+            .forEach(([groupKey, group]) => {
+                const dueDate = group.dueDate;
+
+                const dueStart = new Date(
+                    dueDate.getFullYear(),
+                    dueDate.getMonth(),
+                    dueDate.getDate()
+                ).getTime();
+
+                const isOverdue =
+                    nowStartOfDay > dueStart;
+
+                const daysOverdue = isOverdue
+                    ? Math.max(
+                        1,
+                        Math.floor(
+                            (nowStartOfDay - dueStart) /
+                            (1000 * 60 * 60 * 24)
+                        )
+                    )
+                    : 0;
+
+                let penalty = 0;
+
+                if (isOverdue) {
+                    // Zalo: 0,1% mỗi ngày quá hạn.
+                    if (group.type === 'zalo') {
+                        penalty = Math.round(
+                            group.amount *
+                            0.001 *
+                            daysOverdue
+                        );
+                    }
+
+                    // MoMo: phạt theo số ngày quá hạn.
+                    else if (group.type === 'momo') {
+                        const rate =
+                            daysOverdue >= 15
+                                ? 0.20
+                                : daysOverdue >= 10
+                                    ? 0.15
+                                    : daysOverdue >= 5
+                                        ? 0.10
+                                        : 0.05;
+
+                        penalty = Math.round(
+                            group.amount * rate
+                        );
+                    }
+
+                    // ShopeePay và TikTok: phạt 30.000 đồng.
+                    else if (
+                        group.type === 'shopee' ||
+                        group.type === 'tiktok'
+                    ) {
+                        penalty = 30000;
+                    }
+                }
+
+                const overrideKey =
+                    `${group.sourceName}::${group.safeDateStr}`;
+
+                let finalAmount = group.amount;
+                let finalPenalty = penalty;
+                let isModified = false;
+
+                const overrideData =
+                    app.data.configs.debtOverrides
+                        ? app.data.configs.debtOverrides[
+                        overrideKey
+                        ]
+                        : undefined;
+
+                if (overrideData !== undefined) {
+                    if (typeof overrideData === 'number') {
+                        finalAmount = overrideData;
+                        isModified = true;
+                    } else {
+                        if (
+                            overrideData.principal !==
+                            undefined
+                        ) {
+                            finalAmount =
+                                Number(
+                                    overrideData.principal
+                                ) || 0;
+
+                            isModified = true;
                         }
+
+                        if (
+                            overrideData.penalty !==
+                            undefined
+                        ) {
+                            finalPenalty =
+                                Number(
+                                    overrideData.penalty
+                                ) || 0;
+
+                            isModified = true;
+                        }
+                    }
+                }
+
+                const statementDate =
+                    group.statementDate || dueDate;
+
+                const statementLabel =
+                    `Kỳ sao kê ${String(
+                        statementDate.getMonth() + 1
+                    ).padStart(2, '0')}/` +
+                    `${statementDate.getFullYear()}`;
+
+                const isDueNextMonth =
+                    dueDate.getMonth() ===
+                    nextMonthDate.getMonth() &&
+                    dueDate.getFullYear() ===
+                    nextMonthDate.getFullYear();
+
+                if (isDueNextMonth) {
+                    budgetPendingTotal +=
+                        finalAmount + finalPenalty;
+                }
+
+                const item = {
+                    type: group.type,
+                    name: group.name,
+
+                    // Nguồn tín dụng nhận tiền thanh toán.
+                    source: group.sourceName,
+
+                    amount: finalAmount,
+                    penalty: finalPenalty,
+                    extraFee: group.extraFee,
+
+                    date:
+                        `${dueDate.getDate()}/` +
+                        `${dueDate.getMonth() + 1}`,
+
+                    // Ngày chính xác để UI không đoán sai tháng.
+                    dueDateISO: group.safeDateStr,
+
+                    statementLabel: statementLabel,
+
+                    // Danh sách giao dịch thuộc kỳ sao kê.
+                    txCount: group.txs.length,
+                    txIds: group.txs.map(t => t.id),
+
+                    // Khóa duy nhất để nút Trả hết tìm lại nhóm.
+                    groupKey: groupKey,
+                    overrideKey: overrideKey,
+
+                    isCreditGroup: true,
+                    isModified: isModified,
+                    isOverdue: isOverdue,
+
+                    daysOverdue: daysOverdue,
+                    overdueDays: daysOverdue
+                };
+
+                if (group.type === 'momo') {
+                    item.minPay =
+                        Math.max(
+                            50000,
+                            Math.round(finalAmount * 0.15)
+                        ) + finalPenalty;
+                }
+
+                items.push(item);
+            });
+
+        // ===== KẾT THÚC GOM TÍN DỤNG =====
+
+        // --- XỬ LÝ TRẢ GÓP: GỘP VÀO CÙNG NỀN TẢNG + KỲ SAO KÊ ---
+        if (app.data.installmentPlans) {
+            const getInstallmentPlatform = (source = '') => {
+                const raw = String(source || '').trim();
+                const s = raw.toLowerCase();
+
+                if (
+                    s.includes('shopee') ||
+                    s.includes('spay') ||
+                    s.includes('airpay')
+                ) {
+                    return {
+                        type: 'shopee',
+                        keyPrefix: 'shopee',
+                        name: 'ShopeePay SPayLater',
+                        source: 'Ví Trả Sau ShopeePay',
+                        dueDay: 2
+                    };
+                }
+
+                if (s.includes('momo')) {
+                    return {
+                        type: 'momo',
+                        keyPrefix: 'momo',
+                        name: 'Ví Trả Sau MoMo',
+                        source: 'Ví Trả Sau MoMo',
+                        dueDay: 5
+                    };
+                }
+
+                if (
+                    s.includes('zalo') ||
+                    s.includes('priority')
+                ) {
+                    return {
+                        type: 'zalo',
+                        keyPrefix: 'zalo',
+                        name: 'Zalo Pay',
+                        source: 'Trả sau Zalo Pay',
+                        dueDay: 6
+                    };
+                }
+
+                if (s.includes('tiktok')) {
+                    return {
+                        type: 'tiktok',
+                        keyPrefix: 'tiktok',
+                        name: 'TikTok PayLater',
+                        source: 'TikTok PayLater',
+                        dueDay: 10
+                    };
+                }
+
+                const normalized = app.logic.normalizeSource(
+                    raw || 'Trả góp khác'
+                );
+
+                const sourceKey = normalized
+                    .toLowerCase()
+                    .replace(/\s+/g, ' ');
+
+                return {
+                    type: 'credit',
+                    keyPrefix: `credit::${sourceKey}`,
+                    name: normalized,
+                    source: normalized,
+                    dueDay: 5
+                };
+            };
+
+            Object.values(app.data.installmentPlans).forEach(plan => {
+                if (!plan || !Array.isArray(plan.payments)) {
+                    return;
+                }
+
+                const platform = getInstallmentPlatform(
+                    plan.source
+                );
+
+                plan.payments.forEach(payment => {
+                    if (
+                        !payment ||
+                        payment.paid ||
+                        payment.date > filterMonthStr
+                    ) {
+                        return;
+                    }
+
+                    const totalDue =
+                        (Number(payment.amount) || 0) +
+                        (Number(payment.penaltyAmt) || 0);
+
+                    const paidAmount =
+                        Number(payment.paidAmount) || 0;
+
+                    const remaining = Math.max(
+                        0,
+                        totalDue - paidAmount
+                    );
+
+                    if (remaining <= 0) return;
+
+                    const [statementYear, statementMonth] =
+                        String(payment.date)
+                            .split('-')
+                            .map(Number);
+
+                    if (!statementYear || !statementMonth) {
+                        return;
+                    }
+
+                    /*
+                     * payment.date là tháng sao kê.
+                     *
+                     * Ví dụ:
+                     * payment.date = 2026-07
+                     * Shopee hạn ngày 02
+                     * => hạn thực tế là 02/08/2026.
+                     *
+                     * statementMonth được truyền trực tiếp làm
+                     * chỉ số tháng của Date để chuyển sang tháng sau.
+                     */
+                    const dueDate = new Date(
+                        statementYear,
+                        statementMonth,
+                        platform.dueDay
+                    );
+
+                    const safeDateStr =
+                        `${dueDate.getFullYear()}-` +
+                        `${String(
+                            dueDate.getMonth() + 1
+                        ).padStart(2, '0')}-` +
+                        `${String(
+                            dueDate.getDate()
+                        ).padStart(2, '0')}`;
+
+                    const groupKey =
+                        `${platform.keyPrefix}::${safeDateStr}`;
+
+                    const dueDayStart = new Date(
+                        dueDate.getFullYear(),
+                        dueDate.getMonth(),
+                        dueDate.getDate()
+                    ).getTime();
+
+                    const isOverdue =
+                        nowStartOfDay > dueDayStart;
+
+                    const overdueDays = isOverdue
+                        ? Math.max(
+                            1,
+                            Math.floor(
+                                (
+                                    nowStartOfDay -
+                                    dueDayStart
+                                ) /
+                                (
+                                    1000 *
+                                    60 *
+                                    60 *
+                                    24
+                                )
+                            )
+                        )
+                        : 0;
+
+                    /*
+                     * Tìm thẻ tín dụng đã được tạo phía trên.
+                     *
+                     * Ví dụ:
+                     * shopee::2026-08-02
+                     */
+                    let targetItem = items.find(item =>
+                        item.isCreditGroup === true &&
+                        item.groupKey === groupKey
+                    );
+
+                    /*
+                     * Nếu kỳ này chỉ có trả góp mà không có
+                     * giao dịch tín dụng thường thì tạo thẻ mới.
+                     */
+                    if (!targetItem) {
+                        targetItem = {
+                            type: platform.type,
+                            name: platform.name,
+                            source: platform.source,
+
+                            amount: 0,
+                            penalty: 0,
+                            extraFee: 0,
+
+                            date:
+                                `${dueDate.getDate()}/` +
+                                `${dueDate.getMonth() + 1}`,
+
+                            dueDateISO: safeDateStr,
+
+                            statementLabel:
+                                `Kỳ sao kê ` +
+                                `${String(
+                                    statementMonth
+                                ).padStart(2, '0')}/` +
+                                `${statementYear}`,
+
+                            txCount: 0,
+                            txIds: [],
+
+                            installmentCount: 0,
+                            installmentRefs: [],
+
+                            groupKey: groupKey,
+
+                            isCreditGroup: true,
+                            isModified: false,
+                            isOverdue: isOverdue,
+
+                            daysOverdue: overdueDays,
+                            overdueDays: overdueDays
+                        };
+
+                        items.push(targetItem);
+                    }
+
+                    /*
+                     * Cộng kỳ trả góp vào tổng tiền của
+                     * thẻ tín dụng cùng kỳ sao kê.
+                     */
+                    targetItem.amount += remaining;
+
+                    if (
+                        !Array.isArray(
+                            targetItem.installmentRefs
+                        )
+                    ) {
+                        targetItem.installmentRefs = [];
+                    }
+
+                    /*
+                     * Lưu vị trí của kỳ trả góp để nút
+                     * "Trả hết" có thể đánh dấu đã thanh toán.
+                     */
+                    targetItem.installmentRefs.push({
+                        planId: plan.id,
+                        paymentDate: payment.date
+                    });
+
+                    targetItem.installmentCount =
+                        targetItem.installmentRefs.length;
+
+                    targetItem.isOverdue =
+                        targetItem.isOverdue ||
+                        isOverdue;
+
+                    targetItem.daysOverdue = Math.max(
+                        Number(
+                            targetItem.daysOverdue
+                        ) || 0,
+                        overdueDays
+                    );
+
+                    targetItem.overdueDays =
+                        targetItem.daysOverdue;
+
+                    const isDueNextMonth =
+                        dueDate.getMonth() ===
+                        nextMonthDate.getMonth() &&
+                        dueDate.getFullYear() ===
+                        nextMonthDate.getFullYear();
+
+                    if (isDueNextMonth) {
+                        budgetPendingTotal += remaining;
                     }
                 });
             });
@@ -681,10 +1255,10 @@ app.logic = {
 
         if (sourceLower.includes('shopee') || sourceLower.includes('spay')) {
             const day = txDate.getDate();
-            
+
             // SỬA TẠI ĐÂY: Đổi 14 thành 13
-            const statementCutoffDay = 13; 
-            
+            const statementCutoffDay = 13;
+
             const dueDay = 2;
 
             let sMonth = txDate.getMonth();
