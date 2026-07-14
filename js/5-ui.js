@@ -1094,6 +1094,526 @@ app.ui = {
             app.ui.modals.budget.open(); // Vẽ lại list trong modal để thấy thay đổi ngay
         }
     },
+
+    showUpcomingCreditGroupDetails(encodedGroupKey) {
+        let groupKey = String(encodedGroupKey || '');
+
+        try {
+            groupKey = decodeURIComponent(groupKey);
+        } catch (e) {
+            console.warn(
+                'Không thể giải mã groupKey:',
+                e
+            );
+        }
+
+        const item = app.logic
+            .getUpcomingDebts()
+            .items
+            .find(current =>
+                current.isCreditGroup === true &&
+                current.groupKey === groupKey
+            );
+
+        if (!item) {
+            app.ui.popup.show(
+                'Không tìm thấy thông tin kỳ sao kê này.',
+                'info'
+            );
+
+            return;
+        }
+
+        const escapeHTML = value => {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        };
+
+        const formatDate = value => {
+            if (!value) return 'Không rõ ngày';
+
+            const date = new Date(value);
+
+            if (Number.isNaN(date.getTime())) {
+                return escapeHTML(value);
+            }
+
+            return date.toLocaleDateString('vi-VN');
+        };
+
+        // ==============================
+        // GIAO DỊCH TÍN DỤNG THƯỜNG
+        // ==============================
+        const regularTxs = (
+            Array.isArray(item.txIds)
+                ? item.txIds
+                : []
+        )
+            .map(id =>
+                app.data.transactions.find(tx =>
+                    String(tx.id) === String(id)
+                )
+            )
+            .filter(Boolean)
+            .sort(
+                (a, b) =>
+                    new Date(a.date) -
+                    new Date(b.date)
+            );
+
+        const regularHTML = regularTxs
+            .map((tx, index) => {
+                const title =
+                    tx.place ||
+                    tx.brand ||
+                    `Giao dịch ${index + 1}`;
+
+                const source =
+                    tx.source || 'Không rõ nguồn';
+
+                return `
+                <div style="
+                    display:flex;
+                    justify-content:space-between;
+                    align-items:flex-start;
+                    gap:12px;
+                    padding:10px;
+                    margin-bottom:8px;
+                    background:#f8fafc;
+                    border:1px solid #e2e8f0;
+                    border-radius:10px;
+                ">
+                    <div style="
+                        min-width:0;
+                        flex:1;
+                    ">
+                        <div style="
+                            font-weight:800;
+                            color:#334155;
+                            word-break:break-word;
+                        ">
+                            ${index + 1}. ${escapeHTML(title)}
+                        </div>
+
+                        <div style="
+                            margin-top:3px;
+                            font-size:0.72rem;
+                            color:#64748b;
+                        ">
+                            <i class="fa-regular fa-calendar"></i>
+                            ${formatDate(tx.date)}
+
+                            <span style="margin:0 4px;">•</span>
+
+                            ${escapeHTML(source)}
+                        </div>
+                    </div>
+
+                    <div style="
+                        white-space:nowrap;
+                        font-weight:900;
+                        color:#ea580c;
+                    ">
+                        ${app.logic.formatCurrency(
+                    Number(tx.amount) || 0
+                )}
+                    </div>
+                </div>
+            `;
+            })
+            .join('');
+
+        // ==============================
+        // CÁC KỲ TRẢ GÓP
+        // ==============================
+        const installmentEntries = (
+            Array.isArray(item.installmentRefs)
+                ? item.installmentRefs
+                : []
+        )
+            .map(ref => {
+                const plan =
+                    app.data.installmentPlans?.[
+                    ref.planId
+                    ];
+
+                if (
+                    !plan ||
+                    !Array.isArray(plan.payments)
+                ) {
+                    return null;
+                }
+
+                const payment =
+                    plan.payments.find(current =>
+                        current.date ===
+                        ref.paymentDate
+                    );
+
+                if (!payment) return null;
+
+                const totalDue =
+                    (Number(payment.amount) || 0) +
+                    (Number(payment.penaltyAmt) || 0);
+
+                const paidAmount =
+                    Number(payment.paidAmount) || 0;
+
+                const remaining = Math.max(
+                    0,
+                    totalDue - paidAmount
+                );
+
+                const installmentIndex =
+                    plan.payments.indexOf(payment) + 1;
+
+                const totalInstallments =
+                    plan.payments.length;
+
+                const originalOrderCount =
+                    Array.isArray(plan.originalTxIds)
+                        ? plan.originalTxIds.length
+                        : 0;
+
+                const baseAmount =
+                    Number(
+                        payment.breakdown?.base
+                    ) || 0;
+
+                const conversionFee =
+                    Number(
+                        payment.breakdown
+                            ?.conversionFee
+                    ) || 0;
+
+                const extraFee =
+                    Number(
+                        payment.breakdown?.extra
+                    ) || 0;
+
+                const periodParts =
+                    String(payment.date || '')
+                        .split('-');
+
+                const periodText =
+                    periodParts.length === 2
+                        ? `${periodParts[1]}/${periodParts[0]}`
+                        : payment.date || 'Không rõ';
+
+                return {
+                    plan,
+                    payment,
+                    remaining,
+                    installmentIndex,
+                    totalInstallments,
+                    originalOrderCount,
+                    baseAmount,
+                    conversionFee,
+                    extraFee,
+                    periodText
+                };
+            })
+            .filter(Boolean);
+
+        const installmentHTML =
+            installmentEntries
+                .map((entry, index) => {
+                    const feeTotal =
+                        entry.conversionFee +
+                        entry.extraFee;
+
+                    return `
+                    <div style="
+                        padding:11px;
+                        margin-bottom:8px;
+                        background:#fff7ed;
+                        border:1px solid #fed7aa;
+                        border-left:4px solid #f97316;
+                        border-radius:10px;
+                    ">
+                        <div style="
+                            display:flex;
+                            justify-content:space-between;
+                            align-items:flex-start;
+                            gap:12px;
+                        ">
+                            <div style="
+                                min-width:0;
+                                flex:1;
+                            ">
+                                <div style="
+                                    font-weight:850;
+                                    color:#9a3412;
+                                    word-break:break-word;
+                                ">
+                                    ${index + 1}.
+                                    ${escapeHTML(
+                        entry.plan.source ||
+                        'Gói trả góp'
+                    )}
+                                </div>
+
+                                <div style="
+                                    margin-top:4px;
+                                    font-size:0.72rem;
+                                    color:#78716c;
+                                ">
+                                    Kỳ
+                                    ${entry.installmentIndex}/${entry.totalInstallments
+                        }
+
+                                    <span style="margin:0 4px;">
+                                        •
+                                    </span>
+
+                                    Sao kê
+                                    ${escapeHTML(
+                            entry.periodText
+                        )}
+
+                                    ${entry.originalOrderCount > 0
+                            ? `
+                                            <span style="margin:0 4px;">
+                                                •
+                                            </span>
+
+                                            Gồm
+                                            ${entry.originalOrderCount}
+                                            đơn
+                                            `
+                            : ''
+                        }
+                                </div>
+                            </div>
+
+                            <div style="
+                                white-space:nowrap;
+                                font-weight:900;
+                                color:#ea580c;
+                            ">
+                                ${app.logic.formatCurrency(
+                            entry.remaining
+                        )}
+                            </div>
+                        </div>
+
+                        ${entry.baseAmount > 0 ||
+                            feeTotal > 0
+                            ? `
+                                <div style="
+                                    display:flex;
+                                    gap:12px;
+                                    flex-wrap:wrap;
+                                    margin-top:7px;
+                                    padding-top:7px;
+                                    border-top:1px dashed #fdba74;
+                                    font-size:0.7rem;
+                                    color:#78716c;
+                                ">
+                                    ${entry.baseAmount > 0
+                                ? `
+                                            <span>
+                                                Gốc:
+                                                <b>
+                                                    ${app.logic.formatCurrency(
+                                    entry.baseAmount
+                                )}
+                                                </b>
+                                            </span>
+                                            `
+                                : ''
+                            }
+
+                                    ${feeTotal > 0
+                                ? `
+                                            <span>
+                                                Phí:
+                                                <b style="color:#dc2626">
+                                                    ${app.logic.formatCurrency(
+                                    feeTotal
+                                )}
+                                                </b>
+                                            </span>
+                                            `
+                                : ''
+                            }
+                                </div>
+                                `
+                            : ''
+                        }
+                    </div>
+                `;
+                })
+                .join('');
+
+        const totalAmount =
+            (Number(item.amount) || 0) +
+            (Number(item.penalty) || 0);
+
+        const contentHTML = `
+        <div style="
+            text-align:left;
+            max-height:65vh;
+            overflow-y:auto;
+            padding-right:4px;
+        ">
+            <div style="
+                padding:12px;
+                margin-bottom:12px;
+                background:linear-gradient(
+                    135deg,
+                    #fff7ed,
+                    #ffedd5
+                );
+                border:1px solid #fdba74;
+                border-radius:12px;
+            ">
+                <div style="
+                    font-size:1rem;
+                    font-weight:900;
+                    color:#9a3412;
+                ">
+                    ${escapeHTML(item.name)}
+                </div>
+
+                <div style="
+                    margin-top:4px;
+                    font-size:0.75rem;
+                    color:#78716c;
+                ">
+                    ${escapeHTML(
+            item.statementLabel ||
+            'Kỳ sao kê'
+        )}
+
+                    <span style="margin:0 4px;">
+                        •
+                    </span>
+
+                    Hạn ${escapeHTML(item.date || '')}
+                </div>
+
+                <div style="
+                    display:flex;
+                    justify-content:space-between;
+                    align-items:center;
+                    margin-top:10px;
+                    padding-top:10px;
+                    border-top:1px dashed #fdba74;
+                ">
+                    <span style="
+                        font-size:0.78rem;
+                        color:#7c2d12;
+                    ">
+                        Tổng cần trả
+                    </span>
+
+                    <span style="
+                        font-size:1.15rem;
+                        font-weight:950;
+                        color:#ea580c;
+                    ">
+                        ${app.logic.formatCurrency(
+            totalAmount
+        )}
+                    </span>
+                </div>
+
+                ${Number(item.penalty) > 0
+                ? `
+                        <div style="
+                            margin-top:5px;
+                            text-align:right;
+                            font-size:0.7rem;
+                            color:#dc2626;
+                            font-weight:700;
+                        ">
+                            Bao gồm phạt:
+                            ${app.logic.formatCurrency(
+                    Number(item.penalty)
+                )}
+                        </div>
+                        `
+                : ''
+            }
+            </div>
+
+            ${regularTxs.length > 0
+                ? `
+                    <div style="
+                        margin-bottom:14px;
+                    ">
+                        <div style="
+                            margin-bottom:7px;
+                            font-size:0.78rem;
+                            font-weight:900;
+                            color:#475569;
+                            text-transform:uppercase;
+                        ">
+                            <i class="fa-solid fa-receipt"></i>
+                            Giao dịch tín dụng
+                            (${regularTxs.length})
+                        </div>
+
+                        ${regularHTML}
+                    </div>
+                    `
+                : ''
+            }
+
+            ${installmentEntries.length > 0
+                ? `
+                    <div>
+                        <div style="
+                            margin-bottom:7px;
+                            font-size:0.78rem;
+                            font-weight:900;
+                            color:#c2410c;
+                            text-transform:uppercase;
+                        ">
+                            <i class="fa-solid fa-layer-group"></i>
+                            Các khoản trả góp
+                            (${installmentEntries.length})
+                        </div>
+
+                        ${installmentHTML}
+                    </div>
+                    `
+                : ''
+            }
+
+            ${regularTxs.length === 0 &&
+                installmentEntries.length === 0
+                ? `
+                    <div style="
+                        padding:20px;
+                        text-align:center;
+                        color:#94a3b8;
+                        font-style:italic;
+                    ">
+                        Không tìm thấy khoản chi tiết.
+                    </div>
+                    `
+                : ''
+            }
+        </div>
+    `;
+
+        app.ui.popup.show(
+            contentHTML,
+            'info'
+        );
+
+        if (app.ui.popup.title) {
+            app.ui.popup.title.textContent =
+                'Chi tiết kỳ sao kê';
+        }
+    },
+
     // -----------------------------------------------------
     payUpcomingCreditGroup(encodedGroupKey) {
         let groupKey = encodedGroupKey;
@@ -1677,23 +2197,16 @@ app.ui = {
             }
 
             // 5. RENDER CARD
-            // Đếm giao dịch tín dụng thường
             const regularCount =
                 Array.isArray(item.txIds)
                     ? item.txIds.length
                     : 0;
 
-            // Đếm các kỳ trả góp đã được gộp vào nhóm
             const installmentCount =
                 Array.isArray(item.installmentRefs)
                     ? item.installmentRefs.length
                     : 0;
 
-            // Tổng số khoản trong cùng kỳ sao kê
-            const totalGroupCount =
-                regularCount + installmentCount;
-
-            // Tạo nội dung hiển thị số khoản
             const groupCountText = [
                 regularCount > 0
                     ? `${regularCount} giao dịch`
@@ -1706,26 +2219,78 @@ app.ui = {
                 .filter(Boolean)
                 .join(' + ');
 
-            // Dòng kỳ sao kê và số khoản
+            const safeGroupKey =
+                encodeURIComponent(
+                    String(item.groupKey || '')
+                ).replace(/'/g, '%27');
+
             const groupMetaHTML =
                 item.isCreditGroup
                     ? `
-        <div style="
-            font-size:0.7rem;
-            color:#64748b;
-            margin-top:2px;
-        ">
+        <div
+            onclick="
+                event.stopPropagation();
+
+                app.ui.showUpcomingCreditGroupDetails(
+                    '${safeGroupKey}'
+                );
+            "
+
+            title="Nhấn để xem chi tiết các khoản"
+
+            style="
+                display:flex;
+                align-items:center;
+                flex-wrap:wrap;
+                gap:4px;
+                width:fit-content;
+                margin-top:4px;
+                padding:3px 7px;
+                border-radius:6px;
+                background:#f8fafc;
+                font-size:0.7rem;
+                color:#64748b;
+                cursor:pointer;
+                user-select:none;
+                transition:0.2s;
+            "
+
+            onmouseover="
+                this.style.background='#ffedd5';
+                this.style.color='#c2410c';
+            "
+
+            onmouseout="
+                this.style.background='#f8fafc';
+                this.style.color='#64748b';
+            "
+        >
             <i class="fa-solid fa-layer-group"></i>
 
-            ${item.statementLabel || ''}
+            <span>
+                ${item.statementLabel || ''}
+            </span>
 
             ${groupCountText
                         ? `
-                    <span style="margin:0 4px;">•</span>
-                    ${groupCountText}
+                    <span style="margin:0 2px;">
+                        •
+                    </span>
+
+                    <span>
+                        ${groupCountText}
+                    </span>
                     `
                         : ''
                     }
+
+            <i
+                class="fa-solid fa-chevron-right"
+                style="
+                    margin-left:3px;
+                    font-size:0.58rem;
+                "
+            ></i>
         </div>
         `
                     : '';
