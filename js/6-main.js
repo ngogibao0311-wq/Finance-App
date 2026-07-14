@@ -1008,6 +1008,16 @@ app.events = {
                 const sourceName = checkbox.dataset.source; // Tên nguồn nợ (VD: Ví Trả Sau MoMo)
                 const totalAmount = parseFloat(checkbox.dataset.amount);
                 const idsString = checkbox.dataset.ids;
+                const groupedCount = parseInt(checkbox.dataset.count || '0', 10);
+                const statementLabel = checkbox.dataset.statement || '';
+
+                const statementSuffix = statementLabel
+                    ? ` - Kỳ ${statementLabel}`
+                    : '';
+
+                // Checkbox chỉ là nút kích hoạt.
+                // Bỏ tick ngay để khi người dùng bấm Hủy vẫn có thể bấm lại.
+                checkbox.checked = false;
 
                 const isFeeOnly = checkbox.matches('.pay-fee-check');
                 const isMinPay = checkbox.matches('.pay-min-check');
@@ -1018,7 +1028,20 @@ app.events = {
                 let confirmMsg = "";
                 if (isFeeOnly) confirmMsg = `Thanh toán PHÍ DỊCH VỤ cho <b>${sourceName}</b>?`;
                 else if (isMinPay) confirmMsg = `Thanh toán TỐI THIỂU cho <b>${sourceName}</b>?`;
-                else confirmMsg = `Thanh toán TOÀN BỘ cho <b>${sourceName}</b>?`;
+                else {
+                    confirmMsg =
+                        `Trả hết kỳ sao kê <b>${statementLabel || 'đang chọn'}</b> ` +
+                        `của <b>${sourceName}</b>?`;
+
+                    if (groupedCount > 0) {
+                        confirmMsg += `
+            <br>
+            <span style="font-size:0.85rem; color:var(--text-muted)">
+                Nhóm gồm ${groupedCount} giao dịch tín dụng.
+            </span>
+        `;
+                    }
+                }
 
                 app.ui.popup.confirm(
                     `${confirmMsg}<br>Số tiền: <b>${app.logic.formatCurrency(totalAmount)}</b>`,
@@ -1051,7 +1074,7 @@ app.events = {
                                 app.data.transactions.push({
                                     id: Date.now(),
                                     type: 'Chi tiêu',
-                                    place: `Thanh toán Phạt quá hạn ${sourceName}`,
+                                    place: `Thanh toán Phạt quá hạn ${sourceName}${statementSuffix}`,
                                     source: txSource,
                                     destination: txDest, // [MỚI]
                                     amount: penaltyAmount,
@@ -1065,7 +1088,7 @@ app.events = {
                                 app.data.transactions.push({
                                     id: Date.now() + 1,
                                     type: 'Chi tiêu',
-                                    place: `Thanh toán Phí dịch vụ ${sourceName}`,
+                                    place: `Thanh toán Phí dịch vụ ${sourceName}${statementSuffix}`,
                                     source: txSource,
                                     destination: txDest, // [MỚI]
                                     amount: feeAmount,
@@ -1080,7 +1103,9 @@ app.events = {
                                 app.data.transactions.push({
                                     id: Date.now() + 2,
                                     type: 'Chi tiêu',
-                                    place: isMinPay ? `Trả tối thiểu Gốc ${sourceName}` : `Trả toàn bộ Gốc ${sourceName}`,
+                                    place: isMinPay
+                                        ? `Trả tối thiểu Gốc ${sourceName}${statementSuffix}`
+                                        : `Trả hết kỳ Gốc ${sourceName}${statementSuffix}`,
                                     source: txSource,
                                     destination: txDest, // [MỚI]
                                     amount: principalAmount,
@@ -1127,7 +1152,24 @@ app.events = {
 
                         app.storage.save();
                         app.ui.renderAll();
-                        app.ui.popup.show("✅ Đã thanh toán thành công!", "success");
+                        if (
+                            !isFeeOnly &&
+                            !isMinPay &&
+                            app.effects &&
+                            app.effects.triggerConfetti
+                        ) {
+                            app.effects.triggerConfetti();
+                        }
+
+                        const successMsg =
+                            !isFeeOnly &&
+                                !isMinPay &&
+                                groupedCount > 0
+                                ? `✅ Đã trả hết ${groupedCount} giao dịch của kỳ ${statementLabel || 'đang chọn'
+                                }!`
+                                : '✅ Đã thanh toán thành công!';
+
+                        app.ui.popup.show(successMsg, 'success');
                     }
                 );
                 return;

@@ -2638,12 +2638,17 @@ app.ui = {
             // [FIX QUAN TRỌNG 1] TẠO DANH SÁCH ID CỦA NHÓM NÀY
             // Để khi trả nợ, chỉ gạch đúng các giao dịch này, không gạch nhầm tháng sau
             const groupTxIds = data.txs.map(t => t.id).join(',');
+            const groupedTxCount = data.txs.filter(
+                t => !(t.tags || '').includes('#phi_dich_vu')
+            ).length || data.txs.length;
 
             let penaltyHTML = '';
             let lateFee = 0;
             const source = data.source;
             const dueDate = data.dueDate;
             const statementDate = data.statementDate;
+            const statementLabel =
+                `${String(statementDate.getMonth() + 1).padStart(2, '0')}/${statementDate.getFullYear()}`;
 
             const now = new Date();
             const diffTime = now - dueDate;
@@ -3019,17 +3024,44 @@ app.ui = {
             const isMomo = source.includes('MoMo');
 
             // [FIX 3] THÊM data-ids VÀO NÚT TRẢ TOÀN BỘ
-            actionsHTML += `<div class="action-row">
-    <label style="display:flex; align-items:center; gap:0.5rem">
-        <input type="checkbox" class="pay-all-check" 
-               data-source="${source}" 
-               data-amount="${totalPay}" 
-               data-fee="${data.fee}" 
-               data-penalty="${lateFee}" 
-               data-ids="${groupTxIds}"> 
-        Trả toàn bộ
-    </label>
-    <span class="text-success">${app.logic.formatCurrency(totalPay)}</span>
+            actionsHTML += `<div class="action-row" style="gap:12px; align-items:center;">
+    <input type="checkbox"
+           class="pay-all-check"
+           data-source="${source}"
+           data-amount="${totalPay}"
+           data-fee="${data.fee}"
+           data-penalty="${lateFee}"
+           data-ids="${groupTxIds}"
+           data-count="${groupedTxCount}"
+           data-statement="${statementLabel}"
+           style="display:none;">
+
+    <div style="display:flex; flex-direction:column; gap:2px; flex:1;">
+        <b style="font-size:0.85rem;">
+            ${groupedTxCount} giao dịch · Kỳ ${statementLabel}
+        </b>
+
+        <span style="font-size:0.72rem; color:var(--text-muted);">
+            Thanh toán toàn bộ gốc, phí và phạt của nhóm này
+        </span>
+    </div>
+
+    <button type="button"
+            class="btn btn-primary btn-sm"
+            style="white-space:nowrap; display:inline-flex; align-items:center; gap:6px;"
+            onclick="
+                const input = this.closest('.action-row').querySelector('.pay-all-check');
+                input.checked = true;
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            ">
+        <i class="fa-solid fa-circle-check"></i>
+        Trả hết kỳ
+    </button>
+
+    <span class="text-success"
+          style="font-weight:800; white-space:nowrap;">
+        ${app.logic.formatCurrency(totalPay)}
+    </span>
 </div>`;
             // --- TÌM ĐOẠN NÀY ---
             const isShopee = source.toLowerCase().includes('shopee') || source.toLowerCase().includes('spay');
@@ -3180,7 +3212,44 @@ app.ui = {
             // ----------------------------------------------------
 
             /* --- [GIAO DIỆN MỚI] DANH SÁCH CHI TIẾT KHOẢN NỢ --- */
-            const txListHTML = data.txs.length > 0 ? `<div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; margin-bottom: 12px; max-height: 300px; overflow-y: auto;">
+            const txListHTML = data.txs.length > 0 ? `
+    <details style="
+        background:#f8fafc;
+        border:1px solid #e2e8f0;
+        border-radius:8px;
+        margin-bottom:12px;
+        overflow:hidden;
+    ">
+        <summary style="
+            cursor:pointer;
+            padding:10px 12px;
+            font-size:0.82rem;
+            font-weight:700;
+            color:#475569;
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:8px;
+        ">
+            <span>
+                <i class="fa-solid fa-layer-group"></i>
+                ${data.txs.length} giao dịch tín dụng đã gộp
+            </span>
+
+            <span style="
+                font-family:var(--font-mono);
+                color:var(--primary);
+            ">
+                ${app.logic.formatCurrency(data.total + data.fee)}
+            </span>
+        </summary>
+
+        <div style="
+            padding:10px;
+            border-top:1px dashed #cbd5e1;
+            max-height:300px;
+            overflow-y:auto;
+        ">
                 ${data.txs.map(t => {
                 const isShopee = source.toLowerCase().includes('shopee') || source.toLowerCase().includes('spay');
 
@@ -3280,9 +3349,13 @@ app.ui = {
         </div>
     </div>`;
             }).join('')}
-            </div>` : '';
+        </div>
+    </details>` : '';
 
-            const planLabel = `${source} <span style="font-size:0.7em; font-weight:normal; opacity:0.7">(Kỳ ${statementDate.getMonth() + 1})</span>`;
+            const planLabel = `${source}
+    <span style="font-size:0.7em; font-weight:normal; opacity:0.7">
+        (Kỳ ${statementLabel} · ${groupedTxCount} GD)
+    </span>`;
             const addMissedTxBtn = `<i class="fa-solid fa-circle-plus" style="cursor:pointer; color:var(--primary); margin-left:0.5rem;" onclick="app.ui.modals.missedTx.open('${source}', '${data.safeDateStr}')" title="Thêm giao dịch sót vào kỳ này"></i>`;
 
             htmlBuilder += `<div class="plan">
