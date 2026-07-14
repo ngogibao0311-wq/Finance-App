@@ -2207,6 +2207,10 @@ app.ui = {
                     ? item.installmentRefs.length
                     : 0;
 
+            // Tổng số giao dịch và kỳ trả góp trong nhóm
+            const totalGroupCount =
+                regularCount + installmentCount;
+
             const groupCountText = [
                 regularCount > 0
                     ? `${regularCount} giao dịch`
@@ -2312,8 +2316,8 @@ app.ui = {
                     event.stopPropagation();
 
                     app.ui.payUpcomingCreditGroup(
-                        '${encodeURIComponent(item.groupKey)}'
-                    )
+    '${safeGroupKey}'
+)
                 "
 
                 style="
