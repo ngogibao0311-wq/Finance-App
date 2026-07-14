@@ -13,10 +13,30 @@ app.ui = {
 
         close() {
             this.el.classList.remove('active');
+
+            // Xóa chế độ popup chi tiết để các popup sau trở lại bình thường
+            this.el.classList.remove('credit-detail-popup');
+
             if (this.input) {
                 this.input.value = '';
                 this.input.style.display = 'none';
             }
+        },
+
+        renderMessage(message) {
+            const content = String(message ?? '');
+
+            // Kiểm tra nội dung có phải HTML hay không
+            const containsHTML =
+                /<\/?[a-z][\s\S]*>/i.test(content);
+
+            /*
+             * Nếu là HTML thì giữ nguyên.
+             * Nếu chỉ là văn bản thường mới chuyển xuống dòng thành <br>.
+             */
+            this.msg.innerHTML = containsHTML
+                ? content
+                : content.replace(/\n/g, '<br>');
         },
 
         show(message, type = 'info') {
@@ -24,7 +44,7 @@ app.ui = {
                 this.setupUI(type);
                 this.input.style.display = 'none';
 
-                this.msg.innerHTML = message.replace(/\n/g, '<br>');
+                this.renderMessage(message);
                 this.btnCancel.style.display = 'none';
                 this.btnConfirm.textContent = 'Đã hiểu';
 
@@ -42,7 +62,7 @@ app.ui = {
             this.input.style.display = 'none';
 
             this.title.textContent = 'Xác nhận';
-            this.msg.innerHTML = message.replace(/\n/g, '<br>');
+            this.renderMessage(message);
 
             this.btnCancel.style.display = 'block';
             this.btnCancel.textContent = 'Không';
@@ -67,7 +87,7 @@ app.ui = {
             this.iconBox.className = 'icon-info';
 
             this.title.textContent = title;
-            this.msg.innerHTML = message.replace(/\n/g, '<br>');
+            this.renderMessage(message);
 
             this.input.style.display = 'block';
             this.input.value = '';
@@ -1602,6 +1622,11 @@ app.ui = {
             }
         </div>
     `;
+
+        // Bật giao diện rộng riêng cho popup chi tiết sao kê
+        app.ui.popup.el.classList.add(
+            'credit-detail-popup'
+        );
 
         app.ui.popup.show(
             contentHTML,
