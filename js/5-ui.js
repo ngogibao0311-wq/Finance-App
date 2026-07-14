@@ -3230,11 +3230,14 @@ app.ui = {
                         </div>`;
                 }
 
-                // --- THUẬT TOÁN ĐỔI MÀU GIAO DỊCH CỦA THÁNG HIỆN TẠI ---
-                const isCurrentMonth = t.date.startsWith(app.data.filter.month);
-                const cardBg = isCurrentMonth ? '#eff6ff' : 'white'; // Nền xanh dương nhạt cho tháng hiện tại
-                const cardBorder = isCurrentMonth ? '#bfdbfe' : '#f1f5f9'; // Viền xanh
-                const highlightBadge = isCurrentMonth ? `<span style="font-size:0.6rem; background:#3b82f6; color:white; padding:2px 6px; border-radius:4px; margin-left:6px; font-weight:bold; white-space:nowrap;">Tháng này</span>` : '';
+                // --- THUẬT TOÁN ĐỔI MÀU GIAO DỊCH CỦA KỲ SAO KÊ HIỆN TẠI ---
+                const [filterY, filterM] = app.data.filter.month.split('-').map(Number);
+                // Kiểm tra xem kỳ sao kê của nhóm này có khớp với tháng đang xem trên bộ lọc không
+                const isCurrentCycle = data.statementDate.getFullYear() === filterY && (data.statementDate.getMonth() + 1) === filterM;
+                
+                const cardBg = isCurrentCycle ? '#eff6ff' : 'white'; // Nền xanh dương nhạt cho kỳ hiện tại
+                const cardBorder = isCurrentCycle ? '#bfdbfe' : '#f1f5f9'; // Viền xanh
+                const highlightBadge = isCurrentCycle ? `<span style="font-size:0.6rem; background:#3b82f6; color:white; padding:2px 6px; border-radius:4px; margin-left:6px; font-weight:bold; white-space:nowrap;">Kỳ này</span>` : '';
                 // --------------------------------------------------------
 
                 // 4. Return HTML dạng Card (Thẻ)
