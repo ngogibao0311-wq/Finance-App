@@ -1301,12 +1301,34 @@ app.logic = {
         }
 
         if (sourceLower.includes('tiktok')) {
-            const dueMonth = txDate.getMonth() + 1;
-            const dueYear = txDate.getFullYear() + (dueMonth > 11 ? 1 : 0);
-            const normalizedDueMonth = dueMonth > 11 ? 0 : dueMonth;
+            const day = txDate.getDate();
+            const statementCutoffDay = 23; // Chốt sao kê ngày 23
+            const dueDay = 10;             // Hạn trả ngày 10
 
-            dueResult.statementDate = new Date(dueYear, normalizedDueMonth, 1, 0, 0, 0);
-            dueResult.dueDate = new Date(dueYear, normalizedDueMonth, 10, 23, 59, 59);
+            let sMonth = txDate.getMonth();
+            let sYear = txDate.getFullYear();
+
+            // Nếu ngày giao dịch phát sinh sau ngày 23, giao dịch đó sẽ tự động nhảy sang kỳ sao kê của tháng sau
+            if (day > statementCutoffDay) {
+                sMonth++;
+                if (sMonth > 11) {
+                    sMonth = 0;
+                    sYear++;
+                }
+            }
+
+            // Thiết lập Ngày chốt sao kê: Ngày 23 lúc 23:59:59
+            dueResult.statementDate = new Date(sYear, sMonth, statementCutoffDay, 23, 59, 59);
+
+            // Thiết lập Ngày đến hạn: Mùng 10 của tháng tiếp theo (Tháng liền sau kỳ sao kê)
+            let dMonth = sMonth + 1;
+            let dYear = sYear;
+            if (dMonth > 11) {
+                dMonth = 0;
+                dYear++;
+            }
+
+            dueResult.dueDate = new Date(dYear, dMonth, dueDay, 23, 59, 59);
             return dueResult;
         }
 
