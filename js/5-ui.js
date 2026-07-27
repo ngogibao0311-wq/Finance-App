@@ -2076,7 +2076,7 @@ app.ui = {
             let targetDay = 5; // Mặc định (MoMo, Vay...)
             const nameLower = item.name.toLowerCase();
             if (item.type === 'shopee' || nameLower.includes('shopee') || nameLower.includes('spay')) {
-                targetDay = 2;
+                targetDay = 1;
             }
             else if (item.type === 'zalo') {
                 targetDay = 6;
@@ -3510,7 +3510,7 @@ ${payAllHTML}
                 plan.isShopee ||
                 plan.source.toLowerCase().includes('shopee')
             ) {
-                targetDate = 2;
+                targetDate = 1;
             } else if (sLower.includes('tiktok')) {
                 targetDate = 10;
             }
@@ -3723,29 +3723,41 @@ ${payAllHTML}
                 txs: []
             };
 
-            // --- [LOGIC MỚI] TÍNH PHÍ 2.95% CHO SHOPEE PAY ---
+            // --- TÍNH PHÍ RIÊNG, KHÔNG GỘP VÀO GỐC ---
             let extraFee = 0;
-            const sLower = t.source.toLowerCase();
-            const brandLower = (t.brand || '').toLowerCase();
-            const tagsLower = (t.tags || '').toLowerCase();
 
-            // Kiểm tra nguồn là ShopeePay
-            if (sLower.includes('shopee') || sLower.includes('spay')) {
-                // Kiểm tra điều kiện: ShopeeFood HOẶC Nạp tiền/thẻ HOẶC Dịch vụ/QR
-                const isShopeeFood = brandLower.includes('shopeefood');
-                const isService = tagsLower.includes('#nạp tiền') ||
-                    tagsLower.includes('#nạp thẻ') ||
-                    tagsLower.includes('dịch vụ') ||
-                    tagsLower.includes('quét qr');
+            const sLower =
+                String(t.source || '').toLowerCase();
 
-                if (isShopeeFood || isService) {
-                    extraFee = Math.round(t.amount * 0.0295); // 2.95%
-                    t.tempExtraFee = extraFee; // Lưu tạm để lát hiển thị ghi chú
+            if (
+                sLower.includes('shopee') ||
+                sLower.includes('spay') ||
+                sLower.includes('airpay')
+            ) {
+                const feeInfo =
+                    app.logic.getShopeeTransactionFeeInfo(t);
+
+                if (feeInfo.isSpecial) {
+                    extraFee = Math.round(
+                        (Number(t.amount) || 0) *
+                        feeInfo.feeRate
+                    );
+
+                    t.tempExtraFee = extraFee;
+                    t.tempExtraFeeReason =
+                        feeInfo.reasonText;
+                } else {
+                    t.tempExtraFee = 0;
+                    t.tempExtraFeeReason = '';
                 }
             } else if (sLower.includes('tiktok')) {
-                // TikTok PayLater luôn tính phí 2.95% trên mỗi giao dịch
-                extraFee = Math.round(t.amount * 0.0295);
+                extraFee = Math.round(
+                    (Number(t.amount) || 0) * 0.0295
+                );
+
                 t.tempExtraFee = extraFee;
+                t.tempExtraFeeReason =
+                    'Phí TikTok PayLater';
             }
             // -------------------------------------------------
 
@@ -3754,7 +3766,9 @@ ${payAllHTML}
             } else {
                 acc[key].originalTotal += t.amount;
                 acc[key].extraFee += extraFee;
-                acc[key].total += t.amount + extraFee;
+                // total chỉ giữ tiền gốc.
+                // Phí chuyển đổi nằm riêng trong extraFee.
+                acc[key].total += t.amount;
             }
 
             acc[key].txs.push(t);
@@ -4161,17 +4175,29 @@ ${payAllHTML}
             }
             // --- [KẾT THÚC ĐOẠN CODE THAY THẾ] ---
 
-            const totalPay = data.total + data.fee + lateFee;
+            const conversionFee =
+                Number(data.extraFee) || 0;
+
+            const serviceFee =
+                Number(data.fee) || 0;
+
+            const totalFee =
+                conversionFee + serviceFee;
+
+            const totalPay =
+                data.total +
+                totalFee +
+                lateFee;
             let actionsHTML = '';
 
             // [FIX 2] THÊM data-ids VÀO NÚT TRẢ PHÍ
-            if (data.fee > 0) {
+            if (totalFee > 0) {
                 actionsHTML += `<div class="action-row" style="margin-bottom: 0.5rem; background: #fffbe6; border: 1px dashed #f59e0b;">
                             <label style="display:flex; align-items:center; gap:0.5rem; width:100%; cursor:pointer; color: #b45309; font-weight: 700;">
-                                <input type="checkbox" class="pay-fee-check" data-source="${source}" data-amount="${data.fee}" data-ids="${groupTxIds}">
-                                <span><i class="fa-solid fa-receipt"></i> Chỉ trả Phí dịch vụ</span>
+                                <input type="checkbox" class="pay-fee-check" data-source="${source}" data-amount="${totalFee}" data-ids="${groupTxIds}">
+                                <span><i class="fa-solid fa-receipt"></i> Chỉ trả Phí</span>
                             </label>
-                            <span style="color:#b45309; font-weight:800">${app.logic.formatCurrency(data.fee)}</span>
+                            <span style="color:#b45309; font-weight:800">${app.logic.formatCurrency(totalFee)}</span>
                         </div>`;
             }
 
@@ -4183,7 +4209,7 @@ ${payAllHTML}
         <input type="checkbox" class="pay-all-check" 
                data-source="${source}" 
                data-amount="${totalPay}" 
-               data-fee="${data.fee}" 
+               data-fee="${totalFee}"
                data-penalty="${lateFee}" 
                data-ids="${groupTxIds}"> 
         Trả toàn bộ
@@ -4466,7 +4492,7 @@ ${actionsHTML}
                             onkeyup="this.value = this.value.replace(/[^0-9]/g, '').replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',')">
                     </div>
                     <button class="btn btn-primary btn-sm" 
-                        onclick="app.ui.processCustomPay('${source}', '${customInputId}', ${data.total}, ${data.fee}, ${lateFee}, '${data.txs[0]?.date}', '${groupTxIds}')">
+                        onclick="app.ui.processCustomPay('${source}', '${customInputId}', ${data.total}, ${totalFee}, ${lateFee}, '${data.txs[0]?.date}', '${groupTxIds}')">
                         Trả
                     </button>
                 </div>
@@ -4521,7 +4547,17 @@ ${actionsHTML}
                 let feeNoteHTML = '';
                 if (t.tempExtraFee && t.tempExtraFee > 0) {
                     feeNoteHTML = `<div style="font-size: 0.7rem; color: #ef4444; background: #fef2f2; padding: 2px 6px; border-radius: 4px; margin-top: 4px; display: inline-block;">
-                            <i class="fa-solid fa-circle-exclamation"></i> Phí DV: <b>+${app.logic.formatCurrency(t.tempExtraFee)}</b>
+                            <i class="fa-solid fa-circle-exclamation"></i> Phí 2,95%:
+<b>
+    +${app.logic.formatCurrency(
+                        t.tempExtraFee
+                    )}
+</b>
+
+${t.tempExtraFeeReason
+                            ? ` • ${t.tempExtraFeeReason}`
+                            : ''
+                        }
                         </div>`;
                 }
 
@@ -4587,12 +4623,49 @@ ${actionsHTML}
                             </div>
                             ${penaltyHTML}
                             <div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:0.5rem; display:flex; flex-direction:column;">
-                                <div style="display:flex; align-items:center;">
-                                    Gốc: <b style="color:${isModified ? 'var(--danger)' : 'inherit'}; margin-left:4px;">${app.logic.formatCurrency(data.total)}</b> 
-                                    ${editBtnHTML}
-                                    <span style="margin: 0 8px;">|</span> 
-                                    Phí: ${app.logic.formatCurrency(data.fee)}
-                                </div>
+                                <div style="
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:4px;
+">
+    <span>Gốc:</span>
+
+    <b style="
+        color:${isModified
+                    ? 'var(--danger)'
+                    : 'inherit'};
+    ">
+        ${app.logic.formatCurrency(data.total)}
+    </b>
+
+    ${editBtnHTML}
+
+    <span style="margin:0 4px;">|</span>
+
+    <span>Phí chuyển đổi:</span>
+
+    <b style="color:#ea580c;">
+        ${app.logic.formatCurrency(
+                        conversionFee
+                    )}
+    </b>
+
+    ${serviceFee > 0
+                    ? `
+                <span style="margin:0 4px;">|</span>
+
+                <span>Phí dịch vụ:</span>
+
+                <b style="color:#b45309;">
+                    ${app.logic.formatCurrency(
+                        serviceFee
+                    )}
+                </b>
+            `
+                    : ''
+                }
+</div>
                                 ${modifiedStatusHTML}
                             </div>
                             ${txListHTML}
@@ -5277,27 +5350,24 @@ ${actionsHTML}
         if (!tx) return;
 
         app.ui.popup.prompt(
-            `CHUYỂN TRẢ GÓP SHOPEE<br>Giao dịch: <b>${tx.place}</b> (${app.logic.formatCurrency(tx.amount)})<br>Nhập số tháng (2, 3, 6, 9, 12):`,
+            `CHUYỂN TRẢ GÓP SHOPEE<br>Giao dịch: <b>${tx.place}</b> (${app.logic.formatCurrency(tx.amount)})<br>Nhập số tháng (2, 3, 6, 12):`,
             (val) => {
                 const months = parseInt(val);
-                if (![2, 3, 6, 9, 12].includes(months)) {
-                    return app.ui.popup.show("Chỉ hỗ trợ kỳ hạn 2, 3, 6, 9, 12 tháng!", "error");
+                if (![2, 3, 6, 12].includes(months)) {
+                    return app.ui.popup.show("Chỉ hỗ trợ kỳ hạn 2, 3, 6, 12 tháng!", "error");
                 }
 
                 // ... (GIỮ NGUYÊN CODE NHẬN DIỆN GIAO DỊCH ĐẶC BIỆT) ...
-                const tagStr = (tx.tags || "").toLowerCase();
-                const placeStr = (tx.place || "").toLowerCase();
-                const brandStr = (tx.brand || "").toLowerCase();
+                const feeInfo =
+                    app.logic.getShopeeTransactionFeeInfo(tx);
 
-                const isSpecialTx = placeStr.includes('shopee food') || placeStr.includes('shopeefood') ||
-                    brandStr.includes('shopee food') || brandStr.includes('shopeefood') ||
-                    tagStr.includes('#nạp tiền') ||
-                    tagStr.includes('#quét mã qr') ||
-                    tagStr.includes('#dịch vụ liên kết');
+                const isSpecialTx =
+                    feeInfo.isSpecial;
 
                 // ... (GIỮ NGUYÊN CODE TÍNH TOÁN GỐC/PHÍ) ...
                 const monthlyPrincipal = Math.floor(tx.amount / months);
-                const standardMonthlyFee = Math.floor(tx.amount * 0.0295);
+                const standardMonthlyFee =
+                    Math.round(tx.amount * 0.0295);
 
                 const payments = [];
 
@@ -5444,11 +5514,15 @@ ${actionsHTML}
         app.ui.popup.prompt(
             `TRẢ GÓP TOÀN BỘ (${targetTxs.length} giao dịch)<br>
          Tổng tiền: <b>${app.logic.formatCurrency(totalAmount)}</b><br>
-         Nhập số tháng (2, 3, 6, 9, 12):`,
+         Nhập số tháng (2, 3, 6, 12):`,
             (val) => {
-                const months = parseInt(val);
-                if (![2, 3, 6, 9, 12].includes(months)) {
-                    return app.ui.popup.show("Chỉ hỗ trợ kỳ hạn 2, 3, 6, 9, 12 tháng!", "error");
+                const months = parseInt(val, 10);
+
+                if (![2, 3, 6, 12].includes(months)) {
+                    return app.ui.popup.show(
+                        'Chỉ hỗ trợ kỳ hạn 2, 3, 6 hoặc 12 tháng!',
+                        'error'
+                    );
                 }
 
                 // 1. PHÂN LOẠI GIAO DỊCH
@@ -5456,21 +5530,15 @@ ${actionsHTML}
                 let normalTotal = 0;  // Tổng tiền các giao dịch được miễn phí kỳ 1
 
                 targetTxs.forEach(t => {
-                    const tagStr = (t.tags || "").toLowerCase();
-                    const placeStr = (t.place || "").toLowerCase();
-                    const brandStr = (t.brand || "").toLowerCase();
+                    const feeInfo =
+                        app.logic.getShopeeTransactionFeeInfo(t);
 
-                    // Logic nhận diện đặc biệt (ShopeeFood, Nạp tiền, QR, Liên kết...)
-                    const isSpecial = placeStr.includes('shopee food') || placeStr.includes('shopeefood') ||
-                        brandStr.includes('shopee food') || brandStr.includes('shopeefood') ||
-                        tagStr.includes('#nạp tiền') ||
-                        tagStr.includes('#quét mã qr') ||
-                        tagStr.includes('#dịch vụ liên kết');
-
-                    if (isSpecial) {
-                        specialTotal += t.amount;
+                    if (feeInfo.isSpecial) {
+                        specialTotal +=
+                            Number(t.amount) || 0;
                     } else {
-                        normalTotal += t.amount;
+                        normalTotal +=
+                            Number(t.amount) || 0;
                     }
                 });
 
@@ -5505,7 +5573,8 @@ ${actionsHTML}
                         // KỲ 1: 
                         // - Giao dịch thường: MIỄN PHÍ
                         // - Giao dịch đặc biệt: TÍNH PHÍ
-                        const specialFee = Math.floor(specialTotal * rate);
+                        const specialFee =
+                            Math.round(specialTotal * rate);
                         currentFee = specialFee;
 
                         if (specialTotal > 0) {
@@ -5517,7 +5586,8 @@ ${actionsHTML}
                     } else {
                         // KỲ 2 TRỞ ĐI: Tính phí trên TỔNG số tiền (cả thường + đặc biệt)
                         // (Hoặc tính tổng của từng cái rồi cộng lại, kết quả như nhau)
-                        currentFee = Math.floor(totalAmount * rate);
+                        currentFee =
+                            Math.round(totalAmount * rate);
                         // feeNoteArr.push("Phí chuyển đổi 2.95%");
                     }
 

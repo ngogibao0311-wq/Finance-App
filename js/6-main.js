@@ -1037,7 +1037,7 @@ app.events = {
                             app.data.transactions.push({
                                 id: Date.now(),
                                 type: 'Chi tiêu',
-                                place: `Thanh toán phí dịch vụ ${sourceName}`,
+                                place: `Thanh toán Phí/Phí chuyển đổi ${sourceName}`,
                                 source: txSource,
                                 destination: txDest, // [MỚI]
                                 amount: totalAmount,
@@ -1065,7 +1065,7 @@ app.events = {
                                 app.data.transactions.push({
                                     id: Date.now() + 1,
                                     type: 'Chi tiêu',
-                                    place: `Thanh toán Phí dịch vụ ${sourceName}`,
+                                    place: `Thanh toán Phí/Phí chuyển đổi ${sourceName}`,
                                     source: txSource,
                                     destination: txDest, // [MỚI]
                                     amount: feeAmount,

@@ -331,18 +331,16 @@ app.logic = {
             // --- TÍNH TỔNG GỒM PHÍ 2.95% ---
             let totalExtraFee = 0;
             const shopeeTotal = shopeeTxs.reduce((sum, t) => {
-                const brandLower = (t.brand || '').toLowerCase();
-                const tagsLower = (t.tags || '').toLowerCase();
-
-                const isShopeeFood = brandLower.includes('shopeefood');
-                const isService = tagsLower.includes('#nạp tiền') ||
-                    tagsLower.includes('#nạp thẻ') ||
-                    tagsLower.includes('dịch vụ') ||
-                    tagsLower.includes('quét qr');
+                const feeInfo =
+                    app.logic.getShopeeTransactionFeeInfo(t);
 
                 let fee = 0;
-                if (isShopeeFood || isService) {
-                    fee = Math.round(t.amount * 0.0295);
+
+                if (feeInfo.isSpecial) {
+                    fee = Math.round(
+                        t.amount * feeInfo.feeRate
+                    );
+
                     totalExtraFee += fee;
                 }
                 return sum + t.amount + fee;
@@ -570,25 +568,13 @@ app.logic = {
 
             // Giữ quy tắc phí dịch vụ cũ của ShopeePay.
             if (platform.type === 'shopee') {
-                const brandLower = String(
-                    t.brand || ''
-                ).toLowerCase();
+                const feeInfo =
+                    app.logic.getShopeeTransactionFeeInfo(t);
 
-                const tagsLower = String(
-                    t.tags || ''
-                ).toLowerCase();
-
-                const isShopeeFood =
-                    brandLower.includes('shopeefood');
-
-                const isService =
-                    tagsLower.includes('#nạp tiền') ||
-                    tagsLower.includes('#nạp thẻ') ||
-                    tagsLower.includes('dịch vụ') ||
-                    tagsLower.includes('quét qr');
-
-                if (isShopeeFood || isService) {
-                    fee = Math.round(amount * 0.0295);
+                if (feeInfo.isSpecial) {
+                    fee = Math.round(
+                        amount * feeInfo.feeRate
+                    );
                 }
             }
 
@@ -793,7 +779,7 @@ app.logic = {
                         keyPrefix: 'shopee',
                         name: 'ShopeePay SPayLater',
                         source: 'Ví Trả Sau ShopeePay',
-                        dueDay: 2
+                        dueDay: 1
                     };
                 }
 
@@ -1134,6 +1120,93 @@ app.logic = {
         }
         return source;
     },
+
+    normalizeSearchText(value) {
+        return String(value || '')
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/đ/g, 'd')
+            .replace(/[^a-z0-9]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    },
+
+    getShopeeTransactionFeeInfo(tx = {}) {
+        /*
+         * Gom tất cả thông tin có thể dùng để nhận diện.
+         * Nhờ đó ShopeeFood hoặc dịch vụ ghi ở Nơi chi tiêu,
+         * Thương hiệu, Tag hay Ghi chú đều được phát hiện.
+         */
+        const searchableText = this.normalizeSearchText([
+            tx.place,
+            tx.brand,
+            tx.tags,
+            tx.note,
+            tx.destination,
+            tx.category
+        ].join(' '));
+
+        const compactText =
+            searchableText.replace(/\s+/g, '');
+
+        const reasons = [];
+
+        const isShopeeFood =
+            compactText.includes('shopeefood') ||
+            searchableText.includes('shopee food');
+
+        const isTopUpOrCard =
+            searchableText.includes('nap the') ||
+            searchableText.includes('nap tien') ||
+            searchableText.includes('mua the') ||
+            searchableText.includes('the dien thoai') ||
+            searchableText.includes('nap data');
+
+        const isLinkedService =
+            searchableText.includes('dich vu lien ket') ||
+            searchableText.includes('dich vu shopee') ||
+            searchableText.includes('shopee lien ket') ||
+            searchableText.includes('dich vu');
+
+        const isStoreQr =
+            searchableText.includes('quet ma qr') ||
+            searchableText.includes('quet qr') ||
+            searchableText.includes('thanh toan qr') ||
+            searchableText.includes('qr tai cua hang') ||
+            searchableText.includes('quet ma tai cua hang') ||
+            searchableText.includes('quet ma cua hang') ||
+            searchableText.includes('ma qr cua hang');
+
+        if (isShopeeFood) {
+            reasons.push('ShopeeFood');
+        }
+
+        if (isTopUpOrCard) {
+            reasons.push('Nạp thẻ/nạp tiền');
+        }
+
+        if (isLinkedService) {
+            reasons.push('Dịch vụ liên kết');
+        }
+
+        if (isStoreQr) {
+            reasons.push('Quét mã tại cửa hàng');
+        }
+
+        return {
+            isSpecial:
+                isShopeeFood ||
+                isTopUpOrCard ||
+                isLinkedService ||
+                isStoreQr,
+
+            feeRate: 0.0295,
+            reasons: reasons,
+            reasonText: reasons.join(', ')
+        };
+    },
+
     getInstallmentRate(months, source = '') {
         const term = parseInt(months, 10);
         if (!Number.isFinite(term) || term <= 0) return 0;
@@ -1321,13 +1394,18 @@ app.logic = {
         const sourceLower = source.toLowerCase();
         let dueResult = { dueDate: null, statementDate: null };
 
-        if (sourceLower.includes('shopee') || sourceLower.includes('spay')) {
+        if (
+            sourceLower.includes('shopee') ||
+            sourceLower.includes('spay') ||
+            sourceLower.includes('airpay')
+        ) {
             const day = txDate.getDate();
 
-            // SỬA TẠI ĐÂY: Đổi 14 thành 13
+            // Chốt sao kê ngày 13 lúc 23:59:59.
             const statementCutoffDay = 13;
 
-            const dueDay = 2;
+            // Hạn thanh toán ngày 1 của tháng tiếp theo.
+            const dueDay = 1;
 
             let sMonth = txDate.getMonth();
             let sYear = txDate.getFullYear();
