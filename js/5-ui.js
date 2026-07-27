@@ -3497,13 +3497,22 @@ ${payAllHTML}
                 progressBg = 'linear-gradient(90deg, #f9a8d4, #db2777)'; // MoMo: Hồng
                 iconHtml = '<img src="./assets/momo.png" style="width:18px; vertical-align:middle; margin-right:4px;">';
             } else if (sLower.includes('zalo')) {
-                progressBg = 'linear-gradient(90deg, #6ee7b7, #059669)'; // Zalo: Xanh lá
+                progressBg = 'linear-gradient(90deg, #6ee7b7, #059669)';
                 iconHtml = '<img src="./assets/zalo.png" style="width:18px; vertical-align:middle; margin-right:4px;">';
+            } else if (sLower.includes('tiktok')) {
+                progressBg = 'linear-gradient(90deg, #22d3ee, #ec4899)';
+                iconHtml = '<img src="./assets/tiktok.png" style="width:18px; vertical-align:middle; margin-right:4px; border-radius:4px;">';
             }
 
             let targetDate = 5;
-            if (plan.isShopee || plan.source.toLowerCase().includes('shopee')) {
+
+            if (
+                plan.isShopee ||
+                plan.source.toLowerCase().includes('shopee')
+            ) {
                 targetDate = 2;
+            } else if (sLower.includes('tiktok')) {
+                targetDate = 10;
             }
             // --- 3. LOGIC TÍNH PHẠT (GIỮ NGUYÊN CỦA BẠN) ---
             let totalDynamicPenalty = 0;
@@ -3518,11 +3527,22 @@ ${payAllHTML}
                     if (now > dueDate) {
                         const daysOverdue = Math.ceil((now - dueDate) / (1000 * 60 * 60 * 24));
                         if (daysOverdue > 0) {
-                            let rate = 0.05;
-                            if (daysOverdue >= 15) rate = 0.20;
-                            else if (daysOverdue >= 10) rate = 0.15;
-                            else if (daysOverdue >= 5) rate = 0.10;
-                            const penaltyAmt = Math.round((p.breakdown.base || 0) * rate);
+                            let penaltyAmt = 0;
+
+                            if (sLower.includes('tiktok')) {
+                                // TikTok: phạt cố định 30.000đ cho một kỳ quá hạn.
+                                penaltyAmt = 30000;
+                            } else {
+                                let rate = 0.05;
+
+                                if (daysOverdue >= 15) rate = 0.20;
+                                else if (daysOverdue >= 10) rate = 0.15;
+                                else if (daysOverdue >= 5) rate = 0.10;
+
+                                penaltyAmt = Math.round(
+                                    (p.breakdown?.base || 0) * rate
+                                );
+                            }
                             totalDynamicPenalty += penaltyAmt;
                             p.isOverdue = true;
                             p.overdueDays = daysOverdue;
@@ -3614,7 +3634,14 @@ ${payAllHTML}
             </div>
             <div style="font-size:0.7rem; color:var(--text-muted); display:flex; justify-content:space-between;">
                 <span>Hạn: ${dueStr}</span>
-                <span>(Gốc: ${app.logic.formatCurrency(p.breakdown.base)})</span>
+                <span>
+    (Gốc: ${app.logic.formatCurrency(p.breakdown?.base || 0)}
+    ${(p.breakdown?.conversionFee || 0) > 0
+                        ? ` • Phí: ${app.logic.formatCurrency(
+                            p.breakdown.conversionFee
+                        )}`
+                        : ''})
+</span>
             </div>
         </div>
     </label>
@@ -3690,6 +3717,8 @@ ${payAllHTML}
                 statementDate: billing.statementDate,
                 safeDateStr: safeDateStr,
                 total: 0,
+                originalTotal: 0,
+                extraFee: 0,
                 fee: 0,
                 txs: []
             };
@@ -3723,7 +3752,9 @@ ${payAllHTML}
             if (t.tags && t.tags.includes('#phi_dich_vu')) {
                 acc[key].fee += t.amount;
             } else {
-                acc[key].total += (t.amount + extraFee); // Cộng cả gốc lẫn phí vào tổng nợ
+                acc[key].originalTotal += t.amount;
+                acc[key].extraFee += extraFee;
+                acc[key].total += t.amount + extraFee;
             }
 
             acc[key].txs.push(t);
@@ -4161,6 +4192,8 @@ ${payAllHTML}
 </div>`;
             // --- TÌM ĐOẠN NÀY ---
             const isShopee = source.toLowerCase().includes('shopee') || source.toLowerCase().includes('spay');
+            const isTikTokPayLater =
+                source.toLowerCase().includes('tiktok');
             if (isShopee) {
                 const shopeeTxIds = data.txs.map(t => t.id).join(',');
 
@@ -4192,6 +4225,140 @@ ${payAllHTML}
 
         </div>
     </div>`;
+            }
+
+            if (isTikTokPayLater) {
+                const tiktokTxIds = data.txs
+                    .map(t => t.id)
+                    .join(',');
+
+                const calculatedDebt =
+                    (Number(data.originalTotal) || 0) +
+                    (Number(data.extraFee) || 0);
+
+                // Nếu dư nợ từng bị sửa thủ công thì quy đổi ngược về giá gốc.
+                const tiktokOriginalPrincipal = Math.max(
+                    0,
+                    Math.round(
+                        isModified && calculatedDebt > 0
+                            ? data.total / 1.0295
+                            : (
+                                Number(data.originalTotal) ||
+                                data.total / 1.0295
+                            )
+                    )
+                );
+
+                actionsHTML += `
+        <div class="action-row"
+            style="
+                margin-top:0.5rem;
+                background:linear-gradient(
+                    135deg,
+                    rgba(34,211,238,0.08),
+                    rgba(236,72,153,0.08)
+                );
+                border:1px dashed #ec4899;
+            ">
+
+            <div style="
+                display:flex;
+                flex-direction:column;
+                gap:8px;
+                width:100%;
+            ">
+
+                <div style="
+                    display:flex;
+                    justify-content:space-between;
+                    align-items:center;
+                    gap:8px;
+                    flex-wrap:wrap;
+                ">
+
+                    <div>
+                        <div style="
+                            font-weight:800;
+                            color:#111827;
+                        ">
+                            <i class="fa-solid fa-layer-group"></i>
+                            Tạo trả góp TikTok PayLater
+                        </div>
+
+                        <div style="
+                            font-size:0.72rem;
+                            color:var(--text-muted);
+                        ">
+                            Phí mỗi tháng = 2,95% × tổng giá trị đơn hàng gốc
+                        </div>
+                    </div>
+
+                    <div style="
+                        display:flex;
+                        gap:6px;
+                        align-items:center;
+                    ">
+                        <select
+                            class="form-control"
+                            id="tiktok-month-${sourceId}"
+                            style="
+                                width:auto;
+                                padding:0.25rem 0.5rem;
+                            "
+                            onchange="
+                                app.ui.previewTikTokInstallment(
+                                    '${sourceId}',
+                                    this.value,
+                                    ${tiktokOriginalPrincipal},
+                                    ${lateFee}
+                                )
+                            "
+                        >
+                            <option value="1">1 tháng</option>
+                            <option value="3">3 tháng</option>
+                            <option value="6">6 tháng</option>
+                            <option value="9">9 tháng</option>
+                            <option value="12">12 tháng</option>
+                        </select>
+
+                        <button
+                            class="btn btn-primary btn-sm"
+                            onclick="
+                                app.ui.createTikTokInstallment(
+                                    '${sourceId}',
+                                    '${source}',
+                                    ${tiktokOriginalPrincipal},
+                                    ${lateFee},
+                                    '${data.safeDateStr}',
+                                    '${tiktokTxIds}'
+                                )
+                            "
+                        >
+                            Tạo trả góp
+                        </button>
+                    </div>
+                </div>
+
+                <div
+                    id="tiktok-preview-${sourceId}"
+                    style="
+                        font-size:0.78rem;
+                        color:var(--text-muted);
+                    "
+                ></div>
+            </div>
+        </div>
+    `;
+
+                setTimeout(
+                    () => app.ui.previewTikTokInstallment(
+                        sourceId,
+                        1,
+                        tiktokOriginalPrincipal,
+                        lateFee
+                    ),
+                    100
+                );
             }
 
             if (isMomo) {
@@ -4631,6 +4798,348 @@ ${actionsHTML}
         app.ui.popup.show(`Đã thanh toán: <b>${app.logic.formatCurrency(amount)}</b>`, "success");
     },
 
+    previewTikTokInstallment(sourceId, months, principal, lateFee = 0) {
+        const div = document.getElementById(
+            `tiktok-preview-${sourceId}`
+        );
+
+        if (!div) return;
+
+        const quote = app.logic.getTikTokInstallmentQuote(
+            principal,
+            months
+        );
+
+        if (!quote) {
+            div.innerHTML =
+                '<span style="color:var(--danger)">' +
+                'Kỳ hạn hoặc số tiền không hợp lệ.' +
+                '</span>';
+
+            return;
+        }
+
+        const firstPayment =
+            quote.payments[0]?.amount || 0;
+
+        const firstPeriodExtra = Math.max(
+            0,
+            Math.round(Number(lateFee) || 0)
+        );
+
+        div.innerHTML = `
+        <div style="
+            display:grid;
+            grid-template-columns:1fr auto;
+            gap:4px 12px;
+            padding:8px;
+            border-radius:8px;
+            background:rgba(255,255,255,0.55);
+        ">
+            <span>Giá trị đơn hàng gốc:</span>
+            <b>
+                ${app.logic.formatCurrency(
+            quote.principal
+        )}
+            </b>
+
+            <span>Phí mỗi tháng (2,95%):</span>
+            <b>
+                ${app.logic.formatCurrency(
+            quote.monthlyFee
+        )}
+            </b>
+
+            <span>
+                Tổng phí ${quote.months} tháng:
+            </span>
+            <b>
+                ${app.logic.formatCurrency(
+            quote.totalFee
+        )}
+            </b>
+
+            <span style="
+                padding-top:4px;
+                border-top:1px dashed #cbd5e1;
+            ">
+                Khoản trả mỗi tháng:
+            </span>
+
+            <b style="
+                padding-top:4px;
+                border-top:1px dashed #cbd5e1;
+                color:#db2777;
+            ">
+                ≈ ${app.logic.formatCurrency(
+            firstPayment
+        )}
+            </b>
+
+            <span>Tổng phải trả:</span>
+            <b>
+                ${app.logic.formatCurrency(
+            quote.totalRepayment +
+            firstPeriodExtra
+        )}
+            </b>
+        </div>
+
+        ${firstPeriodExtra > 0
+                ? `
+                    <div style="
+                        margin-top:4px;
+                        color:var(--danger);
+                        font-size:0.7rem;
+                        text-align:right;
+                    ">
+                        Kỳ đầu cộng thêm
+                        ${app.logic.formatCurrency(
+                    firstPeriodExtra
+                )}
+                        phí phạt đang có.
+                    </div>
+                `
+                : ''
+            }
+    `;
+    },
+
+    createTikTokInstallment(
+        sourceId,
+        source,
+        principal,
+        lateFee,
+        startDateStr,
+        txIdsString
+    ) {
+        const monthSelect = document.getElementById(
+            `tiktok-month-${sourceId}`
+        );
+
+        if (!monthSelect) {
+            return app.ui.popup.show(
+                'Không tìm thấy kỳ hạn trả góp TikTok.',
+                'error'
+            );
+        }
+
+        const months = parseInt(
+            monthSelect.value,
+            10
+        );
+
+        const quote =
+            app.logic.getTikTokInstallmentQuote(
+                principal,
+                months
+            );
+
+        if (!quote) {
+            return app.ui.popup.show(
+                'TikTok chỉ hỗ trợ kỳ hạn ' +
+                '1, 3, 6, 9 hoặc 12 tháng.',
+                'error'
+            );
+        }
+
+        const originalTxIds = String(
+            txIdsString || ''
+        )
+            .split(',')
+            .map(Number)
+            .filter(Number.isFinite);
+
+        const debts =
+            app.data.transactions.filter(t =>
+                originalTxIds.includes(t.id) &&
+                t.status === 'pending' &&
+                app.logic.normalizeSource(t.source) ===
+                source
+            );
+
+        if (debts.length === 0) {
+            return app.ui.popup.show(
+                'Khoản nợ TikTok này không còn ' +
+                'ở trạng thái chờ thanh toán.',
+                'warning'
+            );
+        }
+
+        const dateParts = String(
+            startDateStr || ''
+        )
+            .split('-')
+            .map(Number);
+
+        const dueYear = dateParts[0];
+        const dueMonth = dateParts[1];
+        const dueDay = dateParts[2] || 10;
+
+        if (!dueYear || !dueMonth) {
+            return app.ui.popup.show(
+                'Không xác định được kỳ sao kê TikTok.',
+                'error'
+            );
+        }
+
+        const carriedPenalty = Math.max(
+            0,
+            Math.round(Number(lateFee) || 0)
+        );
+
+        const finalTotal =
+            quote.totalRepayment +
+            carriedPenalty;
+
+        app.ui.popup.confirm(
+            `Chuyển <b>${app.logic.formatCurrency(
+                quote.principal
+            )
+            }</b> thành trả góp ` +
+            `<b>${months} tháng</b>?<br><br>` +
+
+            `Phí mỗi tháng: <b>${app.logic.formatCurrency(
+                quote.monthlyFee
+            )
+            }</b> (2,95% giá gốc)<br>` +
+
+            `Tổng phí trả góp: <b>${app.logic.formatCurrency(
+                quote.totalFee
+            )
+            }</b><br>` +
+
+            `Tổng phải trả: <b>${app.logic.formatCurrency(
+                finalTotal
+            )
+            }</b>`,
+
+            () => {
+                const payments =
+                    quote.payments.map(
+                        (part, index) => {
+                            /*
+                             * payment.date lưu tháng
+                             * sao kê.
+                             *
+                             * Hạn TikTok thực tế là
+                             * ngày 10 tháng kế tiếp.
+                             */
+                            const statementDate =
+                                new Date(
+                                    dueYear,
+                                    dueMonth - 2 + index,
+                                    1
+                                );
+
+                            const statementKey =
+                                `${statementDate.getFullYear()}-` +
+                                `${String(
+                                    statementDate.getMonth() + 1
+                                ).padStart(2, '0')}`;
+
+                            const extra =
+                                index === 0
+                                    ? carriedPenalty
+                                    : 0;
+
+                            return {
+                                date: statementKey,
+
+                                amount:
+                                    part.amount +
+                                    extra,
+
+                                breakdown: {
+                                    base: part.base,
+                                    conversionFee:
+                                        part.fee,
+                                    extra: extra
+                                },
+
+                                paid: false,
+                                paidAmount: 0,
+
+                                note:
+                                    index === 0 &&
+                                        extra > 0
+                                        ? '(Gồm phí trả góp và phí phạt cũ)'
+                                        : '(Gồm phí trả góp TikTok 2,95%/tháng)'
+                            };
+                        }
+                    );
+
+                const plan = {
+                    id:
+                        Date.now() +
+                        Math.floor(
+                            Math.random() * 10000
+                        ),
+
+                    source: source,
+
+                    installmentType:
+                        'tiktok-paylater',
+
+                    feeRatePerMonth:
+                        quote.feeRatePerMonth,
+
+                    months: months,
+
+                    originalPrincipal:
+                        quote.principal,
+
+                    monthlyFee:
+                        quote.monthlyFee,
+
+                    totalInstallmentFee:
+                        quote.totalFee,
+
+                    totalRepayment:
+                        finalTotal,
+
+                    payments: payments,
+
+                    createdDate:
+                        new Date().toISOString(),
+
+                    preservedPenalty:
+                        carriedPenalty,
+
+                    originalTxIds:
+                        debts.map(t => t.id)
+                };
+
+                app.data.installmentPlans[
+                    plan.id
+                ] = plan;
+
+                debts.forEach(t => {
+                    t.status = 'paid';
+                });
+
+                app.storage.save();
+                app.ui.renderAll();
+
+                app.ui.popup.show(
+                    `✅ Đã tạo trả góp TikTok ` +
+                    `${months} tháng.<br>` +
+
+                    `Hạn kỳ đầu: ` +
+                    `<b>${dueDay}/${dueMonth}/${dueYear}</b><br>` +
+
+                    `Phí mỗi tháng: ` +
+                    `<b>${app.logic.formatCurrency(
+                        quote.monthlyFee
+                    )
+                    }</b>`,
+
+                    'success'
+                );
+            }
+        );
+    },
+
     // --- [FIX] Thêm hàm Preview Trả Góp còn thiếu ---
     previewInstallment(sourceId, months, principal, serviceFee, lateFee) {
         const div = document.getElementById(`preview-${sourceId}`);
@@ -4670,7 +5179,10 @@ ${actionsHTML}
         const months = parseInt(el.value);
         if (!months || months < 1) return app.ui.popup.show("Số tháng không hợp lệ", "error");
 
-        const rate = app.logic.getInstallmentRate(months);
+        const rate = app.logic.getInstallmentRate(
+            months,
+            source
+        );
         const conversionFee = Math.ceil(principal * rate);
         const totalInstallmentPart = principal + conversionFee;
         const oneTimeFees = serviceFee + lateFee;
@@ -5147,7 +5659,13 @@ ${actionsHTML}
                     }
                     // Xóa các giao dịch trả góp con đã sinh ra (nếu có logic sinh tx con)
                     app.data.transactions = app.data.transactions.filter(t => {
-                        const isInstallmentPayment = t.tags && t.tags.includes('#tra_gop') && t.source === plan.source;
+                        const isInstallmentPayment =
+                            t.tags &&
+                            t.tags.includes('#tra_gop') &&
+                            (
+                                t.source === plan.source ||
+                                t.destination === plan.source
+                            );
                         return !isInstallmentPayment;
                     });
                 }

@@ -1135,11 +1135,25 @@ app.logic = {
         return source;
     },
     getInstallmentRate(months, source = '') {
-        const s = source.toLowerCase();
-        if (s.includes('shopee') || s.includes('spay') || s.includes('airpay')) {
+        const term = parseInt(months, 10);
+        if (!Number.isFinite(term) || term <= 0) return 0;
+
+        const s = String(source || '').toLowerCase();
+
+        // TikTok PayLater: phí 2,95% giá trị đơn hàng gốc cho mỗi tháng.
+        if (s.includes('tiktok')) {
+            return 0.0295 * term;
+        }
+
+        if (
+            s.includes('shopee') ||
+            s.includes('spay') ||
+            s.includes('airpay')
+        ) {
             return 0.0295;
         }
-        return 0.03 * parseInt(months);
+
+        return 0.03 * term;
     },
     getZaloAccumulation(ignoreManual = false) {
         const reviewDate = new Date(app.data.configs.zaloReviewDate);
@@ -1170,6 +1184,60 @@ app.logic = {
         if (ignoreManual) return currentRealSum;
         const offset = Number(app.data.configs.manualZaloOffset || 0);
         return currentRealSum + offset;
+    },
+    getTikTokInstallmentQuote(principal, months) {
+        const originalPrincipal = Math.max(
+            0,
+            Math.round(Number(principal) || 0)
+        );
+
+        const term = parseInt(months, 10);
+        const allowedTerms = [1, 3, 6, 9, 12];
+
+        if (
+            originalPrincipal <= 0 ||
+            !allowedTerms.includes(term)
+        ) {
+            return null;
+        }
+
+        const feeRatePerMonth = 0.0295;
+
+        // Phí mỗi tháng luôn tính trên toàn bộ giá trị đơn hàng gốc.
+        const monthlyFee = Math.round(
+            originalPrincipal * feeRatePerMonth
+        );
+
+        const totalFee = monthlyFee * term;
+        const basePerMonth = Math.floor(
+            originalPrincipal / term
+        );
+
+        const payments = [];
+
+        for (let i = 0; i < term; i++) {
+            // Dồn số tiền lẻ còn lại vào kỳ cuối.
+            const base = i === term - 1
+                ? originalPrincipal -
+                (basePerMonth * (term - 1))
+                : basePerMonth;
+
+            payments.push({
+                base: base,
+                fee: monthlyFee,
+                amount: base + monthlyFee
+            });
+        }
+
+        return {
+            principal: originalPrincipal,
+            months: term,
+            feeRatePerMonth: feeRatePerMonth,
+            monthlyFee: monthlyFee,
+            totalFee: totalFee,
+            totalRepayment: originalPrincipal + totalFee,
+            payments: payments
+        };
     },
     getZaloRankInfo(amount, manualRankOverride = null) {
         const ranks = {
