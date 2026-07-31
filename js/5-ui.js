@@ -236,8 +236,11 @@ app.ui = {
 
         box.style.display = 'block';
 
-        const upcomingData = app.logic.getUpcomingDebts();
-        const projectedDebt = upcomingData.total;
+        const upcomingData =
+            app.logic.getUpcomingDebts();
+
+        const projectedDebt =
+            Number(upcomingData.budgetTotal) || 0;
 
         // Thu nhập đã thực sự nhận trong tháng
         const budgetIncome =
@@ -6300,7 +6303,8 @@ ${t.tempExtraFeeReason
 
                 const totalInc = incomeTxs.reduce((s, t) => s + (Number(t.amount) || 0), 0);
                 const totalExp = expenseTxs.reduce((s, t) => s + (Number(t.amount) || 0), 0);
-                const totalPendingExp = Number(upcomingData.total) || 0;
+                const totalPendingExp =
+                    Number(upcomingData.budgetTotal) || 0;
                 const totalBudgetUsed = totalExp + totalPendingExp;
                 const netBalance = totalInc - totalExp;
 

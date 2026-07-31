@@ -710,7 +710,10 @@ app.events = {
                     previewIncome =
                         app.logic.getBudgetIncomeTotal(currentMonth);
 
-                    previewDebt = app.logic.getUpcomingDebts().total;
+                    previewDebt =
+                        Number(
+                            app.logic.getUpcomingDebts().budgetTotal
+                        ) || 0;
                 } finally {
                     app.data.transactions = originalTransactions;
                 }
@@ -3038,8 +3041,11 @@ document.getElementById('btn-ask-gemini').addEventListener('click', async () => 
     const totalExpense = expenses.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
     const cashBalance = income - totalExpense;
 
-    const upcomingData = app.logic.getUpcomingDebts();
-    const upcomingDebt = Number(upcomingData.total) || 0;
+    const upcomingData =
+        app.logic.getUpcomingDebts();
+
+    const upcomingDebt =
+        Number(upcomingData.budgetTotal) || 0;
     const availableAfterDebt = cashBalance - upcomingDebt;
     const debtItems = upcomingData.items
         .map(i => `${i.name} (${app.logic.formatCurrency((Number(i.amount) || 0) + (Number(i.penalty) || 0))})`)

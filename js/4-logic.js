@@ -1181,15 +1181,118 @@ app.logic = {
         items.sort((a, b) => (b.isOverdue ? 1 : 0) - (a.isOverdue ? 1 : 0));
 
         const displayTotal = items.reduce(
-            (sum, item) => sum + (Number(item.amount) || 0) + (Number(item.penalty) || 0),
+            (sum, item) =>
+                sum +
+                (Number(item.amount) || 0) +
+                (Number(item.penalty) || 0),
+            0
+        );
+
+        /*
+         * Ngày cuối cùng của tháng đang xem.
+         *
+         * Ví dụ filterMonthStr = "2026-07":
+         * selectedMonthEnd = 31/07/2026 23:59:59.
+         */
+        const selectedMonthEnd = new Date(
+            y,
+            m,
+            0,
+            23,
+            59,
+            59,
+            999
+        );
+
+        /*
+         * Lấy ngày đến hạn thật của từng khoản nợ.
+         */
+        const getDebtDueDate = (item = {}) => {
+            /*
+             * Các khoản tín dụng và trả góp có ngày dạng:
+             * 2026-08-01
+             */
+            const iso = String(
+                item.dueDateISO || ''
+            ).trim();
+
+            const isoMatch = iso.match(
+                /^(\d{4})-(\d{2})-(\d{2})$/
+            );
+
+            if (isoMatch) {
+                return new Date(
+                    Number(isoMatch[1]),
+                    Number(isoMatch[2]) - 1,
+                    Number(isoMatch[3])
+                );
+            }
+
+            /*
+             * Các khoản vay thường có ngày dạng:
+             * 01/08/2026
+             */
+            const rawDate = String(
+                item.date || ''
+            ).trim();
+
+            const fullDateMatch = rawDate.match(
+                /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/
+            );
+
+            if (fullDateMatch) {
+                return new Date(
+                    Number(fullDateMatch[3]),
+                    Number(fullDateMatch[2]) - 1,
+                    Number(fullDateMatch[1])
+                );
+            }
+
+            return null;
+        };
+
+        /*
+         * Chỉ tính vào ngân sách những khoản:
+         * - Đến hạn trong tháng đang xem
+         * - Hoặc đã quá hạn từ các tháng trước
+         *
+         * Nợ đến hạn tháng sau vẫn hiển thị nhưng không bị trừ.
+         */
+        const budgetTotal = items.reduce(
+            (sum, item) => {
+                const dueDate = getDebtDueDate(item);
+
+                if (
+                    !dueDate ||
+                    Number.isNaN(dueDate.getTime()) ||
+                    dueDate > selectedMonthEnd
+                ) {
+                    return sum;
+                }
+
+                return (
+                    sum +
+                    (Number(item.amount) || 0) +
+                    (Number(item.penalty) || 0)
+                );
+            },
             0
         );
 
         return {
-            // Ngân sách phải giữ lại toàn bộ khoản nợ đang hiển thị, gồm nợ quá hạn, đến hạn và kỳ kế tiếp.
-            // Trước đây chỉ cộng đúng kỳ tháng sau nên khoản quá hạn bị bỏ sót khỏi số tiền còn dư.
+            /*
+             * Tổng tất cả nợ đang hiển thị trong
+             * khối “Sắp đến hạn”.
+             */
             total: displayTotal,
             displayTotal: displayTotal,
+
+            /*
+             * Tổng nợ được phép trừ vào ngân sách
+             * của tháng đang xem.
+             */
+            budgetTotal: budgetTotal,
+
             items,
             monthLabel: displayNextMonth
         };
@@ -1888,7 +1991,7 @@ app.logic = {
         const available =
             budgetIncome -
             totalSpentMonth -
-            upcoming.total;
+            (Number(upcoming.budgetTotal) || 0);
         const daysFunded = dailyCap > 0 ? Math.floor(available / dailyCap) : 0;
 
         return {
