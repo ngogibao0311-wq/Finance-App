@@ -330,6 +330,8 @@ app.logic = {
                 if (this.isMonthlyLimitCreditTransaction(t)) return false;
                 if (t.type !== 'Thu nhập') return false;
                 if (t.status !== 'paid') return false;
+                // [MỚI] Loại bỏ thu nhập đã dùng để so khớp đắp vào Cấp trước
+                if (t.excludeFromBudget === true) return false; 
                 return true;
             })
             .reduce(

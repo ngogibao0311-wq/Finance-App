@@ -256,11 +256,21 @@ app.ui = {
         const projectedDebtBar = projectedDebtBudget;
 
         // Hạn mức cấp trước và thu nhập thực tế thông thường.
-        // Giao dịch hạn mức đã Đã xong không được cộng lại lần hai.
-        const limitCredit =
-            app.logic.getMonthlyLimitCreditAmount(currentMonth);
-        const budgetIncome =
-            app.logic.getBudgetIncomeTotal(currentMonth);
+        const limitCredit = app.logic.getMonthlyLimitCreditAmount(currentMonth);
+        const budgetIncome = app.logic.getBudgetIncomeTotal(currentMonth);
+
+        // [MỚI] Kiểm tra trạng thái giao dịch hạn mức
+        const limitTx = app.logic.getMonthlyLimitCreditTransaction(currentMonth);
+        const isLimitPaid = limitTx && limitTx.status === 'paid';
+
+        let displayLimit = limitCredit;
+        let displayIncome = budgetIncome;
+
+        // Nếu đã xong, dồn Cấp trước vào Thu nhập thực tế để hiển thị
+        if (isLimitPaid) {
+            displayLimit = 0;
+            displayIncome = budgetIncome + limitCredit;
+        }
 
         // Khả dụng chỉ trừ nợ thuộc đúng tháng thanh toán
         const totalUsed =
@@ -361,26 +371,46 @@ app.ui = {
         }
 
         // 5. Cập nhật Text "Đã tiêu"
+        let incomeHtml = '';
+        if (app.logic.isMonthlyLimitCreditEnabled(currentMonth)) {
+            if (isLimitPaid) {
+                // Đã xong -> Ẩn Cấp trước, gộp tiền vào Thu nhập thực tế
+                incomeHtml = `
+                <div>
+                    Thu nhập thực tế:
+                    <b style="color:var(--success)">
+                        +${app.logic.formatCurrency(displayIncome)}
+                    </b>
+                </div>`;
+            } else {
+                // Chưa xong -> Hiện song song cả 2
+                incomeHtml = `
+                <div>
+                    Cấp trước:
+                    <b style="color:var(--primary)">
+                        +${app.logic.formatCurrency(displayLimit)}
+                    </b>
+                </div>
+                <div>
+                    Thu nhập thực tế:
+                    <b style="color:var(--success)">
+                        +${app.logic.formatCurrency(displayIncome)}
+                    </b>
+                </div>`;
+            }
+        } else {
+            // Không bật tính năng Giới hạn tháng
+            incomeHtml = `
+            <div>
+                Thu nhập:
+                <b style="color:var(--success)">
+                    +${app.logic.formatCurrency(displayIncome)}
+                </b>
+            </div>`;
+        }
+
         document.getElementById('budget-used').innerHTML = `
-    ${app.logic.isMonthlyLimitCreditEnabled(currentMonth) ? `
-    <div>
-        Cấp trước:
-        <b style="color:var(--primary)">
-            +${app.logic.formatCurrency(limitCredit)}
-        </b>
-    </div>
-    <div>
-        Thu nhập thực tế:
-        <b style="color:var(--success)">
-            +${app.logic.formatCurrency(budgetIncome)}
-        </b>
-    </div>` : `
-    <div>
-        Thu nhập:
-        <b style="color:var(--success)">
-            +${app.logic.formatCurrency(budgetIncome)}
-        </b>
-    </div>`}
+    ${incomeHtml}
 
     <div style="font-size:0.75rem; color:var(--text-muted);">
         Đã tiêu:
