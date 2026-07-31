@@ -238,6 +238,481 @@ app.logic = {
         return { changed };
     },
 
+    // Tháng bắt đầu tự động chuyển phần dư ngân sách
+    // sang tháng kế tiếp.
+    // '2026-08' nghĩa là lấy phần dư tháng 07/2026
+    // tạo thành thu nhập của tháng 08/2026.
+    getMonthlyBudgetCarryoverStartMonth() {
+        return String(
+            app.data.configs
+                ?.monthlyBudgetCarryoverStartMonth ||
+            '2026-08'
+        );
+    },
+
+    // Lấy tháng trước hoặc tháng sau.
+    // Ví dụ: getMonthKeyOffset('2026-08', -1)
+    // trả về '2026-07'.
+    getMonthKeyOffset(month, offset = 0) {
+        const monthKey = String(month || '');
+
+        if (!/^\d{4}-\d{2}$/.test(monthKey)) {
+            return '';
+        }
+
+        const [year, monthNumber] =
+            monthKey.split('-').map(Number);
+
+        const date = new Date(
+            year,
+            monthNumber - 1 + Number(offset || 0),
+            1
+        );
+
+        return (
+            `${date.getFullYear()}-` +
+            `${String(date.getMonth() + 1)
+                .padStart(2, '0')}`
+        );
+    },
+
+    // Nhận diện giao dịch dư ngân sách tự động.
+    isMonthlyBudgetCarryoverTransaction(
+        transaction = {}
+    ) {
+        if (
+            transaction.isMonthlyBudgetCarryover === true
+        ) {
+            return true;
+        }
+
+        return String(transaction.tags || '')
+            .split(/\s+/)
+            .includes('#du_ngan_sach_thang_truoc');
+    },
+
+    // Xác định giao dịch chuyển dư thuộc tháng nào.
+    getMonthlyBudgetCarryoverMonth(
+        transaction = {}
+    ) {
+        const assignedMonth = String(
+            transaction.budgetCarryoverToMonth || ''
+        );
+
+        if (/^\d{4}-\d{2}$/.test(assignedMonth)) {
+            return assignedMonth;
+        }
+
+        return this.getLocalMonthKey(
+            transaction.date
+        );
+    },
+
+    // Tìm giao dịch chuyển dư của một tháng.
+    getMonthlyBudgetCarryoverTransaction(
+        month = app.data.filter.month
+    ) {
+        return app.data.transactions.find(t =>
+            this.isMonthlyBudgetCarryoverTransaction(t) &&
+            this.getMonthlyBudgetCarryoverMonth(t) ===
+            month
+        ) || null;
+    },
+
+    // Tính phần ngân sách còn lại của một tháng:
+    //
+    // Hạn mức cấp trước
+    // + Thu nhập
+    // - Chi tiêu thực trả
+    // - Nợ thuộc tháng.
+    getMonthlyBudgetBalance(
+        month = app.data.filter.month
+    ) {
+        const monthKey = String(month || '');
+
+        if (!/^\d{4}-\d{2}$/.test(monthKey)) {
+            return {
+                month: monthKey,
+                limitCredit: 0,
+                income: 0,
+                expense: 0,
+                debt: 0,
+                balance: 0
+            };
+        }
+
+        const limitCredit =
+            this.getMonthlyLimitCreditAmount(
+                monthKey
+            );
+
+        const income =
+            this.getBudgetIncomeTotal(monthKey);
+
+        const expense = this
+            .getBudgetTransactions({
+                month: monthKey
+            })
+            .reduce(
+                (sum, transaction) =>
+                    sum +
+                    (Number(transaction.amount) || 0),
+                0
+            );
+
+        const upcomingDebtData =
+            this.getUpcomingDebts(monthKey);
+
+        const debt =
+            Number(upcomingDebtData.budgetTotal) ||
+            0;
+
+        return {
+            month: monthKey,
+            limitCredit,
+            income,
+            expense,
+            debt,
+
+            balance:
+                limitCredit +
+                income -
+                expense -
+                debt
+        };
+    },
+
+    // Tạo hoặc cập nhật một giao dịch chuyển dư
+    // cho tháng đích.
+    syncMonthlyBudgetCarryover(
+        targetMonth = app.data.filter.month,
+        options = {}
+    ) {
+        const month = String(targetMonth || '');
+
+        const startMonth =
+            this.getMonthlyBudgetCarryoverStartMonth();
+
+        const currentMonth =
+            this.getLocalMonthKey(new Date());
+
+        if (!/^\d{4}-\d{2}$/.test(month)) {
+            return {
+                changed: false,
+                transaction: null,
+                amount: 0
+            };
+        }
+
+        // Tìm các giao dịch chuyển dư đang tồn tại
+        // trong tháng đích.
+        const matches =
+            app.data.transactions.filter(t =>
+                this.isMonthlyBudgetCarryoverTransaction(
+                    t
+                ) &&
+                this.getMonthlyBudgetCarryoverMonth(
+                    t
+                ) === month
+            );
+
+        let changed = false;
+
+        // Hàm xóa giao dịch chuyển dư cũ.
+        const removeMatches = () => {
+            if (matches.length === 0) {
+                return;
+            }
+
+            const ids = new Set(
+                matches.map(t => t.id)
+            );
+
+            app.data.transactions =
+                app.data.transactions.filter(
+                    t => !ids.has(t.id)
+                );
+
+            changed = true;
+        };
+
+        const previousMonth =
+            this.getMonthKeyOffset(month, -1);
+
+        const deletedPeriods =
+            app.data.configs?.deletedPeriods || [];
+
+        // Không tạo giao dịch:
+        // - Trước tháng bắt đầu.
+        // - Cho tháng tương lai.
+        // - Khi tháng liên quan đã bị xóa.
+        if (
+            month < startMonth ||
+            month > currentMonth ||
+            deletedPeriods.includes(month) ||
+            deletedPeriods.includes(previousMonth)
+        ) {
+            removeMatches();
+
+            if (
+                changed &&
+                options.save !== false
+            ) {
+                app.storage.save();
+            }
+
+            return {
+                changed,
+                transaction: null,
+                amount: 0
+            };
+        }
+
+        // Tính phần còn lại của tháng trước.
+        const previousState =
+            this.getMonthlyBudgetBalance(
+                previousMonth
+            );
+
+        // Chỉ chuyển số dư dương.
+        const amount = Math.max(
+            0,
+            Math.round(
+                Number(previousState.balance) || 0
+            )
+        );
+
+        // Nếu tháng trước không còn dư,
+        // xóa giao dịch chuyển dư cũ.
+        if (amount <= 0) {
+            removeMatches();
+
+            if (
+                changed &&
+                options.save !== false
+            ) {
+                app.storage.save();
+            }
+
+            return {
+                changed,
+                transaction: null,
+                amount: 0
+            };
+        }
+
+        // Dùng giao dịch có sẵn hoặc tạo mới.
+        let transaction = matches[0] || null;
+
+        if (!transaction) {
+            transaction = {
+                id: Date.now() + Math.random(),
+
+                type: 'Thu nhập',
+                status: 'paid',
+                amount,
+
+                discountAmount: 0,
+                discountValue: null,
+
+                place: '',
+                brand: '',
+
+                source:
+                    'Dư ngân sách tháng trước',
+
+                destination: '',
+                refId: '',
+                orderCode: '',
+
+                date:
+                    `${month}-01T00:05:00`,
+
+                tags:
+                    '#du_ngan_sach_thang_truoc ' +
+                    '#thu_nhap_tu_dong',
+
+                note: '',
+
+                isCashback: false,
+
+                isMonthlyBudgetCarryover: true,
+
+                budgetCarryoverFromMonth:
+                    previousMonth,
+
+                budgetCarryoverToMonth:
+                    month
+            };
+
+            app.data.transactions.push(
+                transaction
+            );
+
+            changed = true;
+        }
+
+        // Nếu có nhiều giao dịch tự động trùng nhau,
+        // chỉ giữ lại một giao dịch.
+        if (matches.length > 1) {
+            const duplicateIds = new Set(
+                matches
+                    .slice(1)
+                    .map(t => t.id)
+            );
+
+            app.data.transactions =
+                app.data.transactions.filter(
+                    t => !duplicateIds.has(t.id)
+                );
+
+            changed = true;
+        }
+
+        const [
+            previousYear,
+            previousMonthNumber
+        ] = previousMonth
+            .split('-')
+            .map(Number);
+
+        const previousMonthLabel =
+            `${String(previousMonthNumber)
+                .padStart(2, '0')}/` +
+            `${previousYear}`;
+
+        // Những giá trị bắt buộc của giao dịch.
+        const requiredValues = {
+            type: 'Thu nhập',
+            status: 'paid',
+            amount,
+
+            discountAmount: 0,
+            discountValue: null,
+
+            place:
+                `Dư ngân sách tháng ` +
+                previousMonthLabel,
+
+            brand: '',
+
+            source:
+                'Dư ngân sách tháng trước',
+
+            destination: '',
+
+            date:
+                `${month}-01T00:05:00`,
+
+            tags:
+                '#du_ngan_sach_thang_truoc ' +
+                '#thu_nhap_tu_dong',
+
+            note:
+                `Tự động chuyển phần ngân sách ` +
+                `còn dư của tháng ` +
+                `${previousMonthLabel} ` +
+                `sang tháng kế tiếp.`,
+
+            isCashback: false,
+
+            isMonthlyBudgetCarryover: true,
+
+            budgetCarryoverFromMonth:
+                previousMonth,
+
+            budgetCarryoverToMonth:
+                month
+        };
+
+        // Cập nhật giao dịch nếu phần dư thay đổi.
+        Object.entries(requiredValues)
+            .forEach(([key, value]) => {
+                if (transaction[key] !== value) {
+                    transaction[key] = value;
+                    changed = true;
+                }
+            });
+
+        if (
+            changed &&
+            options.save !== false
+        ) {
+            app.storage.save();
+        }
+
+        return {
+            changed,
+            transaction,
+            amount,
+            previousState
+        };
+    },
+
+    // Đồng bộ lần lượt từng tháng.
+    // Nhờ chạy theo thứ tự, số dư có thể
+    // tiếp tục được chuyển qua nhiều tháng.
+    syncAllMonthlyBudgetCarryovers(
+        options = {}
+    ) {
+        const startMonth =
+            this.getMonthlyBudgetCarryoverStartMonth();
+
+        const currentMonth =
+            this.getLocalMonthKey(new Date());
+
+        if (
+            !/^\d{4}-\d{2}$/.test(startMonth) ||
+            !/^\d{4}-\d{2}$/.test(currentMonth) ||
+            startMonth > currentMonth
+        ) {
+            return {
+                changed: false
+            };
+        }
+
+        let changed = false;
+        let month = startMonth;
+        let guard = 0;
+
+        // Giới hạn 240 tháng để tránh vòng lặp lỗi.
+        while (
+            month <= currentMonth &&
+            guard < 240
+        ) {
+            const result =
+                this.syncMonthlyBudgetCarryover(
+                    month,
+                    {
+                        save: false
+                    }
+                );
+
+            if (result.changed) {
+                changed = true;
+            }
+
+            month =
+                this.getMonthKeyOffset(
+                    month,
+                    1
+                );
+
+            guard++;
+        }
+
+        if (
+            changed &&
+            options.save !== false
+        ) {
+            app.storage.save();
+        }
+
+        return {
+            changed
+        };
+    },
+
     getTransactionTags(transaction = {}) {
         return String(transaction.tags || '').toLowerCase();
     },
@@ -289,7 +764,7 @@ app.logic = {
 
     // --- SỬA ĐỔI CHÍNH TẠI ĐÂY ---
     getBudgetTransactions(options = {}) {
-        const month = app.data.filter.month;
+        const month = options.month || app.data.filter.month;
         const respectExclusion = options.respectExclusion !== false;
         return app.data.transactions.filter(t => {
             // 1. Bộ lọc cơ bản (Tháng, Loại, Trạng thái, Loại trừ thủ công)
@@ -331,7 +806,7 @@ app.logic = {
                 if (t.type !== 'Thu nhập') return false;
                 if (t.status !== 'paid') return false;
                 // [MỚI] Loại bỏ thu nhập đã dùng để so khớp đắp vào Cấp trước
-                if (t.excludeFromBudget === true) return false; 
+                if (t.excludeFromBudget === true) return false;
                 return true;
             })
             .reduce(
@@ -373,9 +848,10 @@ app.logic = {
             this.getBudgetIncomeTotal(month);
     },
 
-    getUpcomingDebts() {
+    getUpcomingDebts(month = app.data.filter.month) {
         // 1. Xác định khung thời gian
-        const filterMonthStr = app.data.filter.month;
+        const filterMonthStr =
+            String(month || app.data.filter.month);
         const [y, m] = filterMonthStr.split('-').map(Number);
         const nextMonthDate = new Date(y, m, 1); // Ngày 1 của tháng kế tiếp (Tháng ngân sách)
         const displayNextMonth = `${nextMonthDate.getMonth() + 1}/${nextMonthDate.getFullYear()}`;

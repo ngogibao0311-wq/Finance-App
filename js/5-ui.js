@@ -2810,9 +2810,27 @@ ${payAllHTML}
     // ------------------------------------------
 
     renderAll() {
-        // Đồng bộ giao dịch hạn mức sau khi tải local/cloud hoặc khi dữ liệu bị sửa.
-        const limitSync = app.logic.syncAllMonthlyLimitCredits({ save: false });
-        if (limitSync.changed) app.storage.save();
+        // Đồng bộ giao dịch hạn mức.
+        const limitSync =
+            app.logic.syncAllMonthlyLimitCredits({
+                save: false
+            });
+
+        // Chuyển phần dư tháng trước
+        // thành thu nhập của tháng kế tiếp.
+        const carryoverSync =
+            app.logic
+                .syncAllMonthlyBudgetCarryovers({
+                    save: false
+                });
+
+        // Chỉ lưu một lần sau khi đồng bộ xong.
+        if (
+            limitSync.changed ||
+            carryoverSync.changed
+        ) {
+            app.storage.save();
+        }
 
         let autoFixCount = 0;
         app.data.transactions.forEach(t => {
