@@ -150,6 +150,27 @@ app.logic = {
         });
     },
 
+    // Tổng thu nhập đã thực sự nhận trong tháng ngân sách
+    getBudgetIncomeTotal(month = app.data.filter.month) {
+        return app.data.transactions
+            .filter(t => {
+                // Đúng tháng đang xem
+                if (!this.isTransactionInMonth(t, month)) return false;
+
+                // Chỉ lấy giao dịch thu nhập
+                if (t.type !== 'Thu nhập') return false;
+
+                // Chỉ cộng tiền đã thực sự nhận
+                if (t.status !== 'paid') return false;
+
+                return true;
+            })
+            .reduce(
+                (sum, t) => sum + (Number(t.amount) || 0),
+                0
+            );
+    },
+
     getUpcomingDebts() {
         // 1. Xác định khung thời gian
         const filterMonthStr = app.data.filter.month;
@@ -1821,7 +1842,17 @@ app.logic = {
         const todayStr = this.getLocalDateKey(now);
         const [y, m] = currentMonth.split('-').map(Number);
         const daysInMonth = new Date(y, m, 0).getDate();
-        const dailyCap = daysInMonth > 0 ? limit / daysInMonth : 0;
+
+        // Tổng thu nhập đã nhận trong tháng
+        const budgetIncome = this.getBudgetIncomeTotal(currentMonth);
+
+        // Tổng nguồn tiền được phép sử dụng
+        const effectiveLimit = limit + budgetIncome;
+
+        // Ngân sách trung bình mỗi ngày sau khi cộng thu nhập
+        const dailyCap = daysInMonth > 0
+            ? effectiveLimit / daysInMonth
+            : 0;
 
         // Kế hoạch ngày chỉ phản ánh tiền thực sự đã chi.
         // Giữ cả giao dịch bị loại trừ trong danh sách để người dùng có thể bật lại.
@@ -1856,10 +1887,16 @@ app.logic = {
         );
 
         const upcoming = this.getUpcomingDebts();
-        const available = limit - totalSpentMonth - upcoming.total;
+        const available =
+            effectiveLimit -
+            totalSpentMonth -
+            upcoming.total;
         const daysFunded = dailyCap > 0 ? Math.floor(available / dailyCap) : 0;
 
         return {
+            limit,
+            budgetIncome,
+            effectiveLimit,
             dailyCap,
             todaySpent,
             surplus: dailyCap - todaySpent,

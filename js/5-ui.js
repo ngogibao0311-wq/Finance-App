@@ -239,14 +239,39 @@ app.ui = {
         const upcomingData = app.logic.getUpcomingDebts();
         const projectedDebt = upcomingData.total;
 
-        const totalUsed = totalExpense + projectedDebt;
-        const remain = limit - totalUsed;
+        // Thu nhập đã thực sự nhận trong tháng
+        const budgetIncome =
+            app.logic.getBudgetIncomeTotal(currentMonth);
 
-        const actualPercent = Math.min(100, (totalExpense / limit) * 100);
+        // Hạn mức thực tế sau khi cộng thu nhập
+        const effectiveLimit =
+            limit + budgetIncome;
 
-        let projectedPercent = (projectedDebt / limit) * 100;
+        // Tổng tiền đã dùng và cần giữ lại
+        const totalUsed =
+            totalExpense + projectedDebt;
+
+        // Khả dụng mới
+        const remain =
+            effectiveLimit - totalUsed;
+
+        // Tỷ lệ thanh tiến trình phải dựa trên tổng nguồn khả dụng
+        const actualPercent = effectiveLimit > 0
+            ? Math.min(
+                100,
+                (totalExpense / effectiveLimit) * 100
+            )
+            : 0;
+
+        let projectedPercent = effectiveLimit > 0
+            ? (projectedDebt / effectiveLimit) * 100
+            : 0;
+
         if (actualPercent + projectedPercent > 100) {
-            projectedPercent = 100 - actualPercent;
+            projectedPercent = Math.max(
+                0,
+                100 - actualPercent
+            );
         }
 
         const track = document.querySelector('.budget-track');
@@ -300,7 +325,10 @@ app.ui = {
 
             remainEl.innerHTML = `Khả dụng: <b style="color:var(--danger)">${app.logic.formatCurrency(remain)}</b>`;
 
-        } else if ((totalUsed / limit) > 0.8) {
+        } else if (
+            effectiveLimit > 0 &&
+            (totalUsed / effectiveLimit) > 0.8
+        ) {
             // --- CẢNH BÁO ---
             barActual.classList.add('warning');
             barProjected.style.backgroundColor = '#fde047';
@@ -318,9 +346,23 @@ app.ui = {
 
         // 5. Cập nhật Text "Đã tiêu"
         document.getElementById('budget-used').innerHTML = `
-            Tiêu: <b>${app.logic.formatCurrency(totalExpense)}</b> 
-            ${projectedDebt > 0 ? `<span style="color:var(--text-muted); font-size:0.7rem;">(+${app.logic.formatCurrency(projectedDebt)} nợ)</span>` : ''}
-        `;
+    Tiêu:
+    <b>${app.logic.formatCurrency(totalExpense)}</b>
+
+    ${projectedDebt > 0
+                ? `<span style="color:var(--text-muted); font-size:0.7rem;">
+            (+${app.logic.formatCurrency(projectedDebt)} nợ)
+           </span>`
+                : ''
+            }
+
+    ${budgetIncome > 0
+                ? `<span style="color:var(--success); font-size:0.7rem;">
+            (+${app.logic.formatCurrency(budgetIncome)} thu nhập)
+           </span>`
+                : ''
+            }
+`;
     },
 
     init() {

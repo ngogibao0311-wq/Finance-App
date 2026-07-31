@@ -694,6 +694,7 @@ app.events = {
                 const originalTransactions = app.data.transactions;
                 let previewSpent = 0;
                 let previewDebt = 0;
+                let previewIncome = 0;
 
                 try {
                     const previewTransactions = originalTransactions
@@ -706,22 +707,45 @@ app.events = {
                         .getBudgetTransactions()
                         .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
+                    previewIncome =
+                        app.logic.getBudgetIncomeTotal(currentMonth);
+
                     previewDebt = app.logic.getUpcomingDebts().total;
                 } finally {
                     app.data.transactions = originalTransactions;
                 }
 
-                const newTotalUsed = previewSpent + previewDebt;
-                const remainingAfter = limit - newTotalUsed;
+                const newTotalUsed =
+                    previewSpent + previewDebt;
+
+                const effectiveLimit =
+                    limit + previewIncome;
+
+                const remainingAfter =
+                    effectiveLimit - newTotalUsed;
 
                 if (remainingAfter < 0) {
                     const over = Math.abs(remainingAfter);
                     const confirmOver = confirm(
-                        `🚨 CẢNH BÁO CHÁY TÚI! 🚨\n\nHạn mức: ${app.logic.formatCurrency(limit)}\nChi thực trả + Nợ cần giữ lại: ${app.logic.formatCurrency(newTotalUsed)}\n---------------------------\nSẼ VƯỢT QUÁ (Thâm hụt): ${app.logic.formatCurrency(over)}\n\nBạn có chắc chắn muốn tiếp tục không?`
+                        `🚨 CẢNH BÁO CHÁY TÚI! 🚨\n\n` +
+                        `Hạn mức tháng: ${app.logic.formatCurrency(limit)}\n` +
+                        `Thu nhập đã nhận: +${app.logic.formatCurrency(previewIncome)}\n` +
+                        `Tổng nguồn khả dụng: ${app.logic.formatCurrency(effectiveLimit)}\n` +
+                        `Chi thực trả + Nợ giữ lại: ${app.logic.formatCurrency(newTotalUsed)}\n` +
+                        `---------------------------\n` +
+                        `THÂM HỤT: ${app.logic.formatCurrency(over)}\n\n` +
+                        `Bạn có chắc chắn muốn tiếp tục không?`
                     );
                     if (!confirmOver) return;
                 } else if (remainingAfter < 100000) {
-                    alert(`⚠️ CẨN THẬN! Ví sắp cạn.\n\nSau khi tính chi thực trả và toàn bộ nợ đang hiển thị,\nbạn chỉ còn khả dụng: ${app.logic.formatCurrency(remainingAfter)}\nHãy cân nhắc kỹ!`);
+                    alert(
+                        `⚠️ CẨN THẬN! Ví sắp cạn.\n\n` +
+                        `Hạn mức: ${app.logic.formatCurrency(limit)}\n` +
+                        `Thu nhập đã nhận: +${app.logic.formatCurrency(previewIncome)}\n` +
+                        `Sau khi trừ chi tiêu và nợ,\n` +
+                        `bạn còn khả dụng: ${app.logic.formatCurrency(remainingAfter)}\n\n` +
+                        `Hãy cân nhắc kỹ!`
+                    );
                 }
             }
 
