@@ -718,20 +718,18 @@ app.events = {
                 const newTotalUsed =
                     previewSpent + previewDebt;
 
-                const effectiveLimit =
-                    limit + previewIncome;
-
                 const remainingAfter =
-                    effectiveLimit - newTotalUsed;
+                    previewIncome -
+                    limit -
+                    newTotalUsed;
 
                 if (remainingAfter < 0) {
                     const over = Math.abs(remainingAfter);
                     const confirmOver = confirm(
                         `🚨 CẢNH BÁO CHÁY TÚI! 🚨\n\n` +
-                        `Hạn mức tháng: ${app.logic.formatCurrency(limit)}\n` +
                         `Thu nhập đã nhận: +${app.logic.formatCurrency(previewIncome)}\n` +
-                        `Tổng nguồn khả dụng: ${app.logic.formatCurrency(effectiveLimit)}\n` +
-                        `Chi thực trả + Nợ giữ lại: ${app.logic.formatCurrency(newTotalUsed)}\n` +
+                        `Giới hạn chi tiêu: -${app.logic.formatCurrency(limit)}\n` +
+                        `Chi thực trả + Nợ: -${app.logic.formatCurrency(newTotalUsed)}\n` +
                         `---------------------------\n` +
                         `THÂM HỤT: ${app.logic.formatCurrency(over)}\n\n` +
                         `Bạn có chắc chắn muốn tiếp tục không?`

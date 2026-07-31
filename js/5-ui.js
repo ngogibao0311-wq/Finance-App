@@ -244,16 +244,14 @@ app.ui = {
             app.logic.getBudgetIncomeTotal(currentMonth);
 
         // Hạn mức thực tế sau khi cộng thu nhập
-        const effectiveLimit =
-            limit + budgetIncome;
-
-        // Tổng tiền đã dùng và cần giữ lại
         const totalUsed =
             totalExpense + projectedDebt;
 
-        // Khả dụng mới
+        // Khả dụng = Thu nhập - Giới hạn - Chi - Nợ
         const remain =
-            effectiveLimit - totalUsed;
+            budgetIncome -
+            limit -
+            totalUsed;
 
         // Tỷ lệ thanh tiến trình phải dựa trên tổng nguồn khả dụng
         const actualPercent = effectiveLimit > 0
@@ -326,8 +324,8 @@ app.ui = {
             remainEl.innerHTML = `Khả dụng: <b style="color:var(--danger)">${app.logic.formatCurrency(remain)}</b>`;
 
         } else if (
-            effectiveLimit > 0 &&
-            (totalUsed / effectiveLimit) > 0.8
+            limit > 0 &&
+            (totalUsed / limit) > 0.8
         ) {
             // --- CẢNH BÁO ---
             barActual.classList.add('warning');
@@ -346,22 +344,31 @@ app.ui = {
 
         // 5. Cập nhật Text "Đã tiêu"
         document.getElementById('budget-used').innerHTML = `
-    Tiêu:
-    <b>${app.logic.formatCurrency(totalExpense)}</b>
+    <div>
+        Thu nhập:
+        <b style="color:var(--success)">
+            +${app.logic.formatCurrency(budgetIncome)}
+        </b>
+    </div>
 
-    ${projectedDebt > 0
-                ? `<span style="color:var(--text-muted); font-size:0.7rem;">
-            (+${app.logic.formatCurrency(projectedDebt)} nợ)
-           </span>`
-                : ''
-            }
+    <div style="font-size:0.75rem; color:var(--text-muted);">
+        Giới hạn chi tiêu:
+        <b style="color:var(--danger)">
+            −${app.logic.formatCurrency(limit)}
+        </b>
+    </div>
 
-    ${budgetIncome > 0
-                ? `<span style="color:var(--success); font-size:0.7rem;">
-            (+${app.logic.formatCurrency(budgetIncome)} thu nhập)
-           </span>`
-                : ''
-            }
+    <div style="font-size:0.75rem; color:var(--text-muted);">
+        Đã tiêu:
+        <b>−${app.logic.formatCurrency(totalExpense)}</b>
+
+        ${projectedDebt > 0
+            ? `<span>
+                | Nợ: −${app.logic.formatCurrency(projectedDebt)}
+               </span>`
+            : ''
+        }
+    </div>
 `;
     },
 

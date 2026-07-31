@@ -1847,11 +1847,9 @@ app.logic = {
         const budgetIncome = this.getBudgetIncomeTotal(currentMonth);
 
         // Tổng nguồn tiền được phép sử dụng
-        const effectiveLimit = limit + budgetIncome;
-
-        // Ngân sách trung bình mỗi ngày sau khi cộng thu nhập
+        // Giới hạn ngày vẫn dựa trên Giới hạn chi tiêu tháng
         const dailyCap = daysInMonth > 0
-            ? effectiveLimit / daysInMonth
+            ? limit / daysInMonth
             : 0;
 
         // Kế hoạch ngày chỉ phản ánh tiền thực sự đã chi.
@@ -1888,7 +1886,8 @@ app.logic = {
 
         const upcoming = this.getUpcomingDebts();
         const available =
-            effectiveLimit -
+            budgetIncome -
+            limit -
             totalSpentMonth -
             upcoming.total;
         const daysFunded = dailyCap > 0 ? Math.floor(available / dailyCap) : 0;
@@ -1896,7 +1895,6 @@ app.logic = {
         return {
             limit,
             budgetIncome,
-            effectiveLimit,
             dailyCap,
             todaySpent,
             surplus: dailyCap - todaySpent,
