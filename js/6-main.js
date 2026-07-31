@@ -772,7 +772,7 @@ app.events = {
                 data.type === 'Chi tiêu' &&
                 limit > 0 &&
                 data.status !== 'cancelled' &&
-                app.logic.isTransactionInMonth(data, currentMonth)
+                app.logic.isTransactionInBudgetMonth(data, currentMonth)
             ) {
                 // Tính thử bằng đúng logic thật, thay vì luôn cộng data.amount.
                 // Cách cũ làm giao dịch trả sau/sửa giao dịch bị cộng trùng với nợ dự kiến.
@@ -820,7 +820,7 @@ app.events = {
                         `🚨 CẢNH BÁO CHÁY TÚI! 🚨\n\n` +
                         `${previewLimitCredit > 0 ? `Hạn mức cấp trước: +${app.logic.formatCurrency(previewLimitCredit)}\n` : ''}` +
                         `Thu nhập thực tế: +${app.logic.formatCurrency(previewIncome)}\n` +
-                        `Chi thực trả + Nợ: -${app.logic.formatCurrency(newTotalUsed)}\n` +
+                        `Chi theo ngân sách + nghĩa vụ bổ sung: -${app.logic.formatCurrency(newTotalUsed)}\n` +
                         `---------------------------\n` +
                         `THÂM HỤT: ${app.logic.formatCurrency(over)}\n\n` +
                         `Bạn có chắc chắn muốn tiếp tục không?`
@@ -3143,7 +3143,7 @@ document.getElementById('btn-ask-gemini').addEventListener('click', async () => 
         .map(i => `${i.name} (${app.logic.formatCurrency((Number(i.amount) || 0) + (Number(i.penalty) || 0))})`)
         .join(', ');
 
-    // Lấy hạn mức (nếu có): tiền thực trả + khoản nợ phải giữ lại.
+    // Lấy hạn mức (nếu có): chi theo kỳ sao kê + nghĩa vụ bổ sung.
     const limit = Number(app.data.configs.monthlyLimits?.[currentMonth]) || 0;
     const totalBudgetUsed = totalExpense + upcomingDebt;
     const remainingBudget = limit > 0 ? limit - totalBudgetUsed : null;
@@ -3151,7 +3151,7 @@ document.getElementById('btn-ask-gemini').addEventListener('click', async () => 
         ? Math.round((totalBudgetUsed / limit) * 100)
         : (income > 0 ? Math.round((totalExpense / income) * 100) : 0);
 
-    // Mở rộng Top 5 khoản tiêu thực trả kèm Tag để AI phân tích thói quen
+    // Mở rộng Top 5 khoản chi ngân sách kèm Tag để AI phân tích thói quen
     const topSpending = expenses.slice().sort((a, b) => b.amount - a.amount).slice(0, 5)
         .map(t => `- ${t.place} (${t.tags || 'Khác'}): ${app.logic.formatCurrency(t.amount)}`).join('\n');
 
@@ -3162,9 +3162,9 @@ document.getElementById('btn-ask-gemini').addEventListener('click', async () => 
     - Hạn mức cấp trước đang tính vào Khả dụng: ${app.logic.formatCurrency(limitCredit)}
     - Thu nhập thực tế thông thường: ${app.logic.formatCurrency(regularBudgetIncome)}
     - Tổng Chi Tiêu: ${app.logic.formatCurrency(totalExpense)}
-    - Dòng tiền sau chi thực trả: ${app.logic.formatCurrency(cashBalance)}
+    - Số dư sau chi được phân bổ: ${app.logic.formatCurrency(cashBalance)}
     - Khả dụng sau khi giữ tiền trả nợ: ${app.logic.formatCurrency(availableAfterDebt)}
-    ${limit > 0 ? `- Hạn Mức Cài Đặt: ${app.logic.formatCurrency(limit)} (Đã dùng/dự phòng ${burnRate}% hạn mức. Còn lại: ${app.logic.formatCurrency(remainingBudget)})` : `- Tỷ lệ chi tiêu so với thu nhập: ${burnRate}%`}
+    ${limit > 0 ? `- Hạn Mức Cài Đặt: ${app.logic.formatCurrency(limit)} (Đã dùng/phân bổ ${burnRate}% hạn mức. Còn lại: ${app.logic.formatCurrency(remainingBudget)})` : `- Tỷ lệ chi tiêu so với thu nhập: ${burnRate}%`}
     - Nợ Sắp Phải Trả: ${app.logic.formatCurrency(upcomingDebt)} (${debtItems || 'Không có khoản nợ nào'})
     
     [TOP 5 KHOẢN CHI LỚN NHẤT THÁNG NÀY]

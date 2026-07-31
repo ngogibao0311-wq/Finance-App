@@ -240,19 +240,13 @@ app.ui = {
             app.logic.getUpcomingDebts();
 
         /*
-         * Nợ thuộc đúng kỳ thanh toán của tháng đang xem.
-         * Giá trị này mới được trừ vào Khả dụng.
+         * Phần nghĩa vụ bổ sung của tháng gồm phí theo kỳ sao kê,
+         * kỳ trả góp và các khoản nợ khác. Riêng giao dịch trả sau gốc
+         * đã được totalExpense tính theo tháng sao kê.
          */
         const projectedDebtBudget =
             Number(upcomingData.budgetTotal) || 0;
 
-        /*
- * Trong Ngân sách tháng chỉ hiển thị khoản nợ
- * thực sự thuộc tháng đang xem.
- *
- * Nợ tháng sau vẫn hiển thị trong khối
- * “Sắp đến hạn” riêng bên dưới.
- */
         const projectedDebtBar = projectedDebtBudget;
 
         // Hạn mức cấp trước và thu nhập thực tế thông thường.
@@ -262,7 +256,8 @@ app.ui = {
         const budgetIncome =
             app.logic.getBudgetIncomeTotal(currentMonth);
 
-        // Khả dụng chỉ trừ nợ thuộc đúng tháng thanh toán
+        // Khả dụng dùng giao dịch trả sau theo tháng sao kê,
+        // không dùng tháng của hạn thanh toán.
         const totalUsed =
             totalExpense + projectedDebtBudget;
 
@@ -388,7 +383,7 @@ app.ui = {
 
         ${projectedDebtBar > 0
                 ? `<span>
-        | Sắp đến hạn: ${app.logic.formatCurrency(projectedDebtBar)}
+        | Phân bổ kỳ sao kê/nợ khác: ${app.logic.formatCurrency(projectedDebtBar)}
        </span>`
                 : ''
             }
@@ -2770,7 +2765,7 @@ ${payAllHTML}
             { respectDashboardExclusion: true }
         );
 
-        // Dashboard dùng cùng cơ sở tiền thực trả như ngân sách, nhưng vẫn giữ nút
+        // Dashboard dùng cùng cơ sở phân bổ theo kỳ sao kê như ngân sách, nhưng vẫn giữ nút
         // loại trừ riêng của Dashboard. Nhờ vậy giao dịch mua trả sau và giao dịch
         // trả nợ không còn bị cộng hai lần.
         const dashboardExpenseTxs = app.logic
@@ -2818,7 +2813,7 @@ ${payAllHTML}
         const topExpense = dashboardExpenseTxs
             .slice()
             .sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0))
-            .slice(0, 5); // Lấy top 5 khoản tiền thực trả lớn nhất
+            .slice(0, 5); // Lấy top 5 khoản chi được phân bổ vào tháng
 
         if (topExpense.length === 0) {
             document.getElementById('detail-expense').innerHTML = '<div style="opacity:0.7; font-style:italic; padding-top:10px;">Chưa có chi tiêu</div>';
@@ -3237,7 +3232,7 @@ ${payAllHTML}
             txs = app.logic
                 .getBudgetTransactions({ respectExclusion: false })
                 .filter(t => !t.excludeFromDashboard);
-            title = "CHI TIẾT CHI TIÊU THỰC TRẢ"; themeColor = "#ef4444";
+            title = "CHI TIẾT CHI TIÊU NGÂN SÁCH"; themeColor = "#ef4444";
         } else if (type === 'debt') {
             // Lấy toàn bộ giao dịch liên quan đến nợ trong tháng (bao gồm cả đã trả và đang nợ)
             txs = app.data.transactions.filter(t => {
@@ -6345,7 +6340,7 @@ ${t.tempExtraFeeReason
                     )
                 );
 
-                // Báo cáo dùng cùng cơ sở tiền thực trả với Dashboard/ngân sách để tránh
+                // Báo cáo dùng cùng cơ sở phân bổ theo kỳ sao kê với Dashboard/ngân sách để tránh
                 // cộng cả đơn trả sau gốc lẫn giao dịch thanh toán nợ.
                 const expenseTxs = app.logic.getBudgetTransactions({ respectExclusion: false });
                 const upcomingData = app.logic.getUpcomingDebts();
@@ -6360,14 +6355,14 @@ ${t.tempExtraFeeReason
                 const totalBudgetUsed = totalExp + totalPendingExp;
                 const netBalance = totalInc - totalExp;
 
-                // 2. SỐ LIỆU NGÂN SÁCH: tiền đã trả + nợ cần giữ lại.
+                // 2. SỐ LIỆU NGÂN SÁCH: giao dịch đã phân bổ + nghĩa vụ bổ sung.
                 const budgetLimit = Number(app.data.configs.monthlyLimits?.[month]) || 0;
                 let budgetPercent = 0;
                 let budgetText = "Chưa thiết lập";
                 let budgetColor = "#94a3b8";
                 if (budgetLimit > 0) {
                     budgetPercent = Math.min(100, (totalBudgetUsed / budgetLimit) * 100);
-                    budgetText = `${app.logic.formatCurrency(totalExp)} đã trả + ${app.logic.formatCurrency(totalPendingExp)} dự phòng / ${app.logic.formatCurrency(budgetLimit)}`;
+                    budgetText = `${app.logic.formatCurrency(totalExp)} đã ghi nhận + ${app.logic.formatCurrency(totalPendingExp)} phân bổ bổ sung / ${app.logic.formatCurrency(budgetLimit)}`;
                     if (budgetPercent >= 100) budgetColor = "#ef4444";
                     else if (budgetPercent >= 80) budgetColor = "#f59e0b";
                     else budgetColor = "#10b981";
@@ -7447,7 +7442,7 @@ ${t.tempExtraFeeReason
                 this.renderReceipt(
                     topItems.length ? topItems : [{ name: "Chưa tiêu gì", amount: 0, note: "Giỏi lắm!" }],
                     total,
-                    "PAID",
+                    "BUDGET",
                     "fa-solid fa-face-dizzy",
                     null,
                     "*** CẢM ƠN QUÝ KHÁCH ***"

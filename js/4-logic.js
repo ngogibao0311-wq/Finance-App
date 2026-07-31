@@ -253,6 +253,230 @@ app.logic = {
             s.includes('trả sau') || s.includes('paylater');
     },
 
+    getCreditPlatformKey(source = '') {
+        const s = String(source || '').toLowerCase();
+
+        if (s.includes('shopee') || s.includes('spay') || s.includes('airpay')) {
+            return 'shopee';
+        }
+        if (s.includes('tiktok')) return 'tiktok';
+        if (s.includes('momo')) return 'momo';
+        if (s.includes('zalo') || s.includes('priority')) return 'zalo';
+        return 'default';
+    },
+
+    getPayLaterBillingCycle(source = '') {
+        const defaults = {
+            shopee: {
+                cutoffDay: 13,
+                cutoffTime: '23:59:59',
+                statementMonthOffset: 0,
+                statementDay: 13,
+                statementTime: '23:59:59',
+                dueMonthOffset: 1,
+                dueDay: 1,
+                dueTime: '23:59:59'
+            },
+            tiktok: {
+                cutoffDay: 23,
+                cutoffTime: '23:59:59',
+                statementMonthOffset: 0,
+                statementDay: 23,
+                statementTime: '23:59:59',
+                dueMonthOffset: 1,
+                dueDay: 10,
+                dueTime: '23:59:59'
+            },
+            momo: {
+                cutoffDay: null,
+                statementMonthOffset: 1,
+                statementDay: 1,
+                statementTime: '00:01:00',
+                dueMonthOffset: 0,
+                dueDay: 5,
+                dueTime: '23:59:59'
+            },
+            zalo: {
+                cutoffDay: null,
+                statementMonthOffset: 1,
+                statementDay: 1,
+                statementTime: '00:00:00',
+                dueMonthOffset: 0,
+                dueDay: 6,
+                dueTime: '23:59:59'
+            },
+            default: {
+                cutoffDay: null,
+                statementMonthOffset: 1,
+                statementDay: 1,
+                statementTime: '00:00:00',
+                dueMonthOffset: 0,
+                dueDay: 5,
+                dueTime: '00:00:00'
+            }
+        };
+
+        const platformKey = this.getCreditPlatformKey(source);
+        const configured = app.data.configs?.payLaterBillingCycles || {};
+        const normalizedSource = String(source || '')
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, ' ');
+
+        const bySource = configured.bySource || {};
+        const sourceOverrideKey = Object.keys(bySource).find(key =>
+            String(key || '')
+                .trim()
+                .toLowerCase()
+                .replace(/\s+/g, ' ') === normalizedSource
+        );
+
+        return {
+            ...defaults[platformKey],
+            ...(configured[platformKey] || {}),
+            ...(sourceOverrideKey
+                ? bySource[sourceOverrideKey]
+                : {}),
+            platformKey
+        };
+    },
+
+    parseBillingTime(value, fallback = '00:00:00') {
+        const parts = String(value || fallback)
+            .split(':')
+            .map(Number);
+
+        return {
+            hour: Number.isFinite(parts[0]) ? parts[0] : 0,
+            minute: Number.isFinite(parts[1]) ? parts[1] : 0,
+            second: Number.isFinite(parts[2]) ? parts[2] : 0
+        };
+    },
+
+    createBillingDate(year, monthIndex, day, timeValue) {
+        const time = this.parseBillingTime(timeValue);
+        return new Date(
+            year,
+            monthIndex,
+            Math.max(1, Number(day) || 1),
+            time.hour,
+            time.minute,
+            time.second,
+            0
+        );
+    },
+
+    shiftBillingMonth(year, monthIndex, offset = 0) {
+        const shifted = new Date(year, monthIndex + (Number(offset) || 0), 1);
+        return {
+            year: shifted.getFullYear(),
+            monthIndex: shifted.getMonth()
+        };
+    },
+
+    getStatementMonthKey(transaction = {}) {
+        if (!this.isCreditSource(transaction.source)) {
+            return this.getLocalMonthKey(transaction.date);
+        }
+
+        const billing = this.getBillingInfo(
+            transaction.source,
+            transaction.date
+        );
+
+        if (!billing?.statementDate) {
+            return this.getLocalMonthKey(transaction.date);
+        }
+
+        return this.getLocalMonthKey(billing.statementDate);
+    },
+
+    isTransactionInBudgetMonth(transaction, month = app.data.filter.month) {
+        if (this.isMonthlyLimitCreditTransaction(transaction)) {
+            return this.getMonthlyLimitCreditMonth(transaction) === month;
+        }
+
+        if (
+            transaction?.type === 'Chi tiêu' &&
+            this.isCreditSource(transaction.source) &&
+            !this.isDebtPaymentTransaction(transaction)
+        ) {
+            return this.getStatementMonthKey(transaction) === month;
+        }
+
+        return this.getLocalMonthKey(transaction?.date) === month;
+    },
+
+    isCreditSettlementTransaction(transaction = {}) {
+        if (!this.isDebtPaymentTransaction(transaction)) return false;
+
+        return [
+            transaction.source,
+            transaction.destination,
+            transaction.place,
+            transaction.note
+        ].some(value => this.isCreditSource(value));
+    },
+
+    getStatementBudgetAdjustments(month = app.data.filter.month) {
+        let transactionFees = 0;
+        let installmentTotal = 0;
+
+        app.data.transactions.forEach(t => {
+            if (t.type !== 'Chi tiêu') return;
+            if (t.status === 'cancelled' || t.status === 'planned') return;
+            if (!this.isCreditSource(t.source)) return;
+            if (!this.isTransactionInBudgetMonth(t, month)) return;
+
+            const tags = this.getTransactionTags(t);
+            if (
+                tags.includes('#du_no_chuyen_tiep') ||
+                tags.includes('#da_chuyen_tra_gop') ||
+                tags.includes('#phi_dich_vu') ||
+                this.isDebtPaymentTransaction(t)
+            ) {
+                return;
+            }
+
+            const source = String(t.source || '').toLowerCase();
+            const amount = Number(t.amount) || 0;
+
+            if (source.includes('tiktok')) {
+                transactionFees += Math.round(amount * 0.0295);
+                return;
+            }
+
+            if (
+                source.includes('shopee') ||
+                source.includes('spay') ||
+                source.includes('airpay')
+            ) {
+                const feeInfo = this.getShopeeTransactionFeeInfo(t);
+                if (feeInfo.isSpecial) {
+                    transactionFees += Math.round(amount * feeInfo.feeRate);
+                }
+            }
+        });
+
+        Object.values(app.data.installmentPlans || {}).forEach(plan => {
+            if (!plan || !Array.isArray(plan.payments)) return;
+
+            plan.payments.forEach(payment => {
+                if (!payment || String(payment.date || '') !== month) return;
+
+                installmentTotal +=
+                    (Number(payment.amount) || 0) +
+                    (Number(payment.penaltyAmt) || 0);
+            });
+        });
+
+        return {
+            transactionFees,
+            installmentTotal,
+            total: transactionFees + installmentTotal
+        };
+    },
+
     getFilteredTxs() {
         return app.data.transactions
             .filter(t => this.isTransactionInMonth(t))
@@ -278,36 +502,43 @@ app.logic = {
         });
     },
 
-    // --- SỬA ĐỔI CHÍNH TẠI ĐÂY ---
+    // Ngân sách tháng dùng tháng của kỳ sao kê đối với nguồn trả sau.
     getBudgetTransactions(options = {}) {
         const month = app.data.filter.month;
         const respectExclusion = options.respectExclusion !== false;
+
         return app.data.transactions.filter(t => {
-            // 1. Bộ lọc cơ bản (Tháng, Loại, Trạng thái, Loại trừ thủ công)
-            if (!this.isTransactionInMonth(t, month)) return false;
             if (t.type === 'Chuyển tiền') return false;
             if (t.type !== 'Chi tiêu') return false;
-            if (t.status !== 'paid') return false;
             if (respectExclusion && t.excludeFromBudget === true) return false;
 
             const tags = this.getTransactionTags(t);
-            const s = String(t.source || '').toLowerCase();
 
-            // 2. [QUAN TRỌNG - TÍNH VÀO NGÂN SÁCH] Các khoản THANH TOÁN NỢ
-            // Bao gồm: Trả gốc (#thanh_toan_no), Phí (#thanh_toan_phi), Phạt (#nop_phat), Trả góp (#tra_gop), Tất toán vay (#tat_toan_vay)
-            const isDebtPayment = this.isDebtPaymentTransaction(t);
-
-            if (isDebtPayment) return true;
-
-            // 3. [QUAN TRỌNG - KHÔNG TÍNH] Các khoản CHI TIÊU TÍN DỤNG GỐC
-            // (Vì chúng ta đã tính tiền lúc trả nợ ở Bước 2 rồi, nếu tính thêm ở đây sẽ bị trùng lặp)
-            if (this.isCreditSource(s)) return false;
-
-            // 4. Loại trừ các khoản trung gian/nội bộ
-            if (tags.includes('#da_chuyen_tra_gop')) return false;
+            // Không coi dư nợ chuyển tiếp hoặc giao dịch gốc đã chuyển trả góp
+            // là một khoản chi mới của ngân sách.
             if (tags.includes('#du_no_chuyen_tiep')) return false;
+            if (tags.includes('#da_chuyen_tra_gop')) return false;
 
-            // 5. Còn lại (Tiền mặt, Bank thường...) -> TÍNH VÀO NGÂN SÁCH
+            /*
+             * Thanh toán dư nợ chỉ làm giảm số tiền phải trả.
+             * Khoản chi đã được ghi nhận từ giao dịch gốc theo kỳ sao kê,
+             * nên không được trừ ngân sách lần thứ hai vào ngày thanh toán.
+             */
+            if (this.isCreditSettlementTransaction(t)) return false;
+
+            if (this.isCreditSource(t.source)) {
+                if (t.status === 'cancelled' || t.status === 'planned') {
+                    return false;
+                }
+
+                // Pending và Paid đều là giao dịch đã phát sinh trên hạn mức.
+                return this.isTransactionInBudgetMonth(t, month);
+            }
+
+            // Tiền mặt/ngân hàng thường giữ nguyên logic cũ.
+            if (!this.isTransactionInMonth(t, month)) return false;
+            if (t.status !== 'paid') return false;
+
             return true;
         });
     },
@@ -1009,6 +1240,8 @@ app.logic = {
                     dueDateISO: group.safeDateStr,
 
                     statementLabel: statementLabel,
+                    statementMonthKey:
+                        app.logic.getLocalMonthKey(statementDate),
 
                     // Danh sách giao dịch thuộc kỳ sao kê.
                     txCount: group.txs.length,
@@ -1151,21 +1384,32 @@ app.logic = {
                     }
 
                     /*
-                     * payment.date là tháng sao kê.
-                     *
-                     * Ví dụ:
-                     * payment.date = 2026-07
-                     * Shopee hạn ngày 02
-                     * => hạn thực tế là 02/08/2026.
-                     *
-                     * statementMonth được truyền trực tiếp làm
-                     * chỉ số tháng của Date để chuyển sang tháng sau.
+                     * payment.date là tháng sao kê. Ngày đến hạn chỉ dùng
+                     * để hiển thị/cảnh báo và được lấy từ cấu hình của ví.
                      */
-                    const dueDate = new Date(
-                        statementYear,
-                        statementMonth,
-                        platform.dueDay
-                    );
+                    const billingCycle =
+                        app.logic.getPayLaterBillingCycle(
+                            platform.source
+                        );
+
+                    const dueMonth =
+                        app.logic.shiftBillingMonth(
+                            statementYear,
+                            statementMonth - 1,
+                            Number(
+                                billingCycle.dueMonthOffset
+                            ) || 0
+                        );
+
+                    const dueDate =
+                        app.logic.createBillingDate(
+                            dueMonth.year,
+                            dueMonth.monthIndex,
+                            Number(billingCycle.dueDay) ||
+                                platform.dueDay,
+                            billingCycle.dueTime ||
+                                '23:59:59'
+                        );
 
                     const safeDateStr =
                         `${dueDate.getFullYear()}-` +
@@ -1243,6 +1487,11 @@ app.logic = {
                                     statementMonth
                                 ).padStart(2, '0')}/` +
                                 `${statementYear}`,
+
+                            statementMonthKey:
+                                `${statementYear}-${String(
+                                    statementMonth
+                                ).padStart(2, '0')}`,
 
                             txCount: 0,
                             txIds: [],
@@ -1444,15 +1693,20 @@ app.logic = {
         };
 
         /*
- * Chỉ trừ vào ngân sách tháng đang xem những khoản:
- * - Đến hạn trong tháng đang xem; hoặc
- * - Đã quá hạn từ tháng trước.
- *
- * Nợ tháng sau chỉ hiển thị để nhắc trước,
- * không ảnh hưởng Khả dụng tháng hiện tại.
- */
-        const budgetTotal = items.reduce(
+         * Khoản trả sau không còn bị trừ theo ngày đến hạn.
+         * Giao dịch gốc đã được getBudgetTransactions() phân bổ vào
+         * tháng sao kê; tại đây chỉ giữ:
+         * - phần phí phát sinh không có giao dịch riêng;
+         * - kỳ trả góp thuộc tháng sao kê;
+         * - các khoản vay/nợ không phải nhóm tín dụng trả sau.
+         */
+        const statementAdjustments =
+            this.getStatementBudgetAdjustments(filterMonthStr);
+
+        const otherDebtBudgetTotal = items.reduce(
             (sum, item) => {
+                if (item.isCreditGroup === true) return sum;
+
                 const dueDate = getDebtDueDate(item);
 
                 if (
@@ -1472,6 +1726,12 @@ app.logic = {
             0
         );
 
+        const statementBudgetTotal =
+            Number(statementAdjustments.total) || 0;
+
+        const budgetTotal =
+            statementBudgetTotal + otherDebtBudgetTotal;
+
         return {
             /*
              * Tổng tất cả nợ đang hiển thị trong
@@ -1481,10 +1741,13 @@ app.logic = {
             displayTotal: displayTotal,
 
             /*
-             * Tổng nợ được phép trừ vào ngân sách
-             * của tháng đang xem.
+             * Tổng nghĩa vụ được phân bổ vào ngân sách tháng đang xem.
+             * Hạn thanh toán của ví trả sau không quyết định tháng này.
              */
             budgetTotal: budgetTotal,
+            statementBudgetTotal: statementBudgetTotal,
+            statementBudgetDetails: statementAdjustments,
+            otherDebtBudgetTotal: otherDebtBudgetTotal,
 
             items,
             monthLabel: displayNextMonth
@@ -1778,98 +2041,73 @@ app.logic = {
 
     getBillingInfo(source, txDateStr) {
         const txDate = new Date(txDateStr);
-        const sourceLower = String(source || '').toLowerCase();
-        let dueResult = { dueDate: null, statementDate: null };
 
-        if (
-            sourceLower.includes('shopee') ||
-            sourceLower.includes('spay') ||
-            sourceLower.includes('airpay')
-        ) {
-            const day = txDate.getDate();
+        if (Number.isNaN(txDate.getTime())) {
+            return {
+                dueDate: null,
+                statementDate: null,
+                statementMonthKey: '',
+                platformKey: this.getCreditPlatformKey(source)
+            };
+        }
 
-            // Chốt sao kê ngày 13 lúc 23:59:59.
-            const statementCutoffDay = 13;
+        const cycle = this.getPayLaterBillingCycle(source);
+        let statementOffset = Number(cycle.statementMonthOffset) || 0;
 
-            // Hạn thanh toán ngày 1 của tháng tiếp theo.
-            const dueDay = 1;
+        const cutoffDay = Number(cycle.cutoffDay);
+        if (Number.isFinite(cutoffDay) && cutoffDay > 0) {
+            const cutoffDate = this.createBillingDate(
+                txDate.getFullYear(),
+                txDate.getMonth(),
+                cutoffDay,
+                cycle.cutoffTime || '23:59:59'
+            );
 
-            let sMonth = txDate.getMonth();
-            let sYear = txDate.getFullYear();
-
-            if (day > statementCutoffDay) {
-                sMonth++;
-                if (sMonth > 11) { sMonth = 0; sYear++; }
+            // Trước hoặc đúng giây chốt vẫn thuộc kỳ hiện tại.
+            if (txDate.getTime() > cutoffDate.getTime()) {
+                statementOffset += 1;
             }
-
-            // Dòng này đã tự động gán giờ là 23:59:59 cho ngày chốt sổ
-            dueResult.statementDate = new Date(sYear, sMonth, statementCutoffDay, 23, 59, 59);
-
-            let dMonth = sMonth + 1;
-            let dYear = sYear;
-            if (dMonth > 11) { dMonth = 0; dYear++; }
-
-            dueResult.dueDate = new Date(dYear, dMonth, dueDay, 23, 59, 59);
-            return dueResult;
         }
 
-        if (sourceLower.includes('momo') || sourceLower.includes('ví trả sau')) {
-            const dueMonth = txDate.getMonth() + 1;
-            const dueYear = txDate.getFullYear() + (dueMonth > 11 ? 1 : 0);
-            const normalizedDueMonth = dueMonth > 11 ? 0 : dueMonth;
+        const statementMonth = this.shiftBillingMonth(
+            txDate.getFullYear(),
+            txDate.getMonth(),
+            statementOffset
+        );
 
-            dueResult.statementDate = new Date(dueYear, normalizedDueMonth, 1, 0, 1, 0);
-            dueResult.dueDate = new Date(dueYear, normalizedDueMonth, 5, 23, 59, 59);
-            return dueResult;
-        }
+        const statementDay =
+            Number(cycle.statementDay) ||
+            (Number.isFinite(cutoffDay) && cutoffDay > 0
+                ? cutoffDay
+                : 1);
 
-        if (sourceLower.includes('zalo') || sourceLower.includes('zalopay')) {
-            const dueMonth = txDate.getMonth() + 1;
-            const dueYear = txDate.getFullYear() + (dueMonth > 11 ? 1 : 0);
-            const normalizedDueMonth = dueMonth > 11 ? 0 : dueMonth;
+        const statementDate = this.createBillingDate(
+            statementMonth.year,
+            statementMonth.monthIndex,
+            statementDay,
+            cycle.statementTime || cycle.cutoffTime || '00:00:00'
+        );
 
-            dueResult.statementDate = new Date(dueYear, normalizedDueMonth, 1, 0, 0, 0);
-            dueResult.dueDate = new Date(dueYear, normalizedDueMonth, 6, 23, 59, 59);
-            return dueResult;
-        }
+        const dueMonth = this.shiftBillingMonth(
+            statementMonth.year,
+            statementMonth.monthIndex,
+            Number(cycle.dueMonthOffset) || 0
+        );
 
-        if (sourceLower.includes('tiktok')) {
-            const day = txDate.getDate();
-            const statementCutoffDay = 23; // Chốt sao kê ngày 23
-            const dueDay = 10;             // Hạn trả ngày 10
+        const dueDate = this.createBillingDate(
+            dueMonth.year,
+            dueMonth.monthIndex,
+            Number(cycle.dueDay) || 1,
+            cycle.dueTime || '23:59:59'
+        );
 
-            let sMonth = txDate.getMonth();
-            let sYear = txDate.getFullYear();
-
-            // Nếu ngày giao dịch phát sinh sau ngày 23, giao dịch đó sẽ tự động nhảy sang kỳ sao kê của tháng sau
-            if (day > statementCutoffDay) {
-                sMonth++;
-                if (sMonth > 11) {
-                    sMonth = 0;
-                    sYear++;
-                }
-            }
-
-            // Thiết lập Ngày chốt sao kê: Ngày 23 lúc 23:59:59
-            dueResult.statementDate = new Date(sYear, sMonth, statementCutoffDay, 23, 59, 59);
-
-            // Thiết lập Ngày đến hạn: Mùng 10 của tháng tiếp theo (Tháng liền sau kỳ sao kê)
-            let dMonth = sMonth + 1;
-            let dYear = sYear;
-            if (dMonth > 11) {
-                dMonth = 0;
-                dYear++;
-            }
-
-            dueResult.dueDate = new Date(dYear, dMonth, dueDay, 23, 59, 59);
-            return dueResult;
-        }
-
-        const dueMonth = txDate.getMonth() + 1;
-        const dueYear = txDate.getFullYear() + (dueMonth > 11 ? 1 : 0);
-        dueResult.statementDate = new Date(dueYear, dueMonth > 11 ? 0 : dueMonth, 1, 0, 0, 0);
-        dueResult.dueDate = new Date(dueYear, dueMonth > 11 ? 0 : dueMonth, 5);
-        return dueResult;
+        return {
+            dueDate,
+            statementDate,
+            statementMonthKey: this.getLocalMonthKey(statementDate),
+            platformKey: cycle.platformKey,
+            cycle
+        };
     },
 
     updateFees() {
