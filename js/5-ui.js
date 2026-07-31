@@ -833,7 +833,9 @@ app.ui = {
         }
 
         // Lấy giao dịch mới nhất
-        const lastTx = txs.sort((a, b) => b.id - a.id)[0];
+        const lastTx = txs
+            .slice()
+            .sort((a, b) => app.logic.compareTransactions(a, b))[0];
         const amountStr = app.logic.formatCurrency(lastTx.amount);
 
         // --- THƯ VIỆN TIN TỨC ---
@@ -1057,7 +1059,7 @@ app.ui = {
         // Spending Box (Khung chi tiêu)
         let listHtml = '';
         if (zaloTxs.length > 0) {
-            zaloTxs.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(t => {
+            zaloTxs.sort((a, b) => app.logic.compareTransactions(a, b)).forEach(t => {
                 listHtml += `
             <div class="z-item">
                 <div style="display:flex; flex-direction:column;">
@@ -2787,135 +2789,130 @@ ${payAllHTML}
         // 2. RENDER BẢNG LỊCH SỬ (Đã sửa để hiển thị đẹp hơn cho Chuyển tiền)
         const tbody = document.getElementById('tx-table-body');
 
-        tbody.innerHTML = monthlyTxs.sort((a, b) => {
-            const dayA = app.logic.getLocalDateKey(a.date);
-            const dayB = app.logic.getLocalDateKey(b.date);
-            if (dayA !== dayB) return new Date(b.date) - new Date(a.date);
-            if (a.isUnknownTime && !b.isUnknownTime) return -1;
-            if (!a.isUnknownTime && b.isUnknownTime) return 1;
-            return b.id - a.id;
-        }).map(t => {
-            const isInc = t.type === 'Thu nhập';
-            const isTransfer = t.type === 'Chuyển tiền'; // [MỚI] Check loại chuyển tiền
+        tbody.innerHTML = monthlyTxs
+            .sort((a, b) => app.logic.compareTransactions(a, b))
+            .map(t => {
+                const isInc = t.type === 'Thu nhập';
+                const isTransfer = t.type === 'Chuyển tiền'; // [MỚI] Check loại chuyển tiền
 
-            let statusText = 'Chờ xử lý';
-            let badgeClass = 'badge-warning';
-            const isCancelled = t.status === 'cancelled';
-            let rowClass = isCancelled ? 'tx-cancelled' : '';
-            let placeDisplay = t.place; // Biến tạm để hiển thị tên
+                let statusText = 'Chờ xử lý';
+                let badgeClass = 'badge-warning';
+                const isCancelled = t.status === 'cancelled';
+                let rowClass = isCancelled ? 'tx-cancelled' : '';
+                let placeDisplay = t.place; // Biến tạm để hiển thị tên
 
-            if (t.isTet) {
-                rowClass = 'tet-style'; // Thêm class CSS Tết
-                placeDisplay = `🧧 ${t.place}`; // Thêm icon bao lì xì
-            }
-
-            if (t.is83) {
-                rowClass += ' holiday-83-style';
-                placeDisplay = `💖 ${t.place}`;
-            }
-            if (t.is304) {
-                rowClass += ' holiday-304-style';
-                placeDisplay = `🧑‍✈️ ${t.place}`;
-            }
-
-            // Logic trạng thái
-            if (isCancelled) {
-                statusText = 'Đã hủy';
-                badgeClass = 'badge-secondary';
-            } else if (t.status === 'planned') {
-                statusText = isInc ? 'Sẽ nhận' : 'Sẽ chi';
-                badgeClass = 'badge-secondary" style="background:#f3e8ff; color:#7e22ce; border-color:#d8b4fe';
-            } else if (t.status === 'paid') {
-                statusText = 'Thành công';
-                badgeClass = 'badge-success';
-
-                const statusTags = String(t.tags || '').toLowerCase();
-                if (statusTags.includes('#da_chuyen_tra_gop')) {
-                    statusText = 'Đã chuyển trả góp';
-                    badgeClass = 'badge-warning';
-                } else if (t.paidByGroup) {
-                    statusText = 'Đã tất toán';
+                if (t.isTet) {
+                    rowClass = 'tet-style'; // Thêm class CSS Tết
+                    placeDisplay = `🧧 ${t.place}`; // Thêm icon bao lì xì
                 }
 
-                // [MỚI] Badge riêng cho Chuyển tiền
-                if (isTransfer) {
-                    statusText = 'Chuyển quỹ';
-                    badgeClass = 'badge-info" style="background:#e0f2fe; color:#0284c7; border-color:#bae6fd';
+                if (t.is83) {
+                    rowClass += ' holiday-83-style';
+                    placeDisplay = `💖 ${t.place}`;
                 }
-            } else if (isInc) {
-                statusText = 'Sắp nhận';
-            } else {
-                statusText = 'Chưa trả';
-            }
-
-            const toggleIcon = isCancelled ? 'fa-arrow-rotate-left' : 'fa-ban';
-            const toggleTitle = isCancelled ? 'Khôi phục' : 'Hủy giao dịch';
-
-            // ... (Giữ nguyên logic discount và brand) ...
-            const discountAmt = t.discountAmount || 0;
-            let discountDisplay = '';
-            if (discountAmt > 0 && !isCancelled) {
-                if (t.isCashback === true) {
-                    // Nếu là Hoàn Tiền (Màu xanh dương, icon xoay lại)
-                    const percent = Math.round((discountAmt / t.amount) * 100);
-                    discountDisplay = `<div style="font-size: 0.65rem; color: var(--primary); font-weight: 700; margin-top: 2px; display: flex; align-items: center; gap: 3px;"><i class="fa-solid fa-rotate-left"></i> Hoàn ${app.logic.formatCurrency(discountAmt)} (+${percent}%)</div>`;
-                } else {
-                    // Nếu là Giảm Giá (Màu xanh lá, icon Tag gốc)
-                    const originalPrice = t.amount + discountAmt;
-                    const percent = Math.round((discountAmt / originalPrice) * 100);
-                    discountDisplay = `<div style="font-size: 0.65rem; color: var(--success); font-weight: 700; margin-top: 2px; display: flex; align-items: center; gap: 3px;"><i class="fa-solid fa-tags"></i> Giảm ${app.logic.formatCurrency(discountAmt)} (-${percent}%)</div>`;
+                if (t.is304) {
+                    rowClass += ' holiday-304-style';
+                    placeDisplay = `🧑‍✈️ ${t.place}`;
                 }
-            }
 
-            let brandDisplay = '';
-            if (t.brand) {
-                brandDisplay = `<span style="background:#eef2ff; color:#4f46e5; border:1px solid #c7d2fe; padding:1px 6px; border-radius:4px; font-size:0.65rem; font-weight:700; margin-right:4px; display:inline-block; margin-bottom:2px;"><i class="fa-solid fa-copyright"></i> ${t.brand}</span>`;
-            }
+                // Logic trạng thái
+                if (isCancelled) {
+                    statusText = 'Đã hủy';
+                    badgeClass = 'badge-secondary';
+                } else if (t.status === 'planned') {
+                    statusText = isInc ? 'Sẽ nhận' : 'Sẽ chi';
+                    badgeClass = 'badge-secondary" style="background:#f3e8ff; color:#7e22ce; border-color:#d8b4fe';
+                } else if (t.status === 'paid') {
+                    statusText = 'Thành công';
+                    badgeClass = 'badge-success';
 
-            let displaySource = t.source;
-            let displayDest = t.destination;
-
-            // Nếu giao dịch cũ không có trường Đích đến (destination)
-            if (!displayDest) {
-                const tagsLower = (t.tags || '').toLowerCase();
-                const isDebtPayment = tagsLower.includes('#thanh_toan_no') ||
-                    tagsLower.includes('#tra_gop') ||
-                    tagsLower.includes('#nop_phat') ||
-                    tagsLower.includes('#thanh_toan_phi') ||
-                    tagsLower.includes('#tat_toan_vay') ||
-                    tagsLower.includes('#tra_no_vay');
-
-                if (t.type === 'Thu nhập') {
-                    displaySource = 'Bên ngoài';
-                    displayDest = t.source; // Tiền từ ngoài chạy VÀO ví
-                } else if (t.type === 'Chi tiêu') {
-                    if (isDebtPayment) {
-                        displaySource = 'Tiền mặt'; // Các giao dịch trả nợ cũ thường lấy từ Tiền mặt
-                        displayDest = t.source;     // Đập VÀO ví trả sau
-                    } else {
-                        displayDest = 'Bên ngoài';  // Chi tiêu bình thường thì tiền ra ngoài
+                    const statusTags = String(t.tags || '').toLowerCase();
+                    if (statusTags.includes('#da_chuyen_tra_gop')) {
+                        statusText = 'Đã chuyển trả góp';
+                        badgeClass = 'badge-warning';
+                    } else if (t.paidByGroup) {
+                        statusText = 'Đã tất toán';
                     }
-                } else if (t.type === 'Chuyển tiền') {
-                    displayDest = 'N/A';
-                }
-            }
 
-            // Tạo HTML hiển thị đẹp mắt
-            let sourceDestHTML = displayDest
-                ? `<div style="display:flex; flex-direction:column;">
+                    // [MỚI] Badge riêng cho Chuyển tiền
+                    if (isTransfer) {
+                        statusText = 'Chuyển quỹ';
+                        badgeClass = 'badge-info" style="background:#e0f2fe; color:#0284c7; border-color:#bae6fd';
+                    }
+                } else if (isInc) {
+                    statusText = 'Sắp nhận';
+                } else {
+                    statusText = 'Chưa trả';
+                }
+
+                const toggleIcon = isCancelled ? 'fa-arrow-rotate-left' : 'fa-ban';
+                const toggleTitle = isCancelled ? 'Khôi phục' : 'Hủy giao dịch';
+
+                // ... (Giữ nguyên logic discount và brand) ...
+                const discountAmt = t.discountAmount || 0;
+                let discountDisplay = '';
+                if (discountAmt > 0 && !isCancelled) {
+                    if (t.isCashback === true) {
+                        // Nếu là Hoàn Tiền (Màu xanh dương, icon xoay lại)
+                        const percent = Math.round((discountAmt / t.amount) * 100);
+                        discountDisplay = `<div style="font-size: 0.65rem; color: var(--primary); font-weight: 700; margin-top: 2px; display: flex; align-items: center; gap: 3px;"><i class="fa-solid fa-rotate-left"></i> Hoàn ${app.logic.formatCurrency(discountAmt)} (+${percent}%)</div>`;
+                    } else {
+                        // Nếu là Giảm Giá (Màu xanh lá, icon Tag gốc)
+                        const originalPrice = t.amount + discountAmt;
+                        const percent = Math.round((discountAmt / originalPrice) * 100);
+                        discountDisplay = `<div style="font-size: 0.65rem; color: var(--success); font-weight: 700; margin-top: 2px; display: flex; align-items: center; gap: 3px;"><i class="fa-solid fa-tags"></i> Giảm ${app.logic.formatCurrency(discountAmt)} (-${percent}%)</div>`;
+                    }
+                }
+
+                let brandDisplay = '';
+                if (t.brand) {
+                    brandDisplay = `<span style="background:#eef2ff; color:#4f46e5; border:1px solid #c7d2fe; padding:1px 6px; border-radius:4px; font-size:0.65rem; font-weight:700; margin-right:4px; display:inline-block; margin-bottom:2px;"><i class="fa-solid fa-copyright"></i> ${t.brand}</span>`;
+                }
+
+                let displaySource = t.source;
+                let displayDest = t.destination;
+
+                // Nếu giao dịch cũ không có trường Đích đến (destination)
+                if (!displayDest) {
+                    const tagsLower = (t.tags || '').toLowerCase();
+                    const isDebtPayment = tagsLower.includes('#thanh_toan_no') ||
+                        tagsLower.includes('#tra_gop') ||
+                        tagsLower.includes('#nop_phat') ||
+                        tagsLower.includes('#thanh_toan_phi') ||
+                        tagsLower.includes('#tat_toan_vay') ||
+                        tagsLower.includes('#tra_no_vay');
+
+                    if (t.type === 'Thu nhập') {
+                        displaySource = 'Bên ngoài';
+                        displayDest = t.source; // Tiền từ ngoài chạy VÀO ví
+                    } else if (t.type === 'Chi tiêu') {
+                        if (isDebtPayment) {
+                            displaySource = 'Tiền mặt'; // Các giao dịch trả nợ cũ thường lấy từ Tiền mặt
+                            displayDest = t.source;     // Đập VÀO ví trả sau
+                        } else {
+                            displayDest = 'Bên ngoài';  // Chi tiêu bình thường thì tiền ra ngoài
+                        }
+                    } else if (t.type === 'Chuyển tiền') {
+                        displayDest = 'N/A';
+                    }
+                }
+
+                // Tạo HTML hiển thị đẹp mắt
+                let sourceDestHTML = displayDest
+                    ? `<div style="display:flex; flex-direction:column;">
                         <span>${displaySource}</span>
                         <span style="font-size:0.7rem; color:var(--text-muted); display:flex; align-items:center; gap:4px;">
                         <i class="fa-solid fa-arrow-right" style="font-size:0.6rem"></i> ${displayDest}
                         </span>
                     </div>`
-                : displaySource;
+                    : displaySource;
 
-            // Màu sắc số tiền: Thu nhập (Xanh lá), Chuyển tiền (Xanh dương), Chi tiêu (Mặc định/Đen)
-            const amountColor = isInc ? 'var(--success)' : (isTransfer ? '#0284c7' : 'inherit');
-            // Dấu phía trước: Thu (+), Chuyển (không dấu), Chi (-)
-            const amountSign = isInc ? '+' : (isTransfer ? '' : '-');
+                // Màu sắc số tiền: Thu nhập (Xanh lá), Chuyển tiền (Xanh dương), Chi tiêu (Mặc định/Đen)
+                const amountColor = isInc ? 'var(--success)' : (isTransfer ? '#0284c7' : 'inherit');
+                // Dấu phía trước: Thu (+), Chuyển (không dấu), Chi (-)
+                const amountSign = isInc ? '+' : (isTransfer ? '' : '-');
 
-            return `<tr class="${rowClass}" onclick="if(!event.target.closest('button')) app.ui.modals.transaction.open(${t.id})" style="cursor:pointer">
+                return `<tr class="${rowClass}" onclick="if(!event.target.closest('button')) app.ui.modals.transaction.open(${t.id})" style="cursor:pointer">
             <td>
     <div style="font-weight:600; color:var(--text-muted)">${new Date(t.date).toLocaleDateString('vi-VN')}</div>
     <div style="font-size:0.75rem; color:#94a3b8; margin-top:2px;">
@@ -2934,14 +2931,14 @@ ${payAllHTML}
             </td>
             <td>
                 ${t.destination
-                    ? `<div style="display:flex; flex-direction:column;">
+                        ? `<div style="display:flex; flex-direction:column;">
                             <span>${t.source}</span>
                             <span style="font-size:0.7rem; color:var(--text-muted); display:flex; align-items:center; gap:4px;">
                             <i class="fa-solid fa-arrow-right" style="font-size:0.6rem"></i> ${t.destination}
                             </span>
                         </div>`
-                    : t.source
-                }
+                        : t.source
+                    }
             </td>
             
             <td style="font-family:var(--font-mono); font-weight:700; color: ${amountColor}">
@@ -2971,7 +2968,7 @@ ${payAllHTML}
                 </button>
             </td>
         </tr>`;
-        }).join('');
+            }).join('');
         // --- KẾT THÚC ĐOẠN CODE MỚI ---
         document.getElementById('tx-count').textContent = activeTxs.length;
 
@@ -3172,57 +3169,59 @@ ${payAllHTML}
         const modalId = 'summary-detail-modal';
         if (document.getElementById(modalId)) document.getElementById(modalId).remove();
 
-        const listHtml = txs.sort((a, b) => new Date(b.date) - new Date(a.date)).map(t => {
-            const isExcluded = t.excludeFromDashboard === true;
-            const opacity = isExcluded ? '0.5' : '1';
-            const textDecor = isExcluded ? 'line-through' : 'none';
+        const listHtml = txs
+            .sort((a, b) => app.logic.compareTransactions(a, b))
+            .map(t => {
+                const isExcluded = t.excludeFromDashboard === true;
+                const opacity = isExcluded ? '0.5' : '1';
+                const textDecor = isExcluded ? 'line-through' : 'none';
 
-            // --- LOGIC XỬ LÝ TRẠNG THÁI NỢ RIÊNG BIỆT ---
-            let statusBadgeHTML = '';
-            if (type === 'debt') {
-                if (t.status === 'paid') {
-                    // Xử lý nợ ĐÃ TRẢ
-                    const payDate = new Date(t.date);
-                    const dateStr = `${payDate.getDate()}/${payDate.getMonth() + 1}`;
-                    const timeStr = payDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                // --- LOGIC XỬ LÝ TRẠNG THÁI NỢ RIÊNG BIỆT ---
+                let statusBadgeHTML = '';
+                if (type === 'debt') {
+                    if (t.status === 'paid') {
+                        // Xử lý nợ ĐÃ TRẢ
+                        const payDate = new Date(t.date);
+                        const dateStr = `${payDate.getDate()}/${payDate.getMonth() + 1}`;
+                        const timeStr = payDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 
-                    // Kiểm tra xem có phải trả nợ quá hạn không (Logic dựa trên BillingInfo của nguồn)
-                    const billing = app.logic.getBillingInfo(t.source, t.date);
-                    const isLate = payDate > billing.dueDate;
-                    let lateInfo = '';
-                    if (isLate) {
-                        const diffDays = Math.ceil((payDate - billing.dueDate) / (1000 * 60 * 60 * 24));
-                        lateInfo = `<span style="color:#ef4444; font-weight:bold;"> (Quá hạn ${diffDays}n)</span>`;
-                    }
+                        // Kiểm tra xem có phải trả nợ quá hạn không (Logic dựa trên BillingInfo của nguồn)
+                        const billing = app.logic.getBillingInfo(t.source, t.date);
+                        const isLate = payDate > billing.dueDate;
+                        let lateInfo = '';
+                        if (isLate) {
+                            const diffDays = Math.ceil((payDate - billing.dueDate) / (1000 * 60 * 60 * 24));
+                            lateInfo = `<span style="color:#ef4444; font-weight:bold;"> (Quá hạn ${diffDays}n)</span>`;
+                        }
 
-                    statusBadgeHTML = `
+                        statusBadgeHTML = `
                         <div style="font-size:0.7rem; margin-top:2px;">
                             <span style="background:#dcfce7; color:#166534; padding:2px 6px; border-radius:4px; font-weight:bold;">
                                 <i class="fa-solid fa-check-double"></i> ĐÃ TRẢ ${dateStr}-${timeStr}
                             </span>
                             ${lateInfo}
                         </div>`;
-                } else {
-                    // Xử lý nợ ĐANG CẦN TRẢ
-                    const billing = app.logic.getBillingInfo(t.source, t.date);
-                    const now = new Date();
-                    const isOverdue = now > billing.dueDate;
+                    } else {
+                        // Xử lý nợ ĐANG CẦN TRẢ
+                        const billing = app.logic.getBillingInfo(t.source, t.date);
+                        const now = new Date();
+                        const isOverdue = now > billing.dueDate;
 
-                    if (isOverdue) {
-                        const diffDays = Math.ceil((now - billing.dueDate) / (1000 * 60 * 60 * 24));
-                        statusBadgeHTML = `
+                        if (isOverdue) {
+                            const diffDays = Math.ceil((now - billing.dueDate) / (1000 * 60 * 60 * 24));
+                            statusBadgeHTML = `
                             <div style="font-size:0.7rem; margin-top:2px;">
                                 <span style="background:#fee2e2; color:#991b1b; padding:2px 6px; border-radius:4px; font-weight:bold;">
                                     <i class="fa-solid fa-clock"></i> QUÁ HẠN ${diffDays} NGÀY
                                 </span>
                             </div>`;
-                    } else {
-                        statusBadgeHTML = `<div style="font-size:0.7rem; color:#64748b; margin-top:2px;"><i>Đang trong hạn thanh toán</i></div>`;
+                        } else {
+                            statusBadgeHTML = `<div style="font-size:0.7rem; color:#64748b; margin-top:2px;"><i>Đang trong hạn thanh toán</i></div>`;
+                        }
                     }
                 }
-            }
 
-            return `
+                return `
             <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #f1f5f9; opacity:${opacity};">
                 <div style="flex:1;">
                     <div style="font-weight:700; font-size:0.9rem; text-decoration:${textDecor}">${t.place}</div>
@@ -3240,7 +3239,7 @@ ${payAllHTML}
                     <i class="${isExcluded ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'}"></i>
                 </button>
             </div>`;
-        }).join('');
+            }).join('');
 
         const modalHtml = `
         <div id="${modalId}" class="modal-overlay active" style="z-index: 100060;">
@@ -6636,7 +6635,7 @@ ${t.tempExtraFeeReason
             </button>
         </div>`;
 
-                const loans = app.data.loans.filter(l => l.status === 'active').sort((a, b) => new Date(b.date) - new Date(a.date));
+                const loans = app.data.loans.filter(l => l.status === 'active').sort((a, b) => app.logic.compareTransactions(a, b));
 
                 if (loans.length === 0) {
                     listEl.innerHTML = '<div style="text-align:center; color:var(--text-muted); padding:2rem;">Không có khoản vay nào.</div>';
@@ -7031,7 +7030,7 @@ ${t.tempExtraFeeReason
                         const isTargetType = t.status === 'cancelled' || (t.place && t.place.startsWith('Khôi phục'));
                         return isInMonth && isTargetType;
                     })
-                    .sort((a, b) => new Date(b.date) - new Date(a.date));
+                    .sort((a, b) => app.logic.compareTransactions(a, b));
 
                 if (listTxs.length === 0) {
                     const [y, m] = currentMonthFilter.split('-');
@@ -7174,7 +7173,7 @@ ${t.tempExtraFeeReason
                     !t.tags?.includes('#du_no_chuyen_tiep')
                 );
 
-                allExpenseCandidates.sort((a, b) => new Date(b.date) - new Date(a.date));
+                allExpenseCandidates.sort((a, b) => app.logic.compareTransactions(a, b));
 
                 if (allExpenseCandidates.length === 0) {
                     listEl.innerHTML = '<div style="text-align:center; padding:2rem; color:var(--text-muted)">Chưa có chi tiêu thực tế nào trong tháng.</div>';
@@ -7564,7 +7563,7 @@ ${t.tempExtraFeeReason
                     const s = (t.source || "").toLowerCase().trim();
                     const d = (t.destination || "").toLowerCase().trim();
                     return s === bankName || d === bankName;
-                }).sort((a, b) => new Date(b.date) - new Date(a.date));
+                }).sort((a, b) => app.logic.compareTransactions(a, b));
 
                 // Nhóm theo ngày
                 const groups = {};
@@ -7987,7 +7986,7 @@ ${t.orderCode ? `<br><span style="font-size:0.75rem; color:#ea580c; font-weight:
                     const s = (t.source || "").toLowerCase().trim();
                     const d = (t.destination || "").toLowerCase().trim();
                     return (s === wName || d === wName);
-                }).sort((a, b) => new Date(b.date) - new Date(a.date));
+                }).sort((a, b) => app.logic.compareTransactions(a, b));
 
                 const groups = {};
                 history.forEach(t => {
@@ -8279,7 +8278,7 @@ ${t.orderCode ? `<br><span style="font-size:0.75rem; color:#ea580c; font-weight:
                     const s = t.source.toLowerCase().trim();
                     const d = (t.destination || "").toLowerCase().trim();
                     return s === wName || d === wName;
-                }).sort((a, b) => new Date(b.date) - new Date(a.date));
+                }).sort((a, b) => app.logic.compareTransactions(a, b));
             },
 
             openDetail(id) {

@@ -16,6 +16,49 @@ app.logic = {
         return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
     },
 
+    // Sắp xếp giao dịch thống nhất toàn bộ ứng dụng
+    compareTransactions(a = {}, b = {}) {
+        const timeA = new Date(a.date).getTime();
+        const timeB = new Date(b.date).getTime();
+
+        const validA = Number.isFinite(timeA);
+        const validB = Number.isFinite(timeB);
+
+        // Ngày hợp lệ đứng trước ngày lỗi hoặc thiếu
+        if (validA !== validB) {
+            return validA ? -1 : 1;
+        }
+
+        // Nếu cả hai ngày đều lỗi, dùng ID để giữ thứ tự ổn định
+        if (!validA && !validB) {
+            return (Number(b.id) || 0) - (Number(a.id) || 0);
+        }
+
+        const dayA = this.getLocalDateKey(a.date);
+        const dayB = this.getLocalDateKey(b.date);
+
+        // Ngày mới nhất lên trước
+        if (dayA !== dayB) {
+            return dayB.localeCompare(dayA);
+        }
+
+        const unknownA = a.isUnknownTime === true;
+        const unknownB = b.isUnknownTime === true;
+
+        // Không rõ giờ luôn nằm cuối ngày
+        if (unknownA !== unknownB) {
+            return unknownA ? 1 : -1;
+        }
+
+        // Trong cùng ngày: giờ mới nhất lên trước
+        if (timeA !== timeB) {
+            return timeB - timeA;
+        }
+
+        // Cùng ngày, cùng giờ thì dùng ID
+        return (Number(b.id) || 0) - (Number(a.id) || 0);
+    },
+
     getLocalMonthKey(value) {
         return this.getLocalDateKey(value).slice(0, 7);
     },
@@ -49,20 +92,9 @@ app.logic = {
     },
 
     getFilteredTxs() {
-        let filteredTxs = app.data.transactions.filter(t => this.isTransactionInMonth(t));
-
-        return filteredTxs.sort((a, b) => {
-            const dayA = this.getLocalDateKey(a.date);
-            const dayB = this.getLocalDateKey(b.date);
-
-            if (dayA !== dayB) return new Date(b.date) - new Date(a.date);
-
-            // Đưa Không rõ giờ xuống cuối ngày
-            if (a.isUnknownTime && !b.isUnknownTime) return 1;
-            if (!a.isUnknownTime && b.isUnknownTime) return -1;
-
-            return new Date(b.date) - new Date(a.date) || b.id - a.id;
-        });
+        return app.data.transactions
+            .filter(t => this.isTransactionInMonth(t))
+            .sort((a, b) => this.compareTransactions(a, b));
     },
 
     copyToClipboard(elementId) {

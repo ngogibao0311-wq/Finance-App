@@ -5,20 +5,9 @@ app.startSession = async function () {
 
     // Sắp xếp lại toàn bộ dữ liệu giao dịch cũ
     if (this.data && this.data.transactions) {
-        this.data.transactions.sort((a, b) => {
-            const dayA = app.logic.getLocalDateKey(a.date);
-            const dayB = app.logic.getLocalDateKey(b.date);
-
-            // Nếu khác ngày, sắp xếp theo ngày mới nhất
-            if (dayA !== dayB) return new Date(b.date) - new Date(a.date);
-
-            // Nếu cùng ngày, đưa giao dịch Không rõ giờ XUỐNG CUỐI
-            if (a.isUnknownTime && !b.isUnknownTime) return 1;  // Trả về 1 để a đẩy xuống dưới
-            if (!a.isUnknownTime && b.isUnknownTime) return -1; // Trả về -1 để b đẩy xuống dưới
-
-            // Nếu cùng trạng thái, sắp xếp theo giờ mới nhất hoặc ID
-            return new Date(b.date) - new Date(a.date) || b.id - a.id;
-        });
+        this.data.transactions.sort(
+            (a, b) => app.logic.compareTransactions(a, b)
+        );
     }
 
     //if (this.logic.purgeOldData) this.logic.purgeOldData();
@@ -472,30 +461,25 @@ app.events = {
             if (results.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:2rem; color:var(--text-muted)">Không tìm thấy giao dịch nào khớp lệnh!</td></tr>`;
             } else {
-                tbody.innerHTML = results.sort((a, b) => {
-                    const dayA = app.logic.getLocalDateKey(a.date);
-                    const dayB = app.logic.getLocalDateKey(b.date);
-                    if (dayA !== dayB) return new Date(b.date) - new Date(a.date);
-                    if (a.isUnknownTime && !b.isUnknownTime) return -1;
-                    if (!a.isUnknownTime && b.isUnknownTime) return 1;
-                    return b.id - a.id;
-                }).map(t => {
-                    const isInc = t.type === 'Thu nhập';
-                    const isCancelled = t.status === 'cancelled';
-                    let statusText = isCancelled ? 'Đã hủy' : (t.status === 'paid' ? 'Thành công' : (t.status === 'planned' ? 'Dự kiến' : 'Chưa trả'));
-                    let badgeClass = isCancelled ? 'badge-secondary' : (t.status === 'paid' ? 'badge-success' : 'badge-warning');
-                    const statusTags = String(t.tags || '').toLowerCase();
-                    if (!isCancelled && statusTags.includes('#da_chuyen_tra_gop')) {
-                        statusText = 'Đã chuyển trả góp';
-                        badgeClass = 'badge-warning';
-                    } else if (!isCancelled && t.paidByGroup) {
-                        statusText = 'Đã tất toán';
-                    }
-                    const amountClass = isInc ? 'var(--success)' : (isCancelled ? 'var(--text-muted)' : 'inherit');
-                    const rowClass = isCancelled ? 'tx-cancelled' : '';
-                    const amountPrefix = isInc ? '+' : '-';
+                tbody.innerHTML = results
+                    .sort((a, b) => app.logic.compareTransactions(a, b))
+                    .map(t => {
+                        const isInc = t.type === 'Thu nhập';
+                        const isCancelled = t.status === 'cancelled';
+                        let statusText = isCancelled ? 'Đã hủy' : (t.status === 'paid' ? 'Thành công' : (t.status === 'planned' ? 'Dự kiến' : 'Chưa trả'));
+                        let badgeClass = isCancelled ? 'badge-secondary' : (t.status === 'paid' ? 'badge-success' : 'badge-warning');
+                        const statusTags = String(t.tags || '').toLowerCase();
+                        if (!isCancelled && statusTags.includes('#da_chuyen_tra_gop')) {
+                            statusText = 'Đã chuyển trả góp';
+                            badgeClass = 'badge-warning';
+                        } else if (!isCancelled && t.paidByGroup) {
+                            statusText = 'Đã tất toán';
+                        }
+                        const amountClass = isInc ? 'var(--success)' : (isCancelled ? 'var(--text-muted)' : 'inherit');
+                        const rowClass = isCancelled ? 'tx-cancelled' : '';
+                        const amountPrefix = isInc ? '+' : '-';
 
-                    return `<tr class="${rowClass}" onclick="if(!event.target.closest('button')) app.ui.modals.transaction.open(${t.id})" style="cursor:pointer">
+                        return `<tr class="${rowClass}" onclick="if(!event.target.closest('button')) app.ui.modals.transaction.open(${t.id})" style="cursor:pointer">
                 <td style="color:var(--text-muted)">${new Date(t.date).toLocaleDateString('vi-VN')}</td>
                 <td>
                     <div style="font-weight:600">${t.place}</div>
@@ -510,7 +494,7 @@ app.events = {
                     <button class="btn-ghost btn-sm" onclick="app.ui.modals.transaction.open(${t.id})"><i class="fa-solid fa-pen"></i></button>
                 </td>
             </tr>`;
-                }).join('');
+                    }).join('');
             }
         });
 
@@ -877,20 +861,9 @@ app.events = {
             }
 
             // [THÊM TẠI ĐÂY] - Sắp xếp lại toàn bộ CSDL gốc trước khi lưu vào Storage
-            app.data.transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-            app.data.transactions.sort((a, b) => {
-                const dayA = app.logic.getLocalDateKey(a.date);
-                const dayB = app.logic.getLocalDateKey(b.date);
-
-                if (dayA !== dayB) return new Date(b.date) - new Date(a.date);
-
-                // Đưa Không rõ giờ xuống cuối ngày
-                if (a.isUnknownTime && !b.isUnknownTime) return 1;
-                if (!a.isUnknownTime && b.isUnknownTime) return -1;
-
-                return new Date(b.date) - new Date(a.date) || b.id - a.id;
-            });
+            app.data.transactions.sort(
+                (a, b) => app.logic.compareTransactions(a, b)
+            );
 
             if (data.tags && data.tags.includes('#di_vay')) {
                 const lenderName = data.place.replace('Vay tiền từ ', '').trim();
@@ -1321,43 +1294,45 @@ app.events = {
                     doc.text(`Tong so giao dich: ${data.length}`, 40, 75);
 
                     // Chuẩn bị dữ liệu bảng (Mô phỏng giống giao diện Web)
-                    const tableBody = data.sort((a, b) => new Date(b.date) - new Date(a.date)).map(t => {
-                        const isInc = t.type === 'Thu nhập';
-                        const isTransfer = t.type === 'Chuyển tiền';
-                        const isCancelled = t.status === 'cancelled';
+                    const tableBody = data
+                        .sort((a, b) => app.logic.compareTransactions(a, b))
+                        .map(t => {
+                            const isInc = t.type === 'Thu nhập';
+                            const isTransfer = t.type === 'Chuyển tiền';
+                            const isCancelled = t.status === 'cancelled';
 
-                        // 1. Trạng thái
-                        let statusText = 'Thanh cong';
-                        if (isCancelled) statusText = 'Da huy';
-                        else if (t.status === 'planned') statusText = isInc ? 'Se nhan' : 'Se chi';
-                        else if (t.status === 'pending') statusText = 'Chua tra';
-                        else if (isTransfer) statusText = 'Chuyen khoan';
+                            // 1. Trạng thái
+                            let statusText = 'Thanh cong';
+                            if (isCancelled) statusText = 'Da huy';
+                            else if (t.status === 'planned') statusText = isInc ? 'Se nhan' : 'Se chi';
+                            else if (t.status === 'pending') statusText = 'Chua tra';
+                            else if (isTransfer) statusText = 'Chuyen khoan';
 
-                        // 2. Nguồn tiền (Có điểm đi & đến nếu là chuyển tiền)
-                        let sourceDest = removeAccents(t.source);
-                        if (t.destination) {
-                            sourceDest += `\n-> ${removeAccents(t.destination)}`;
-                        }
+                            // 2. Nguồn tiền (Có điểm đi & đến nếu là chuyển tiền)
+                            let sourceDest = removeAccents(t.source);
+                            if (t.destination) {
+                                sourceDest += `\n-> ${removeAccents(t.destination)}`;
+                            }
 
-                        // 3. Số tiền (Thêm dấu +/- dựa theo loại)
-                        const sign = isInc ? '+' : (isTransfer ? '' : '-');
-                        const amountStr = `${sign}${new Intl.NumberFormat('vi-VN').format(t.amount)} d`;
+                            // 3. Số tiền (Thêm dấu +/- dựa theo loại)
+                            const sign = isInc ? '+' : (isTransfer ? '' : '-');
+                            const amountStr = `${sign}${new Intl.NumberFormat('vi-VN').format(t.amount)} d`;
 
-                        // 4. Thời gian
-                        const dateObj = new Date(t.date);
-                        const timeStr = `${dateObj.toLocaleDateString('vi-VN')}\n${dateObj.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
+                            // 4. Thời gian
+                            const dateObj = new Date(t.date);
+                            const timeStr = `${dateObj.toLocaleDateString('vi-VN')}\n${dateObj.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
 
-                        // 5. Nội dung (Gộp Brand và Tags thành dòng nhỏ)
-                        let contentStr = removeAccents(t.place);
-                        const extras = [];
-                        if (t.brand) extras.push(removeAccents(t.brand));
-                        if (t.tags) extras.push(removeAccents(t.tags));
-                        if (extras.length > 0) {
-                            contentStr += `\n(${extras.join(' - ')})`;
-                        }
+                            // 5. Nội dung (Gộp Brand và Tags thành dòng nhỏ)
+                            let contentStr = removeAccents(t.place);
+                            const extras = [];
+                            if (t.brand) extras.push(removeAccents(t.brand));
+                            if (t.tags) extras.push(removeAccents(t.tags));
+                            if (extras.length > 0) {
+                                contentStr += `\n(${extras.join(' - ')})`;
+                            }
 
-                        return [timeStr, contentStr, sourceDest, amountStr, statusText];
-                    });
+                            return [timeStr, contentStr, sourceDest, amountStr, statusText];
+                        });
 
                     // Vẽ bảng (Tự động canh lề và tô màu)
                     doc.autoTable({
@@ -2734,9 +2709,7 @@ app.dataTools = {
 
                     app.data.transactions =
                         transactionResult.data.sort(
-                            (a, b) =>
-                                new Date(b.date) -
-                                new Date(a.date)
+                            (a, b) => app.logic.compareTransactions(a, b)
                         );
 
                     totalAdded +=
