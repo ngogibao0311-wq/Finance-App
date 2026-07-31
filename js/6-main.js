@@ -398,9 +398,9 @@ app.init = async function () {  // <-- Thêm async
             const cashbackInput = document.getElementById('tx-is-cashback');
             const deleteButton = document.getElementById('btn-delete-tx');
             const systemMsg = document.getElementById('tx-locked-msg');
-            
+
             // --- [FIX LỖI] Khai báo lại biến ở file này ---
-            const statusInput = document.getElementById('tx-status'); 
+            const statusInput = document.getElementById('tx-status');
             const matchContainer = document.getElementById('limit-income-selection-container');
             // ----------------------------------------------
 
@@ -449,7 +449,19 @@ app.init = async function () {  // <-- Thêm async
 
             // --- KIỂM TRA & HIỂN THỊ LẠI BẢNG SO KHỚP ---
             // 1. Kiểm tra xem giao dịch này ĐÃ TỪNG SO KHỚP ĐỦ TIỀN CHƯA
-            const isAlreadyMatched = app.data.transactions.some(t => t.assignedToMonthlyLimit === txData.id);
+            // Tính tổng những giao dịch đã được gán vào hạn mức này
+            const matchedIncomeTotal = app.data.transactions
+                .filter(t =>
+                    String(t.assignedToMonthlyLimit ?? '') === String(txData.id)
+                )
+                .reduce(
+                    (sum, t) => sum + (Number(t.amount) || 0),
+                    0
+                );
+
+            // Chỉ coi là đã so khớp khi tổng tiền đủ hạn mức
+            const isAlreadyMatched =
+                matchedIncomeTotal >= configuredAmount;
 
             // 2. Nếu trạng thái đang là 'paid' NHƯNG chưa so khớp đủ -> Bắt buộc gọi lại bảng để so khớp tiếp
             if (txData.status === 'paid' && !isAlreadyMatched) {
@@ -460,7 +472,7 @@ app.init = async function () {  // <-- Thêm async
 
             // 3. Bắt sự kiện khi người dùng đổi qua lại giữa 'pending' và 'paid'
             if (statusInput) {
-                statusInput.onchange = function(e) {
+                statusInput.onchange = function (e) {
                     if (e.target.value === 'paid' && !isAlreadyMatched) {
                         app.ui.renderIncomeSelection(assignedMonth, configuredAmount);
                     } else {
@@ -767,7 +779,7 @@ app.events = {
                 // Cập nhật trạng thái
                 const userSelectedStatus = document.getElementById('tx-status').value;
                 data.status = userSelectedStatus === 'paid' ? 'paid' : 'pending';
-                
+
                 data.type = 'Thu nhập';
                 data.amount = configuredAmount;
                 data.discountAmount = 0;
@@ -778,28 +790,62 @@ app.events = {
                 data.tags = tags.join(' ');
 
                 // --- [MỚI] LOGIC XỬ LÝ KHI NGƯỜI DÙNG XÁC NHẬN GIAO DỊCH HẠN MỨC ---
-                if (data.status === 'paid' && originalTxForSubmit.status === 'pending') {
-                    const checks = document.querySelectorAll('.limit-income-chk:checked');
-                    let sum = 0;
+                // --- XỬ LÝ SO KHỚP THU NHẬP CHO GIAO DỊCH HẠN MỨC ---
+                if (data.status === 'paid') {
+                    const checks =
+                        document.querySelectorAll(
+                            '.limit-income-chk:checked'
+                        );
+
+                    let selectedSum = 0;
                     const selectedIds = [];
-                    
+
                     checks.forEach(chk => {
-                        sum += Number(chk.getAttribute('data-amount'));
+                        selectedSum +=
+                            Number(chk.getAttribute('data-amount')) || 0;
+
                         selectedIds.push(Number(chk.value));
                     });
 
-                    // Nếu tổng tiền chọn >= số tiền hạn mức, tiến hành loại trừ
-                    if (sum >= configuredAmount) {
-                        app.data.transactions.forEach(t => {
-                            if (selectedIds.includes(t.id)) {
-                                t.excludeFromBudget = true;
-                                t.excludeFromDashboard = true;
-                                t.assignedToMonthlyLimit = data.id; // Đánh dấu đã dùng cho giao dịch hạn mức này
-                            }
-                        });
-                        console.log(`Đã loại trừ ${selectedIds.length} giao dịch thu nhập vì đã so khớp đủ hạn mức.`);
+                    // Tổng tiền đã được so khớp từ trước
+                    const alreadyMatchedTotal =
+                        app.data.transactions
+                            .filter(t =>
+                                String(t.assignedToMonthlyLimit ?? '') ===
+                                String(data.id)
+                            )
+                            .reduce(
+                                (sum, t) =>
+                                    sum + (Number(t.amount) || 0),
+                                0
+                            );
+
+                    const matchedTotal =
+                        alreadyMatchedTotal + selectedSum;
+
+                    // Không cho lưu im lặng nếu tổng tiền chưa đủ
+                    if (matchedTotal < configuredAmount) {
+                        return app.ui.popup.show(
+                            `Tổng thu nhập đã chọn mới đạt <b>${app.logic.formatCurrency(matchedTotal)}</b>.<br>` +
+                            `Còn thiếu <b>${app.logic.formatCurrency(configuredAmount - matchedTotal)}</b> để so khớp hạn mức.`,
+                            'error'
+                        );
                     }
-                    // Ghi chú: Nếu sum < configuredAmount, hệ thống bỏ qua và không đánh dấu loại trừ theo đúng yêu cầu.
+
+                    // Loại các giao dịch đã chọn khỏi ngân sách và Dashboard
+                    app.data.transactions.forEach(t => {
+                        if (selectedIds.includes(Number(t.id))) {
+                            t.excludeFromBudget = true;
+                            t.excludeFromDashboard = true;
+                            t.assignedToMonthlyLimit = data.id;
+                        }
+                    });
+
+                    if (selectedIds.length > 0) {
+                        console.log(
+                            `Đã loại trừ ${selectedIds.length} giao dịch thu nhập vì đã so khớp đủ hạn mức.`
+                        );
+                    }
                 }
             }
 
