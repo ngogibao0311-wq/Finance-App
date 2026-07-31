@@ -389,6 +389,7 @@ app.init = async function () {  // <-- Thêm async
         }
 
         // Giao dịch hạn mức: số tiền luôn lấy từ cấu hình tháng, không sửa trực tiếp.
+        // Giao dịch hạn mức: số tiền luôn lấy từ cấu hình tháng, không sửa trực tiếp.
         if (id && txData && app.logic.isMonthlyLimitCreditTransaction(txData)) {
             const assignedMonth = app.logic.getMonthlyLimitCreditMonth(txData);
             const configuredAmount = app.logic.getMonthlyLimitCreditAmount(assignedMonth);
@@ -398,6 +399,11 @@ app.init = async function () {  // <-- Thêm async
             const cashbackInput = document.getElementById('tx-is-cashback');
             const deleteButton = document.getElementById('btn-delete-tx');
             const systemMsg = document.getElementById('tx-locked-msg');
+            const statusInput = document.getElementById('tx-status'); // Lấy element status
+
+            // Ẩn container so khớp ban đầu
+            const matchContainer = document.getElementById('limit-income-selection-container');
+            if (matchContainer) matchContainer.style.display = 'none';
 
             // Các trường mô tả và trạng thái vẫn được phép chỉnh sửa.
             [
@@ -440,6 +446,18 @@ app.init = async function () {  // <-- Thêm async
                 systemMsg.style.color = '#4338ca';
                 systemMsg.style.border = '1px solid #c7d2fe';
                 systemMsg.innerHTML = `<i class="fa-solid fa-wallet"></i> ${statusText}<br><small>Số tiền đồng bộ từ Giới hạn chi tiêu (Tháng).</small>`;
+            }
+
+            // --- BẮT SỰ KIỆN SO KHỚP KHI CHUYỂN SANG PAID ---
+            if (statusInput) {
+                // Nếu mở form lên mà đang pending, bắt sự kiện chuyển status
+                statusInput.onchange = function(e) {
+                    if (e.target.value === 'paid' && txData.status === 'pending') {
+                        app.ui.renderIncomeSelection(assignedMonth, configuredAmount);
+                    } else {
+                        if (matchContainer) matchContainer.style.display = 'none';
+                    }
+                };
             }
         }
     };
@@ -727,10 +745,8 @@ app.events = {
             };
 
             if (isMonthlyLimitCreditTx) {
-                const assignedMonth =
-                    app.logic.getMonthlyLimitCreditMonth(originalTxForSubmit);
-                const configuredAmount =
-                    app.logic.getMonthlyLimitCreditAmount(assignedMonth);
+                const assignedMonth = app.logic.getMonthlyLimitCreditMonth(originalTxForSubmit);
+                const configuredAmount = app.logic.getMonthlyLimitCreditAmount(assignedMonth);
                 const tags = String(data.tags || '')
                     .split(/\s+/)
                     .filter(Boolean);
@@ -739,8 +755,10 @@ app.events = {
                     tags.push('#gioi_han_chi_tieu_tu_dong');
                 }
 
-                // Chỉ trạng thái Pending/Paid có ý nghĩa với giao dịch hệ thống này.
-                data.status = data.status === 'paid' ? 'paid' : 'pending';
+                // Cập nhật trạng thái
+                const userSelectedStatus = document.getElementById('tx-status').value;
+                data.status = userSelectedStatus === 'paid' ? 'paid' : 'pending';
+                
                 data.type = 'Thu nhập';
                 data.amount = configuredAmount;
                 data.discountAmount = 0;
@@ -749,6 +767,31 @@ app.events = {
                 data.isMonthlyLimitCredit = true;
                 data.monthlyLimitMonth = assignedMonth;
                 data.tags = tags.join(' ');
+
+                // --- [MỚI] LOGIC XỬ LÝ KHI NGƯỜI DÙNG XÁC NHẬN GIAO DỊCH HẠN MỨC ---
+                if (data.status === 'paid' && originalTxForSubmit.status === 'pending') {
+                    const checks = document.querySelectorAll('.limit-income-chk:checked');
+                    let sum = 0;
+                    const selectedIds = [];
+                    
+                    checks.forEach(chk => {
+                        sum += Number(chk.getAttribute('data-amount'));
+                        selectedIds.push(Number(chk.value));
+                    });
+
+                    // Nếu tổng tiền chọn >= số tiền hạn mức, tiến hành loại trừ
+                    if (sum >= configuredAmount) {
+                        app.data.transactions.forEach(t => {
+                            if (selectedIds.includes(t.id)) {
+                                t.excludeFromBudget = true;
+                                t.excludeFromDashboard = true;
+                                t.assignedToMonthlyLimit = data.id; // Đánh dấu đã dùng cho giao dịch hạn mức này
+                            }
+                        });
+                        console.log(`Đã loại trừ ${selectedIds.length} giao dịch thu nhập vì đã so khớp đủ hạn mức.`);
+                    }
+                    // Ghi chú: Nếu sum < configuredAmount, hệ thống bỏ qua và không đánh dấu loại trừ theo đúng yêu cầu.
+                }
             }
 
             // Hiển thị thông báo nhỏ nếu có giảm giá hoặc hoàn tiền để người dùng biết
@@ -772,7 +815,7 @@ app.events = {
                 data.type === 'Chi tiêu' &&
                 limit > 0 &&
                 data.status !== 'cancelled' &&
-                app.logic.isTransactionInBudgetMonth(data, currentMonth)
+                app.logic.isTransactionInMonth(data, currentMonth)
             ) {
                 // Tính thử bằng đúng logic thật, thay vì luôn cộng data.amount.
                 // Cách cũ làm giao dịch trả sau/sửa giao dịch bị cộng trùng với nợ dự kiến.
@@ -820,7 +863,7 @@ app.events = {
                         `🚨 CẢNH BÁO CHÁY TÚI! 🚨\n\n` +
                         `${previewLimitCredit > 0 ? `Hạn mức cấp trước: +${app.logic.formatCurrency(previewLimitCredit)}\n` : ''}` +
                         `Thu nhập thực tế: +${app.logic.formatCurrency(previewIncome)}\n` +
-                        `Chi theo ngân sách + nghĩa vụ bổ sung: -${app.logic.formatCurrency(newTotalUsed)}\n` +
+                        `Chi thực trả + Nợ: -${app.logic.formatCurrency(newTotalUsed)}\n` +
                         `---------------------------\n` +
                         `THÂM HỤT: ${app.logic.formatCurrency(over)}\n\n` +
                         `Bạn có chắc chắn muốn tiếp tục không?`
@@ -3143,7 +3186,7 @@ document.getElementById('btn-ask-gemini').addEventListener('click', async () => 
         .map(i => `${i.name} (${app.logic.formatCurrency((Number(i.amount) || 0) + (Number(i.penalty) || 0))})`)
         .join(', ');
 
-    // Lấy hạn mức (nếu có): chi theo kỳ sao kê + nghĩa vụ bổ sung.
+    // Lấy hạn mức (nếu có): tiền thực trả + khoản nợ phải giữ lại.
     const limit = Number(app.data.configs.monthlyLimits?.[currentMonth]) || 0;
     const totalBudgetUsed = totalExpense + upcomingDebt;
     const remainingBudget = limit > 0 ? limit - totalBudgetUsed : null;
@@ -3151,7 +3194,7 @@ document.getElementById('btn-ask-gemini').addEventListener('click', async () => 
         ? Math.round((totalBudgetUsed / limit) * 100)
         : (income > 0 ? Math.round((totalExpense / income) * 100) : 0);
 
-    // Mở rộng Top 5 khoản chi ngân sách kèm Tag để AI phân tích thói quen
+    // Mở rộng Top 5 khoản tiêu thực trả kèm Tag để AI phân tích thói quen
     const topSpending = expenses.slice().sort((a, b) => b.amount - a.amount).slice(0, 5)
         .map(t => `- ${t.place} (${t.tags || 'Khác'}): ${app.logic.formatCurrency(t.amount)}`).join('\n');
 
@@ -3162,9 +3205,9 @@ document.getElementById('btn-ask-gemini').addEventListener('click', async () => 
     - Hạn mức cấp trước đang tính vào Khả dụng: ${app.logic.formatCurrency(limitCredit)}
     - Thu nhập thực tế thông thường: ${app.logic.formatCurrency(regularBudgetIncome)}
     - Tổng Chi Tiêu: ${app.logic.formatCurrency(totalExpense)}
-    - Số dư sau chi được phân bổ: ${app.logic.formatCurrency(cashBalance)}
+    - Dòng tiền sau chi thực trả: ${app.logic.formatCurrency(cashBalance)}
     - Khả dụng sau khi giữ tiền trả nợ: ${app.logic.formatCurrency(availableAfterDebt)}
-    ${limit > 0 ? `- Hạn Mức Cài Đặt: ${app.logic.formatCurrency(limit)} (Đã dùng/phân bổ ${burnRate}% hạn mức. Còn lại: ${app.logic.formatCurrency(remainingBudget)})` : `- Tỷ lệ chi tiêu so với thu nhập: ${burnRate}%`}
+    ${limit > 0 ? `- Hạn Mức Cài Đặt: ${app.logic.formatCurrency(limit)} (Đã dùng/dự phòng ${burnRate}% hạn mức. Còn lại: ${app.logic.formatCurrency(remainingBudget)})` : `- Tỷ lệ chi tiêu so với thu nhập: ${burnRate}%`}
     - Nợ Sắp Phải Trả: ${app.logic.formatCurrency(upcomingDebt)} (${debtItems || 'Không có khoản nợ nào'})
     
     [TOP 5 KHOẢN CHI LỚN NHẤT THÁNG NÀY]

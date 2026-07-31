@@ -491,6 +491,20 @@
                 <input type="hidden" id="tx-id">
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem;">
+                    <!-- [MỚI] Container hiển thị danh sách Thu nhập để so khớp -->
+                    <div id="limit-income-selection-container"
+                        style="display:none; margin-bottom: 1.25rem; padding: 12px; background: #f0f9ff; border: 1px dashed #0284c7; border-radius: 8px;">
+                        <label class="form-label"
+                            style="color: #0369a1; display: flex; justify-content: space-between;">
+                            <span><i class="fa-solid fa-link"></i> So khớp Thu nhập (Tối đa 10)</span>
+                        </label>
+                        <div id="limit-income-list"
+                            style="display: flex; flex-direction: column; gap: 8px; max-height: 160px; overflow-y: auto; margin-bottom: 10px;">
+                            <!-- Danh sách render bằng JS -->
+                        </div>
+                        <div id="limit-income-status" style="font-weight: 800; font-size: 0.9rem; text-align: right;">
+                        </div>
+                    </div>
                     <div>
                         <label class="form-label">Loại</label>
                         <select id="tx-type" class="form-input">

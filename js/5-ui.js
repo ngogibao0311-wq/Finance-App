@@ -240,13 +240,19 @@ app.ui = {
             app.logic.getUpcomingDebts();
 
         /*
-         * Phần nghĩa vụ bổ sung của tháng gồm phí theo kỳ sao kê,
-         * kỳ trả góp và các khoản nợ khác. Riêng giao dịch trả sau gốc
-         * đã được totalExpense tính theo tháng sao kê.
+         * Nợ thuộc đúng kỳ thanh toán của tháng đang xem.
+         * Giá trị này mới được trừ vào Khả dụng.
          */
         const projectedDebtBudget =
             Number(upcomingData.budgetTotal) || 0;
 
+        /*
+ * Trong Ngân sách tháng chỉ hiển thị khoản nợ
+ * thực sự thuộc tháng đang xem.
+ *
+ * Nợ tháng sau vẫn hiển thị trong khối
+ * “Sắp đến hạn” riêng bên dưới.
+ */
         const projectedDebtBar = projectedDebtBudget;
 
         // Hạn mức cấp trước và thu nhập thực tế thông thường.
@@ -256,8 +262,7 @@ app.ui = {
         const budgetIncome =
             app.logic.getBudgetIncomeTotal(currentMonth);
 
-        // Khả dụng dùng giao dịch trả sau theo tháng sao kê,
-        // không dùng tháng của hạn thanh toán.
+        // Khả dụng chỉ trừ nợ thuộc đúng tháng thanh toán
         const totalUsed =
             totalExpense + projectedDebtBudget;
 
@@ -383,7 +388,7 @@ app.ui = {
 
         ${projectedDebtBar > 0
                 ? `<span>
-        | Phân bổ kỳ sao kê/nợ khác: ${app.logic.formatCurrency(projectedDebtBar)}
+        | Sắp đến hạn: ${app.logic.formatCurrency(projectedDebtBar)}
        </span>`
                 : ''
             }
@@ -2645,6 +2650,68 @@ ${payAllHTML}
         this.renderDailyTxList(state, fmt);
     },
 
+    // --- BỔ SUNG HÀM SO KHỚP THU NHẬP ---
+    renderIncomeSelection(month, limitAmount) {
+        const container = document.getElementById('limit-income-selection-container');
+        const listEl = document.getElementById('limit-income-list');
+        const statusEl = document.getElementById('limit-income-status');
+
+        if (!container || !listEl || !statusEl) return;
+
+        // Lọc giao dịch: Loại Thu nhập, Đã trả, Cùng tháng, Chưa bị loại trừ, Không phải giao dịch hạn mức
+        const incomes = app.data.transactions.filter(t =>
+            t.type === 'Thu nhập' &&
+            t.status === 'paid' &&
+            !t.isMonthlyLimitCredit &&
+            !t.excludeFromBudget &&
+            app.logic.getLocalMonthKey(t.date) === month
+        ).slice(0, 10); // Lấy tối đa 10 giao dịch
+
+        if (incomes.length === 0) {
+            listEl.innerHTML = '<div style="font-size:0.8rem; color:#64748b; text-align:center;">Không có giao dịch thu nhập nào khả dụng trong tháng này.</div>';
+            statusEl.innerHTML = `<span style="color:var(--danger)"><i class="fa-solid fa-triangle-exclamation"></i> Thiếu ${app.logic.formatCurrency(limitAmount)}</span>`;
+            container.style.display = 'block';
+            return;
+        }
+
+        // Render danh sách checkbox
+        let html = '';
+        incomes.forEach(t => {
+            html += `
+                <label style="display:flex; justify-content:space-between; align-items:center; background:#fff; padding:8px 12px; border-radius:6px; border:1px solid #bae6fd; cursor:pointer; transition:0.2s;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <input type="checkbox" class="limit-income-chk" value="${t.id}" data-amount="${t.amount}" style="accent-color: #0284c7; width: 16px; height: 16px;">
+                        <span style="font-size:0.85rem; color:#0f172a; font-weight:600;">${t.place}</span>
+                    </div>
+                    <span style="font-weight:900; color:var(--success); font-size:0.9rem;">+${app.logic.formatCurrency(t.amount)}</span>
+                </label>
+            `;
+        });
+        listEl.innerHTML = html;
+        container.style.display = 'block';
+
+        // Logic tính toán khi check
+        const calculateSum = () => {
+            const checks = document.querySelectorAll('.limit-income-chk:checked');
+            let sum = 0;
+            checks.forEach(chk => sum += Number(chk.getAttribute('data-amount')));
+
+            if (sum >= limitAmount) {
+                statusEl.innerHTML = `<span style="color:var(--success)"><i class="fa-solid fa-check-circle"></i> Đã đủ điều kiện (Tổng: ${app.logic.formatCurrency(sum)})</span>`;
+            } else {
+                statusEl.innerHTML = `<span style="color:var(--danger)"><i class="fa-solid fa-circle-exclamation"></i> Thiếu ${app.logic.formatCurrency(limitAmount - sum)}</span>`;
+            }
+        };
+
+        // Gắn sự kiện onchange
+        document.querySelectorAll('.limit-income-chk').forEach(chk => {
+            chk.addEventListener('change', calculateSum);
+        });
+
+        // Chạy tính toán lần đầu
+        calculateSum();
+    },
+
     // Hàm phụ trợ để render list (tách ra cho gọn)
     renderDailyTxList(state, fmt) {
         const listContainer = document.getElementById('daily-tx-list-container');
@@ -2765,7 +2832,7 @@ ${payAllHTML}
             { respectDashboardExclusion: true }
         );
 
-        // Dashboard dùng cùng cơ sở phân bổ theo kỳ sao kê như ngân sách, nhưng vẫn giữ nút
+        // Dashboard dùng cùng cơ sở tiền thực trả như ngân sách, nhưng vẫn giữ nút
         // loại trừ riêng của Dashboard. Nhờ vậy giao dịch mua trả sau và giao dịch
         // trả nợ không còn bị cộng hai lần.
         const dashboardExpenseTxs = app.logic
@@ -2813,7 +2880,7 @@ ${payAllHTML}
         const topExpense = dashboardExpenseTxs
             .slice()
             .sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0))
-            .slice(0, 5); // Lấy top 5 khoản chi được phân bổ vào tháng
+            .slice(0, 5); // Lấy top 5 khoản tiền thực trả lớn nhất
 
         if (topExpense.length === 0) {
             document.getElementById('detail-expense').innerHTML = '<div style="opacity:0.7; font-style:italic; padding-top:10px;">Chưa có chi tiêu</div>';
@@ -3232,7 +3299,7 @@ ${payAllHTML}
             txs = app.logic
                 .getBudgetTransactions({ respectExclusion: false })
                 .filter(t => !t.excludeFromDashboard);
-            title = "CHI TIẾT CHI TIÊU NGÂN SÁCH"; themeColor = "#ef4444";
+            title = "CHI TIẾT CHI TIÊU THỰC TRẢ"; themeColor = "#ef4444";
         } else if (type === 'debt') {
             // Lấy toàn bộ giao dịch liên quan đến nợ trong tháng (bao gồm cả đã trả và đang nợ)
             txs = app.data.transactions.filter(t => {
@@ -6340,7 +6407,7 @@ ${t.tempExtraFeeReason
                     )
                 );
 
-                // Báo cáo dùng cùng cơ sở phân bổ theo kỳ sao kê với Dashboard/ngân sách để tránh
+                // Báo cáo dùng cùng cơ sở tiền thực trả với Dashboard/ngân sách để tránh
                 // cộng cả đơn trả sau gốc lẫn giao dịch thanh toán nợ.
                 const expenseTxs = app.logic.getBudgetTransactions({ respectExclusion: false });
                 const upcomingData = app.logic.getUpcomingDebts();
@@ -6355,14 +6422,14 @@ ${t.tempExtraFeeReason
                 const totalBudgetUsed = totalExp + totalPendingExp;
                 const netBalance = totalInc - totalExp;
 
-                // 2. SỐ LIỆU NGÂN SÁCH: giao dịch đã phân bổ + nghĩa vụ bổ sung.
+                // 2. SỐ LIỆU NGÂN SÁCH: tiền đã trả + nợ cần giữ lại.
                 const budgetLimit = Number(app.data.configs.monthlyLimits?.[month]) || 0;
                 let budgetPercent = 0;
                 let budgetText = "Chưa thiết lập";
                 let budgetColor = "#94a3b8";
                 if (budgetLimit > 0) {
                     budgetPercent = Math.min(100, (totalBudgetUsed / budgetLimit) * 100);
-                    budgetText = `${app.logic.formatCurrency(totalExp)} đã ghi nhận + ${app.logic.formatCurrency(totalPendingExp)} phân bổ bổ sung / ${app.logic.formatCurrency(budgetLimit)}`;
+                    budgetText = `${app.logic.formatCurrency(totalExp)} đã trả + ${app.logic.formatCurrency(totalPendingExp)} dự phòng / ${app.logic.formatCurrency(budgetLimit)}`;
                     if (budgetPercent >= 100) budgetColor = "#ef4444";
                     else if (budgetPercent >= 80) budgetColor = "#f59e0b";
                     else budgetColor = "#10b981";
@@ -7442,7 +7509,7 @@ ${t.tempExtraFeeReason
                 this.renderReceipt(
                     topItems.length ? topItems : [{ name: "Chưa tiêu gì", amount: 0, note: "Giỏi lắm!" }],
                     total,
-                    "BUDGET",
+                    "PAID",
                     "fa-solid fa-face-dizzy",
                     null,
                     "*** CẢM ƠN QUÝ KHÁCH ***"
