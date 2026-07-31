@@ -253,15 +253,24 @@ app.ui = {
         const projectedDebtBar =
             Number(upcomingData.displayTotal) || 0;
 
-        // Thu nhập đã thực sự nhận trong tháng
+        // Thu nhập thật đã nhận trong tháng.
         const budgetIncome =
             app.logic.getBudgetIncomeTotal(currentMonth);
 
-        // Khả dụng chỉ trừ nợ thuộc đúng tháng thanh toán
+        /*
+         * Số tiền người dùng nhập ở Giới hạn được xem là
+         * "khoản sẽ có" cho đến khi giao dịch hệ thống chuyển
+         * sang trạng thái Đã xong.
+         */
+        const monthlyLimitBase =
+            app.logic.getMonthlyLimitBudgetBase(currentMonth);
+
+        // Khả dụng chỉ trừ nợ thuộc đúng tháng thanh toán.
         const totalUsed =
             totalExpense + projectedDebtBudget;
 
         const remain =
+            monthlyLimitBase +
             budgetIncome -
             totalUsed;
 
@@ -354,10 +363,20 @@ app.ui = {
             remainEl.innerHTML = `Khả dụng: <b style="color:var(--success)">${app.logic.formatCurrency(remain)}</b>`;
         }
 
-        // 5. Cập nhật Text "Đã tiêu"
+        // 5. Cập nhật phần giải thích nguồn tiền và chi tiêu.
         document.getElementById('budget-used').innerHTML = `
+    ${monthlyLimitBase > 0
+            ? `<div>
+                Khoản sẽ có:
+                <b style="color:var(--primary)">
+                    +${app.logic.formatCurrency(monthlyLimitBase)}
+                </b>
+               </div>`
+            : ''
+        }
+
     <div>
-        Thu nhập:
+        Thu nhập đã nhận:
         <b style="color:var(--success)">
             +${app.logic.formatCurrency(budgetIncome)}
         </b>
@@ -369,8 +388,8 @@ app.ui = {
 
         ${projectedDebtBar > 0
                 ? `<span>
-        | Sắp đến hạn: ${app.logic.formatCurrency(projectedDebtBar)}
-       </span>`
+                    | Sắp đến hạn: ${app.logic.formatCurrency(projectedDebtBar)}
+                   </span>`
                 : ''
             }
     </div>
@@ -399,12 +418,33 @@ app.ui = {
 
         // 3. Sự kiện lưu (Dùng .onchange để tránh bị chồng sự kiện khi đổi tháng nhiều lần)
         document.getElementById('budget-limit').onchange = (e) => {
-            const val = Number(e.target.value.replace(/[^0-9]/g, ''));
+            const val = Number(
+                String(e.target.value || '').replace(/[^0-9]/g, '')
+            ) || 0;
+
             const monthToSave = app.data.filter.month;
 
-            // Lưu vào đúng tháng đó
-            if (!app.data.configs.monthlyLimits) app.data.configs.monthlyLimits = {};
+            // Lưu số tiền người dùng dự kiến sẽ có trong đúng tháng.
+            if (!app.data.configs.monthlyLimits) {
+                app.data.configs.monthlyLimits = {};
+            }
+
             app.data.configs.monthlyLimits[monthToSave] = val;
+
+            /*
+             * Tạo hoặc cập nhật giao dịch hệ thống liên kết.
+             * Số tiền giao dịch chỉ được đổi từ ô này.
+             */
+            if (app.logic.syncMonthlyLimitTransaction) {
+                app.logic.syncMonthlyLimitTransaction(
+                    monthToSave,
+                    val
+                );
+            }
+
+            app.data.transactions.sort(
+                (a, b) => app.logic.compareTransactions(a, b)
+            );
 
             app.storage.save();
             app.ui.renderAll();
@@ -2700,7 +2740,13 @@ ${payAllHTML}
         app.data.transactions.forEach(t => {
             // Kiểm tra: Nếu nội dung có chữ "chuyển tiền" (không phân biệt hoa thường)
             // VÀ loại hiện tại chưa phải là "Chuyển tiền"
-            if (t.place && t.place.toLowerCase().includes('chuyển tiền') && t.type !== 'Chuyển tiền') {
+            if (
+                !(app.logic.isMonthlyLimitTransaction &&
+                    app.logic.isMonthlyLimitTransaction(t)) &&
+                t.place &&
+                t.place.toLowerCase().includes('chuyển tiền') &&
+                t.type !== 'Chuyển tiền'
+            ) {
                 t.type = 'Chuyển tiền';
                 autoFixCount++;
             }
@@ -2735,10 +2781,14 @@ ${payAllHTML}
         // Lấy field 'displayTotal' (Tổng hiển thị - bao gồm cả gốc + lãi + phạt của các mục trong list)
         const totalOutstandingDebt = upcomingDataForSummary.displayTotal;
 
-        // Lọc thêm điều kiện: không bị loại trừ (excludeFromDashboard)
-        const income = activeTxs
-            .filter(t => isIncome(t) && t.status === 'paid' && !t.excludeFromDashboard)
-            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+        /*
+         * Thu nhập dùng chung logic trung tâm:
+         * - Giao dịch thường chỉ tính khi là Thu nhập + paid.
+         * - Giao dịch Giới hạn chỉ tính sau khi chuyển Đã xong.
+         */
+        const income = app.logic.getBudgetIncomeTotal(
+            app.data.filter.month
+        );
 
         // Dashboard dùng cùng cơ sở tiền thực trả như ngân sách, nhưng vẫn giữ nút
         // loại trừ riêng của Dashboard. Nhờ vậy giao dịch mua trả sau và giao dịch
@@ -6311,22 +6361,35 @@ ${t.tempExtraFeeReason
                 const transferTxs = activeTxs.filter(t => t.type === 'Chuyển tiền' && t.status === 'paid');
                 const totalTransfer = transferTxs.reduce((s, t) => s + (Number(t.amount) || 0), 0);
 
-                const totalInc = incomeTxs.reduce((s, t) => s + (Number(t.amount) || 0), 0);
+                const totalInc =
+                    app.logic.getBudgetIncomeTotal(month);
                 const totalExp = expenseTxs.reduce((s, t) => s + (Number(t.amount) || 0), 0);
                 const totalPendingExp =
                     Number(upcomingData.budgetTotal) || 0;
                 const totalBudgetUsed = totalExp + totalPendingExp;
                 const netBalance = totalInc - totalExp;
 
-                // 2. SỐ LIỆU NGÂN SÁCH: tiền đã trả + nợ cần giữ lại.
+                // 2. SỐ LIỆU NGÂN SÁCH: nguồn dự kiến + thu nhập thật - chi/nợ.
                 const budgetLimit = Number(app.data.configs.monthlyLimits?.[month]) || 0;
+                const monthlyLimitBase = app.logic.getMonthlyLimitBudgetBase
+                    ? app.logic.getMonthlyLimitBudgetBase(month)
+                    : budgetLimit;
+                const budgetAvailable =
+                    monthlyLimitBase +
+                    totalInc -
+                    totalBudgetUsed;
+
                 let budgetPercent = 0;
                 let budgetText = "Chưa thiết lập";
                 let budgetColor = "#94a3b8";
                 if (budgetLimit > 0) {
                     budgetPercent = Math.min(100, (totalBudgetUsed / budgetLimit) * 100);
-                    budgetText = `${app.logic.formatCurrency(totalExp)} đã trả + ${app.logic.formatCurrency(totalPendingExp)} dự phòng / ${app.logic.formatCurrency(budgetLimit)}`;
-                    if (budgetPercent >= 100) budgetColor = "#ef4444";
+                    budgetText =
+                        `${app.logic.formatCurrency(monthlyLimitBase)} khoản sẽ có + ` +
+                        `${app.logic.formatCurrency(totalInc)} thu nhập - ` +
+                        `${app.logic.formatCurrency(totalBudgetUsed)} đã dùng/dự phòng = ` +
+                        `${app.logic.formatCurrency(budgetAvailable)} khả dụng`;
+                    if (budgetAvailable < 0 || budgetPercent >= 100) budgetColor = "#ef4444";
                     else if (budgetPercent >= 80) budgetColor = "#f59e0b";
                     else budgetColor = "#10b981";
                 }
