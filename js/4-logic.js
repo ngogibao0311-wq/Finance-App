@@ -4,6 +4,86 @@ app.logic = {
         return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
     },
 
+    // Nhận diện tín dụng tập trung tại một nơi để mọi màn hình dùng cùng một quy tắc.
+    // Chỉ tên nền tảng (ShopeePay, TikTok, MoMo, thẻ ATM...) không đủ để kết luận là tín dụng.
+    getCreditPlatform(source = '') {
+        const raw = String(source || '').trim();
+        const s = raw
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/đ/g, 'd')
+            .replace(/\s+/g, ' ');
+
+        const hasPayLaterMarker =
+            s.includes('tra sau') ||
+            s.includes('paylater') ||
+            s.includes('spaylater') ||
+            s.includes('vi tra sau');
+
+        const hasCreditCardMarker =
+            s.includes('the tin dung') ||
+            s.includes('credit card') ||
+            /(^|\s)credit($|\s)/.test(s);
+
+        const hasCreditMarker = hasPayLaterMarker || hasCreditCardMarker;
+
+        if ((s.includes('zalo') || s.includes('priority')) &&
+            (hasCreditMarker || s.includes('priority'))) return 'zalo';
+
+        if (s.includes('momo') && hasCreditMarker) return 'momo';
+
+        if (s.includes('spaylater') ||
+            ((s.includes('shopee') || s.includes('spay') || s.includes('airpay')) && hasCreditMarker)) {
+            return 'shopee';
+        }
+
+        if (s.includes('tiktok') && hasCreditMarker) return 'tiktok';
+
+        if (hasCreditMarker) return 'credit';
+        return null;
+    },
+
+    isCreditSource(source = '') {
+        return this.getCreditPlatform(source) !== null;
+    },
+
+    normalizeAccountRef(value = '') {
+        return this.normalizeSearchText(value)
+            .replace(/^(ngan hang|bank|tai khoan)\s+/, '')
+            .trim();
+    },
+
+    accountNamesMatch(value, accountName) {
+        const left = this.normalizeAccountRef(value);
+        const right = this.normalizeAccountRef(accountName);
+        return Boolean(left && right && left === right);
+    },
+
+    // Hỏi đúng tài khoản/ví thực tế đã dùng để trả nợ; ghi nhớ lựa chọn gần nhất.
+    requestPaymentSource(contextLabel = 'khoản thanh toán') {
+        const fallback = String(
+            app.data.configs.lastDebtPaymentSource || 'Tiền mặt'
+        ).trim() || 'Tiền mặt';
+
+        const value = window.prompt(
+            `Nhập nguồn tiền dùng để trả ${contextLabel}:\n` +
+            `(Ví dụ: Tiền mặt, VCB, MB Bank...)`,
+            fallback
+        );
+
+        if (value === null) return null;
+
+        const source = String(value).trim();
+        if (!source) {
+            app.ui?.popup?.show('Nguồn tiền thanh toán không được để trống.', 'error');
+            return null;
+        }
+
+        app.data.configs.lastDebtPaymentSource = source;
+        return source;
+    },
+
     getFilteredTxs() {
         let filteredTxs = app.data.transactions.filter(t => t.date.startsWith(app.data.filter.month));
 
@@ -52,7 +132,7 @@ app.logic = {
             if (t.excludeFromBudget === true) return false;
 
             const tags = (t.tags || "").toLowerCase();
-            const s = t.source.toLowerCase();
+            const s = String(t.source || '').toLowerCase();
 
             // 2. [QUAN TRỌNG - TÍNH VÀO NGÂN SÁCH] Các khoản THANH TOÁN NỢ
             // Bao gồm: Trả gốc (#thanh_toan_no), Phí (#thanh_toan_phi), Phạt (#nop_phat), Trả góp (#tra_gop), Tất toán vay (#tat_toan_vay)
@@ -68,12 +148,7 @@ app.logic = {
 
             // 3. [QUAN TRỌNG - KHÔNG TÍNH] Các khoản CHI TIÊU TÍN DỤNG GỐC
             // (Vì chúng ta đã tính tiền lúc trả nợ ở Bước 2 rồi, nếu tính thêm ở đây sẽ bị trùng lặp)
-            const isCreditSource =
-                (s.includes('zalo') && (s.includes('trả sau') || s.includes('priority') || s.includes('paylater'))) ||
-                (s.includes('momo') && (s.includes('trả sau') || s.includes('ví trả sau') || s.includes('credit'))) ||
-                (s.includes('shopee') || s.includes('spay') || s.includes('airpay')) ||
-                (s.includes('tiktok')) ||
-                (s.includes('tín dụng') || s.includes('thẻ') || s.includes('credit')); // Thẻ tín dụng chung
+            const isCreditSource = app.logic.isCreditSource(s);
 
             // Nếu là nguồn tín dụng và KHÔNG phải là giao dịch thanh toán nợ (đã check ở trên) -> BỎ QUA
             if (isCreditSource) return false;
@@ -461,65 +536,34 @@ app.logic = {
 
         const detectCreditPlatform = (source = '') => {
             const raw = String(source || '').trim();
-            const s = raw.toLowerCase();
+            const platformKey = app.logic.getCreditPlatform(raw);
 
-            if (s.includes('zalo') || s.includes('priority')) {
-                return {
-                    key: 'zalo',
-                    type: 'zalo',
-                    name: 'Zalo Pay',
+            if (!platformKey) return null;
+
+            const platformMap = {
+                zalo: {
+                    key: 'zalo', type: 'zalo', name: 'Zalo Pay',
                     sourceName: 'Trả sau Zalo Pay'
-                };
-            }
-
-            if (s.includes('momo')) {
-                return {
-                    key: 'momo',
-                    type: 'momo',
-                    name: 'Ví Trả Sau MoMo',
+                },
+                momo: {
+                    key: 'momo', type: 'momo', name: 'Ví Trả Sau MoMo',
                     sourceName: 'Ví Trả Sau MoMo'
-                };
-            }
-
-            if (
-                s.includes('shopee') ||
-                s.includes('spay') ||
-                s.includes('airpay')
-            ) {
-                return {
-                    key: 'shopee',
-                    type: 'shopee',
-                    name: 'ShopeePay SPayLater',
+                },
+                shopee: {
+                    key: 'shopee', type: 'shopee', name: 'ShopeePay SPayLater',
                     sourceName: 'Ví Trả Sau ShopeePay'
-                };
-            }
-
-            if (s.includes('tiktok')) {
-                return {
-                    key: 'tiktok',
-                    type: 'tiktok',
-                    name: 'TikTok PayLater',
+                },
+                tiktok: {
+                    key: 'tiktok', type: 'tiktok', name: 'TikTok PayLater',
                     sourceName: 'TikTok PayLater'
-                };
-            }
+                }
+            };
 
-            const isOtherCredit =
-                s.includes('tín dụng') ||
-                s.includes('thẻ') ||
-                s.includes('credit') ||
-                s.includes('trả sau') ||
-                s.includes('paylater');
+            if (platformMap[platformKey]) return platformMap[platformKey];
 
-            if (!isOtherCredit) return null;
-
-            const normalizedName = app.logic.normalizeSource(
-                raw || 'Tín dụng khác'
-            );
-
+            const normalizedName = app.logic.normalizeSource(raw || 'Tín dụng khác');
             return {
-                key: `credit-${normalizedName
-                    .toLowerCase()
-                    .replace(/\s+/g, '-')}`,
+                key: `credit-${normalizedName.toLowerCase().replace(/\s+/g, '-')}`,
                 type: 'credit',
                 name: normalizedName,
                 sourceName: normalizedName
@@ -1105,20 +1149,14 @@ app.logic = {
     },
 
     normalizeSource(source) {
-        const s = source.toLowerCase();
-        if (s.includes('zalo') && (s.includes('trả sau') || s.includes('priority') || s.includes('paylater'))) {
-            return 'Trả sau Zalo Pay';
-        }
-        if (s.includes('momo') && (s.includes('trả sau') || s.includes('ví trả sau') || s.includes('credit'))) {
-            return 'Ví Trả Sau MoMo';
-        }
-        if (s.includes('shopee') || s.includes('spay') || s.includes('airpay')) {
-            return 'Ví Trả Sau ShopeePay';
-        }
-        if (s.includes('tiktok')) {
-            return 'TikTok PayLater';
-        }
-        return source;
+        const raw = String(source || '');
+        const platform = this.getCreditPlatform(raw);
+
+        if (platform === 'zalo') return 'Trả sau Zalo Pay';
+        if (platform === 'momo') return 'Ví Trả Sau MoMo';
+        if (platform === 'shopee') return 'Ví Trả Sau ShopeePay';
+        if (platform === 'tiktok') return 'TikTok PayLater';
+        return raw;
     },
 
     normalizeSearchText(value) {
@@ -1391,14 +1429,11 @@ app.logic = {
 
     getBillingInfo(source, txDateStr) {
         const txDate = new Date(txDateStr);
-        const sourceLower = source.toLowerCase();
+        const sourceLower = String(source || '').toLowerCase();
+        const creditPlatform = app.logic.getCreditPlatform(source);
         let dueResult = { dueDate: null, statementDate: null };
 
-        if (
-            sourceLower.includes('shopee') ||
-            sourceLower.includes('spay') ||
-            sourceLower.includes('airpay')
-        ) {
+        if (creditPlatform === 'shopee') {
             const day = txDate.getDate();
 
             // Chốt sao kê ngày 13 lúc 23:59:59.
@@ -1426,7 +1461,7 @@ app.logic = {
             return dueResult;
         }
 
-        if (sourceLower.includes('momo') || sourceLower.includes('ví trả sau')) {
+        if (creditPlatform === 'momo') {
             const dueMonth = txDate.getMonth() + 1;
             const dueYear = txDate.getFullYear() + (dueMonth > 11 ? 1 : 0);
             const normalizedDueMonth = dueMonth > 11 ? 0 : dueMonth;
@@ -1436,7 +1471,7 @@ app.logic = {
             return dueResult;
         }
 
-        if (sourceLower.includes('zalo') || sourceLower.includes('zalopay')) {
+        if (creditPlatform === 'zalo') {
             const dueMonth = txDate.getMonth() + 1;
             const dueYear = txDate.getFullYear() + (dueMonth > 11 ? 1 : 0);
             const normalizedDueMonth = dueMonth > 11 ? 0 : dueMonth;
@@ -1446,7 +1481,7 @@ app.logic = {
             return dueResult;
         }
 
-        if (sourceLower.includes('tiktok')) {
+        if (creditPlatform === 'tiktok') {
             const day = txDate.getDate();
             const statementCutoffDay = 23; // Chốt sao kê ngày 23
             const dueDay = 10;             // Hạn trả ngày 10
@@ -1586,15 +1621,10 @@ app.logic = {
 
         if (!confirm(`Tạo giao dịch MỚI dựa trên giao dịch này?\n(Ngày giờ sẽ tính là hiện tại)`)) return;
 
-        const isCreditSource = s => {
-            const lower = s.toLowerCase();
-            return lower.includes('momo') || lower.includes('zalo') || lower.includes('trả sau') || lower.includes('tín dụng');
-        };
-
         let newStatus = 'paid';
         if (originalTx.type === 'Thu nhập') {
             newStatus = 'paid';
-        } else if (isCreditSource(originalTx.source)) {
+        } else if (app.logic.isCreditSource(originalTx.source)) {
             newStatus = 'pending';
         }
 
@@ -1784,13 +1814,7 @@ app.logic = {
             if (isDebtPayment) return true;
 
             // 2. Nếu là tiêu dùng bằng tín dụng (Zalo/Momo/Shopee...) -> KHÔNG TÍNH (return false)
-            const s = t.source.toLowerCase();
-            const isCreditSource =
-                (s.includes('zalo') && (s.includes('trả sau') || s.includes('priority') || s.includes('paylater'))) ||
-                (s.includes('momo') && (s.includes('trả sau') || s.includes('ví trả sau') || s.includes('credit'))) ||
-                (s.includes('shopee') || s.includes('spay') || s.includes('airpay')) ||
-                (s.includes('tiktok')) ||
-                (s.includes('tín dụng') || s.includes('thẻ') || s.includes('credit'));
+            const isCreditSource = app.logic.isCreditSource(t.source);
 
             if (isCreditSource) return false;
 
@@ -1856,7 +1880,10 @@ app.logic = {
         let currentBalance = account.initialBalance || 0;
 
         // 2. Cấu hình ngày chốt sổ
-        const CUTOFF_DATE_STR = "2026-01-28T00:00:00";
+        const CUTOFF_DATE_STR =
+            account.balanceAsOfDate ||
+            app.data.configs.balanceCutoffDate ||
+            "2026-01-28T00:00:00";
         const cutoffTime = new Date(CUTOFF_DATE_STR).getTime();
 
         // 3. Duyệt qua giao dịch
@@ -1866,20 +1893,21 @@ app.logic = {
             const txTime = new Date(t.date).getTime();
             if (txTime < cutoffTime) return;
 
-            // --- [FIX LỖI] THÊM ( || "" ) ĐỂ TRÁNH CRASH NẾU DỮ LIỆU BỊ THIẾU ---
-            const bankName = (account.bankName || "").toLowerCase().trim();
-            const source = (t.source || "").toLowerCase().trim();
-            const dest = (t.destination || "").toLowerCase().trim();
+            const amount = Number(t.amount) || 0;
+            const sourceMatches = app.logic.accountNamesMatch(t.source, account.bankName);
+            const destMatches = app.logic.accountNamesMatch(t.destination, account.bankName);
+            const hasDestination = Boolean(String(t.destination || '').trim());
 
-            // Trừ tiền
-            if (source === bankName) {
-                currentBalance -= t.amount;
+            // Tương thích dữ liệu cũ: Thu nhập từng lưu tài khoản nhận trong trường source.
+            if (t.type === 'Thu nhập') {
+                if (destMatches || (!hasDestination && sourceMatches)) {
+                    currentBalance += amount;
+                }
+                return;
             }
 
-            // Cộng tiền
-            if (dest === bankName) {
-                currentBalance += t.amount;
-            }
+            if (sourceMatches) currentBalance -= amount;
+            if (destMatches) currentBalance += amount;
         });
 
         return currentBalance;
@@ -1888,27 +1916,42 @@ app.logic = {
     calculateWalletBalance(wallet) {
         // Nếu là ví trả sau có hạn mức, bắt đầu từ hạn mức + số dư ban đầu
         let currentBalance = (wallet.initialBalance || 0) + (wallet.creditLimit || 0);
-        const CUTOFF_DATE = new Date("2026-01-28T00:00:00").getTime();
+        const CUTOFF_DATE = new Date(
+            wallet.balanceAsOfDate ||
+            app.data.configs.balanceCutoffDate ||
+            "2026-01-28T00:00:00"
+        ).getTime();
+
+        const isCreditWallet = app.logic.isCreditSource(wallet.walletName);
 
         app.data.transactions.forEach(t => {
-            if (t.status !== 'paid') return;
-
             const txTime = new Date(t.date).getTime();
             if (txTime < CUTOFF_DATE) return;
 
-            const wName = (wallet.walletName || "").toLowerCase().trim();
-            const source = (t.source || "").toLowerCase().trim();
-            const dest = (t.destination || "").toLowerCase().trim();
+            const amount = Number(t.amount) || 0;
+            const sourceMatches = app.logic.accountNamesMatch(t.source, wallet.walletName);
+            const destMatches = app.logic.accountNamesMatch(t.destination, wallet.walletName);
+            const hasDestination = Boolean(String(t.destination || '').trim());
 
-            // Chi tiêu từ ví này -> Trừ vào hạn mức/số dư
-            if (source === wName) {
-                currentBalance -= t.amount;
+            // Ví tín dụng hiển thị hạn mức còn dùng được: chỉ dư nợ pending làm giảm hạn mức.
+            if (isCreditWallet) {
+                if (t.status === 'pending' && sourceMatches && t.type === 'Chi tiêu') {
+                    currentBalance -= amount;
+                }
+                return;
             }
 
-            // Hoàn tiền hoặc Thu nhập vào ví này -> Cộng lại vào hạn mức/số dư
-            if (dest === wName) {
-                currentBalance += t.amount;
+            if (t.status !== 'paid') return;
+
+            if (t.type === 'Thu nhập') {
+                if (destMatches || (!hasDestination && sourceMatches)) {
+                    currentBalance += amount;
+                }
+                return;
             }
+
+            if (sourceMatches) currentBalance -= amount;
+            if (destMatches) currentBalance += amount;
         });
 
         return currentBalance;

@@ -298,7 +298,7 @@ app.ui = {
             barProjected.style.backgroundColor = '#fdba74';
             statusEl.innerHTML = `<span style="color:var(--danger); font-weight:700">SẮP CẠN VÍ!</span>`;
 
-            remainEl.innerHTML = `Khả dụng: <b style="color:var(--danger)">${app.logic.formatCurrency(remain)}</b>`;
+            remainEl.innerHTML = `Còn lại sau dự phòng nợ: <b style="color:var(--danger)">${app.logic.formatCurrency(remain)}</b>`;
 
         } else if ((totalUsed / limit) > 0.8) {
             // --- CẢNH BÁO ---
@@ -306,14 +306,14 @@ app.ui = {
             barProjected.style.backgroundColor = '#fde047';
             statusEl.innerHTML = `<span style="color:var(--warning); font-weight:700">Cẩn thận!</span>`;
 
-            remainEl.innerHTML = `Khả dụng: <b style="color:var(--warning)">${app.logic.formatCurrency(remain)}</b>`;
+            remainEl.innerHTML = `Còn lại sau dự phòng nợ: <b style="color:var(--warning)">${app.logic.formatCurrency(remain)}</b>`;
 
         } else {
             // --- AN TOÀN ---
             barProjected.style.backgroundColor = '#86efac';
             statusEl.innerHTML = `<span style="color:var(--success); font-weight:700">Ổn định</span>`;
 
-            remainEl.innerHTML = `Khả dụng: <b style="color:var(--success)">${app.logic.formatCurrency(remain)}</b>`;
+            remainEl.innerHTML = `Còn lại sau dự phòng nợ: <b style="color:var(--success)">${app.logic.formatCurrency(remain)}</b>`;
         }
 
         // 5. Cập nhật Text "Đã tiêu"
@@ -1846,6 +1846,11 @@ app.ui = {
                     return;
                 }
 
+                const paymentSource = app.logic.requestPaymentSource(
+                    `kỳ sao kê ${freshItem.name}`
+                );
+                if (!paymentSource) return;
+
                 const paymentDate =
                     app.logic.getPaymentDate();
 
@@ -1908,7 +1913,7 @@ app.ui = {
                             `Thanh toán phạt kỳ sao kê ` +
                             `(${freshItem.name})`,
 
-                        source: 'Tiền mặt',
+                        source: paymentSource,
                         destination: destination,
 
                         amount: penalty,
@@ -1942,7 +1947,7 @@ app.ui = {
                             `Trả hết kỳ sao kê ` +
                             `(${freshItem.name})`,
 
-                        source: 'Tiền mặt',
+                        source: paymentSource,
                         destination: destination,
 
                         amount: principal,
@@ -2661,18 +2666,7 @@ ${payAllHTML}
         const allPendingTxs = app.data.transactions.filter(t => t.status === 'pending' && t.type !== 'Thu nhập');
 
         const isIncome = t => t.type === 'Thu nhập';
-
-        // --- FIX: Định nghĩa chặt chẽ thế nào là Nguồn Tín Dụng ---
-        const isCreditSource = s => {
-            const lower = s.toLowerCase();
-            const isZaloCredit = lower.includes('zalo') && (lower.includes('trả sau') || lower.includes('priority') || lower.includes('paylater'));
-            const isMomoCredit = lower.includes('momo') && (lower.includes('trả sau') || lower.includes('ví trả sau') || lower.includes('credit'));
-            const isShopeeCredit = lower.includes('shopee') || lower.includes('spay') || lower.includes('airpay');
-            const isTikTokCredit = lower.includes('tiktok');
-            const isOtherCredit = lower.includes('tín dụng') || lower.includes('thẻ') || lower.includes('credit');
-            return isZaloCredit || isMomoCredit || isOtherCredit || isShopeeCredit || isTikTokCredit;
-        };
-        // ----------------------------------------------------------
+        const isCreditSource = s => app.logic.isCreditSource(s);
 
         // Chỉ tính vào Tổng Nợ nếu là nguồn tín dụng thực sự (bỏ qua tiền mặt/ví thường pending)
         // Gọi hàm logic để lấy dữ liệu y hệt danh sách bên dưới
@@ -2686,12 +2680,11 @@ ${payAllHTML}
             .filter(t => isIncome(t) && t.status === 'paid' && !t.excludeFromDashboard)
             .reduce((sum, t) => sum + t.amount, 0);
 
-        const expense = activeTxs
-            .filter(t => !isIncome(t) && t.type !== 'Chuyển tiền' && t.status !== 'planned' && !t.excludeFromDashboard)
-            .reduce((sum, t) => sum + t.amount, 0);
-
-        // 3. CHI TIÊU NGÂN SÁCH (Giữ nguyên logic logic.getBudgetTransactions của bạn)
+        // Chi tiêu đã trả theo đúng cùng một quy tắc với ngân sách.
+        // Giao dịch tín dụng gốc đã thanh toán không bị cộng lại lần thứ hai.
         const budgetTxs = app.logic.getBudgetTransactions();
+        const dashboardExpenseTxs = budgetTxs.filter(t => !t.excludeFromDashboard);
+        const expense = dashboardExpenseTxs.reduce((sum, t) => sum + t.amount, 0);
         const budgetExpense = budgetTxs.reduce((sum, t) => sum + t.amount, 0);
 
         // 3. Truyền số liệu ĐÃ LỌC vào thanh Ngân sách
@@ -2725,7 +2718,9 @@ ${payAllHTML}
         }
 
         this.updateFinancialWeather(income, expense, hasOverdue);
-        const topExpense = activeTxs.filter(t => !isIncome(t)).sort((a, b) => b.amount - a.amount).slice(0, 5); // Lấy top 5 giao dịch lớn nhất
+        const topExpense = [...dashboardExpenseTxs]
+            .sort((a, b) => b.amount - a.amount)
+            .slice(0, 5); // Đồng bộ với Tổng chi tiêu
 
         if (topExpense.length === 0) {
             document.getElementById('detail-expense').innerHTML = '<div style="opacity:0.7; font-style:italic; padding-top:10px;">Chưa có chi tiêu</div>';
@@ -2748,7 +2743,7 @@ ${payAllHTML}
         }
         document.getElementById('detail-income').innerHTML = `
             <div class="flex-between" style="display:flex; justify-content:space-between; color: var(--text-muted); align-items: center; padding-top: 10px;">
-                <span>Số dư ước tính:</span>
+                <span>Thu nhập trừ chi tiêu tháng:</span>
                 <span style="color: var(--text-main); font-weight: 800; font-size: 1.1em;">${app.logic.formatCurrency(income - expense)}</span>
             </div>`;
         if (!hasOverdue) {
@@ -3132,13 +3127,16 @@ ${payAllHTML}
             txs = monthlyTxs.filter(t => t.type === 'Thu nhập' && t.status === 'paid');
             title = "CHI TIẾT THU NHẬP"; themeColor = "#10b981";
         } else if (type === 'expense') {
-            txs = monthlyTxs.filter(t => t.type === 'Chi tiêu' && t.status !== 'planned');
+            txs = app.logic.getBudgetTransactions();
             title = "CHI TIẾT CHI TIÊU"; themeColor = "#ef4444";
         } else if (type === 'debt') {
             // Lấy toàn bộ giao dịch liên quan đến nợ trong tháng (bao gồm cả đã trả và đang nợ)
             txs = app.data.transactions.filter(t => {
                 const isInMonth = t.date.startsWith(app.data.filter.month);
-                const isDebtSource = t.status === 'pending' && t.type !== 'Thu nhập';
+                const isDebtSource =
+                    t.status === 'pending' &&
+                    t.type !== 'Thu nhập' &&
+                    app.logic.isCreditSource(t.source);
                 const isPaidDebt = t.status === 'paid' && (
                     t.tags?.includes('#thanh_toan_no') ||
                     t.tags?.includes('#tra_gop') ||
@@ -3170,7 +3168,7 @@ ${payAllHTML}
                     const timeStr = payDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 
                     // Kiểm tra xem có phải trả nợ quá hạn không (Logic dựa trên BillingInfo của nguồn)
-                    const billing = app.logic.getBillingInfo(t.source, t.date);
+                    const billing = app.logic.getBillingInfo(t.destination || t.source, t.date);
                     const isLate = payDate > billing.dueDate;
                     let lateInfo = '';
                     if (isLate) {
@@ -3298,12 +3296,8 @@ ${payAllHTML}
                 "Bạn muốn khôi phục lại giao dịch CŨ (giữ nguyên ngày giờ gốc)?\n\n👉 Bấm [ĐỒNG Ý]: Khôi phục lại giao dịch cũ.\n👉 Bấm [KHÔNG]: Tạo ra 1 giao dịch MỚI y hệt (Lấy ngày giờ hiện tại).",
                 () => {
                     // --- NẾU CHỌN "ĐỒNG Ý": KHÔI PHỤC GIAO DỊCH CŨ ---
-                    const isCreditSource = s => {
-                        const lower = s.toLowerCase();
-                        return lower.includes('momo') || lower.includes('zalo') || lower.includes('trả sau') || lower.includes('tín dụng');
-                    };
                     if (tx.type === 'Thu nhập') tx.status = 'paid';
-                    else if (isCreditSource(tx.source)) tx.status = 'pending';
+                    else if (app.logic.isCreditSource(tx.source)) tx.status = 'pending';
                     else tx.status = 'paid';
 
                     delete tx.keepForZalo;
@@ -3313,14 +3307,9 @@ ${payAllHTML}
                 },
                 () => {
                     // --- NẾU CHỌN "KHÔNG": TẠO GIAO DỊCH MỚI HOÀN TOÀN ---
-                    const isCreditSource = s => {
-                        const lower = s.toLowerCase();
-                        return lower.includes('momo') || lower.includes('zalo') || lower.includes('trả sau') || lower.includes('tín dụng');
-                    };
-
                     let newStatus = 'paid';
                     if (tx.type === 'Thu nhập') newStatus = 'paid';
-                    else if (isCreditSource(tx.source)) newStatus = 'pending';
+                    else if (app.logic.isCreditSource(tx.source)) newStatus = 'pending';
 
                     const now = new Date();
                     const offsetMs = now.getTimezoneOffset() * 60000;
@@ -4708,9 +4697,9 @@ ${t.tempExtraFeeReason
              Còn lại: ${app.logic.formatCurrency(remainingTotal)}
              </span>`,
             () => {
-                const useNewLogic = new Date() > new Date('2026-01-28T23:59:59');
-                const txSource = useNewLogic ? "Tiền mặt" : source;
-                const txDest = useNewLogic ? source : null;
+                const txSource = app.logic.requestPaymentSource(`khoản nợ ${source}`);
+                if (!txSource) return;
+                const txDest = source;
 
                 let moneyHolder = payAmount; // Số tiền khách đưa
                 const paymentDate = app.logic.getPaymentDate();
@@ -6551,6 +6540,20 @@ ${t.tempExtraFeeReason
                                 });
                             }
 
+                            const receiveDefault =
+                                app.data.configs.lastIncomeDestination || 'Tiền mặt';
+                            const receiveAccountInput = window.prompt(
+                                `Khoản vay này được nhận vào đâu?\n(Ví dụ: Tiền mặt, VCB, MB Bank...)`,
+                                receiveDefault
+                            );
+                            if (receiveAccountInput === null) return;
+
+                            const receiveAccount = String(receiveAccountInput).trim();
+                            if (!receiveAccount) {
+                                return app.ui.popup.show('Nơi nhận tiền vay không được để trống.', 'error');
+                            }
+                            app.data.configs.lastIncomeDestination = receiveAccount;
+
                             const newLoan = {
                                 id: Date.now(), lender: lender, originalAmount: totalPrincipal,
                                 interest: 0, periods: months, schedule: schedule,
@@ -6560,8 +6563,9 @@ ${t.tempExtraFeeReason
                             app.data.loans.push(newLoan);
                             app.data.transactions.push({
                                 id: Date.now() + 1, type: 'Thu nhập', place: `Vay tiền từ ${lender}`,
-                                source: 'Tiền mặt', amount: totalPrincipal, date: new Date().toISOString(),
-                                tags: '#di_vay', status: 'paid', note: `Vay ${months} kỳ.`
+                                source: lender, destination: receiveAccount, amount: totalPrincipal,
+                                date: new Date().toISOString(), tags: '#di_vay', status: 'paid',
+                                note: `Vay ${months} kỳ.`
                             });
 
                             document.getElementById('loan-lender').value = '';
@@ -6693,6 +6697,9 @@ ${t.tempExtraFeeReason
                     if (rawAmount <= collectionFee) return alert("Không đủ đóng phí thu hộ!");
                 }
 
+                const txSource = app.logic.requestPaymentSource(`khoản vay ${loan.lender}`);
+                if (!txSource) return;
+
                 let moneyHolder = rawAmount - collectionFee;
                 let actualPaidToDebt = 0;
                 let logDetails = [];
@@ -6725,11 +6732,7 @@ ${t.tempExtraFeeReason
                     loan.paid += moneyHolder;
                 }
 
-                // [MỚI] Logic ngày 28/1
-                const useNewLogic = new Date() > new Date('2026-01-28T23:59:59');
-                // Với vay, nguồn luôn là Tiền mặt (hoặc bank), đích là Chủ nợ (lender)
-                const txSource = "Tiền mặt";
-                const txDest = useNewLogic ? loan.lender : null;
+                const txDest = loan.lender;
 
                 app.data.transactions.push({
                     id: Date.now(), type: 'Chi tiêu', place: `Trả nợ ${loan.lender}`,
@@ -6742,7 +6745,7 @@ ${t.tempExtraFeeReason
                 if (collectionFee > 0) {
                     app.data.transactions.push({
                         id: Date.now() + 50, type: 'Chi tiêu', place: `Phí thu hộ (${loan.lender})`,
-                        source: 'Tiền mặt', amount: collectionFee, date: new Date().toISOString(), tags: '#phi_dich_vu', status: 'paid'
+                        source: txSource, destination: txDest, amount: collectionFee, date: new Date().toISOString(), tags: '#phi_dich_vu', status: 'paid'
                     });
                 }
 
@@ -6853,6 +6856,9 @@ ${t.tempExtraFeeReason
                 app.ui.popup.confirm(
                     `XÁC NHẬN TẤT TOÁN?\n\nTổng trả: <b>${app.logic.formatCurrency(totalPay)}</b>\n(Gốc: ${app.logic.formatCurrency(basePrincipal)} - Phí: ${app.logic.formatCurrency(fees)})`,
                     () => {
+                        const paymentSource = app.logic.requestPaymentSource(`khoản vay ${loan.lender}`);
+                        if (!paymentSource) return;
+
                         // Logic khi bấm ĐỒNG Ý
                         loan.paid += totalPay;
                         loan.status = 'closed';
@@ -6863,16 +6869,14 @@ ${t.tempExtraFeeReason
                             });
                         }
 
-                        // [MỚI] Logic ngày 28/1
-                        const useNewLogic = new Date() > new Date('2026-01-28T23:59:59');
-                        const txDest = useNewLogic ? loan.lender : null;
+                        const txDest = loan.lender;
 
                         app.data.transactions.push({
                             id: Date.now(),
                             type: 'Chi tiêu',
                             place: `Tất toán ${loan.lender}`,
-                            source: 'Tiền mặt',
-                            destination: txDest, // [MỚI]
+                            source: paymentSource,
+                            destination: txDest,
                             amount: totalPay,
                             date: new Date().toISOString(),
                             tags: '#tat_toan_vay',
@@ -7316,7 +7320,7 @@ ${t.tempExtraFeeReason
             },
 
             open() {
-                const txs = app.logic.getFilteredTxs().filter(t => t.type === 'Chi tiêu' && t.status !== 'cancelled');
+                const txs = app.logic.getBudgetTransactions();
                 const topItems = txs.sort((a, b) => b.amount - a.amount).slice(0, 5).map(t => ({
                     name: t.place,
                     amount: t.amount,
@@ -7928,12 +7932,19 @@ ${t.orderCode ? `<br><span style="font-size:0.75rem; color:#ea580c; font-weight:
                     const txTime = new Date(t.date).getTime();
                     if (txTime < walletCreatedTime) return;
 
-                    const s = (t.source || "").toLowerCase().trim();
-                    const d = (t.destination || "").toLowerCase().trim();
+                    const amount = Number(t.amount) || 0;
+                    const sourceMatches = app.logic.accountNamesMatch(t.source, wallet.name);
+                    const destMatches = app.logic.accountNamesMatch(t.destination, wallet.name);
+                    const hasDestination = Boolean(String(t.destination || '').trim());
 
-                    // 3. Cộng trừ tiền
-                    if (d === name) flow += t.amount; // Tiền vào (Thu nhập hoặc nhận chuyển khoản)
-                    if (s === name) flow -= t.amount; // Tiền ra (Chi tiêu hoặc chuyển đi)
+                    // Tương thích dữ liệu cũ: Thu nhập từng lưu ví nhận trong trường source.
+                    if (t.type === 'Thu nhập') {
+                        if (destMatches || (!hasDestination && sourceMatches)) flow += amount;
+                        return;
+                    }
+
+                    if (sourceMatches) flow -= amount;
+                    if (destMatches) flow += amount;
                 });
 
                 return (wallet.initialBalance || 0) + flow;

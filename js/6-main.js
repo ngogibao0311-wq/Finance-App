@@ -1023,14 +1023,14 @@ app.events = {
                 app.ui.popup.confirm(
                     `${confirmMsg}<br>Số tiền: <b>${app.logic.formatCurrency(totalAmount)}</b>`,
                     () => {
-                        const paymentDate = app.logic.getPaymentDate();
-                        const isNew = useNewLogic();
+                        const txSource = app.logic.requestPaymentSource(`khoản nợ ${sourceName}`);
+                        if (!txSource) {
+                            checkbox.checked = false;
+                            return;
+                        }
 
-                        // [LOGIC MỚI] 
-                        // Nếu là mới: Source = "Tiền mặt" (Mặc định), Destination = sourceName (Nguồn nợ)
-                        // Nếu là cũ: Source = sourceName, Destination = null
-                        const txSource = isNew ? "Tiền mặt" : sourceName;
-                        const txDest = isNew ? sourceName : null;
+                        const paymentDate = app.logic.getPaymentDate();
+                        const txDest = sourceName;
 
                         // 1. Tạo các giao dịch
                         if (isFeeOnly) {
