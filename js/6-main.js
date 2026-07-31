@@ -398,7 +398,11 @@ app.init = async function () {  // <-- Thêm async
             const cashbackInput = document.getElementById('tx-is-cashback');
             const deleteButton = document.getElementById('btn-delete-tx');
             const systemMsg = document.getElementById('tx-locked-msg');
-            // statusInput và matchContainer đã được lấy ở Bước 1 bên trên
+            
+            // --- [FIX LỖI] Khai báo lại biến ở file này ---
+            const statusInput = document.getElementById('tx-status'); 
+            const matchContainer = document.getElementById('limit-income-selection-container');
+            // ----------------------------------------------
 
             // Các trường mô tả và trạng thái vẫn được phép chỉnh sửa.
             [
@@ -443,13 +447,15 @@ app.init = async function () {  // <-- Thêm async
                 systemMsg.innerHTML = `<i class="fa-solid fa-wallet"></i> ${statusText}<br><small>Số tiền đồng bộ từ Giới hạn chi tiêu (Tháng).</small>`;
             }
 
-            // --- [FIX LỖI 2] KIỂM TRA & HIỂN THỊ LẠI BẢNG SO KHỚP ---
+            // --- KIỂM TRA & HIỂN THỊ LẠI BẢNG SO KHỚP ---
             // 1. Kiểm tra xem giao dịch này ĐÃ TỪNG SO KHỚP ĐỦ TIỀN CHƯA
             const isAlreadyMatched = app.data.transactions.some(t => t.assignedToMonthlyLimit === txData.id);
 
             // 2. Nếu trạng thái đang là 'paid' NHƯNG chưa so khớp đủ -> Bắt buộc gọi lại bảng để so khớp tiếp
             if (txData.status === 'paid' && !isAlreadyMatched) {
                 app.ui.renderIncomeSelection(assignedMonth, configuredAmount);
+            } else {
+                if (matchContainer) matchContainer.style.display = 'none';
             }
 
             // 3. Bắt sự kiện khi người dùng đổi qua lại giữa 'pending' và 'paid'
