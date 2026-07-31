@@ -63,8 +63,207 @@ app.logic = {
         return this.getLocalDateKey(value).slice(0, 7);
     },
 
+    getMonthlyLimitValue(month = app.data.filter.month) {
+        return Math.max(
+            0,
+            Number(app.data.configs.monthlyLimits?.[month]) || 0
+        );
+    },
+
+    isMonthlyLimitTransaction(transaction = {}) {
+        return transaction.isMonthlyLimitTransaction === true ||
+            transaction.systemTransactionType === 'monthly_limit_advance';
+    },
+
+    getMonthlyLimitTransaction(month = app.data.filter.month) {
+        return app.data.transactions.find(transaction => {
+            if (!this.isMonthlyLimitTransaction(transaction)) return false;
+
+            const transactionMonth =
+                String(transaction.monthlyLimitMonth || '') ||
+                this.getLocalMonthKey(transaction.date);
+
+            return transactionMonth === month;
+        }) || null;
+    },
+
+    createMonthlyLimitTransactionDate(month) {
+        const [year, monthNumber] = String(month || '')
+            .split('-')
+            .map(Number);
+
+        if (!year || !monthNumber) {
+            return new Date().toISOString();
+        }
+
+        // Giữa trưa ngày đầu tháng để tránh sai lệch ngày do múi giờ.
+        return new Date(
+            year,
+            monthNumber - 1,
+            1,
+            12,
+            0,
+            0,
+            0
+        ).toISOString();
+    },
+
+    syncMonthlyLimitTransaction(month = app.data.filter.month) {
+        const monthKey = String(month || '');
+        if (!/^\d{4}-\d{2}$/.test(monthKey)) return false;
+
+        const limit = this.getMonthlyLimitValue(monthKey);
+        const matches = app.data.transactions.filter(transaction => {
+            if (!this.isMonthlyLimitTransaction(transaction)) return false;
+
+            const transactionMonth =
+                String(transaction.monthlyLimitMonth || '') ||
+                this.getLocalMonthKey(transaction.date);
+
+            return transactionMonth === monthKey;
+        });
+
+        let changed = false;
+
+        if (limit <= 0) {
+            if (matches.length > 0) {
+                const ids = new Set(matches.map(transaction => transaction.id));
+                app.data.transactions = app.data.transactions.filter(
+                    transaction => !ids.has(transaction.id)
+                );
+                changed = true;
+            }
+            return changed;
+        }
+
+        let transaction = matches[0];
+
+        if (!transaction) {
+            const [year, monthNumber] = monthKey.split('-');
+            transaction = {
+                id: Date.now() + Math.floor(Math.random() * 1000),
+                type: 'Thu nhập',
+                status: 'pending',
+                amount: limit,
+                discountAmount: 0,
+                discountValue: null,
+                place: `Giới hạn chi tiêu tháng ${monthNumber}/${year}`,
+                brand: '',
+                source: 'Hệ thống',
+                destination: '',
+                refId: '',
+                orderCode: '',
+                date: this.createMonthlyLimitTransactionDate(monthKey),
+                isUnknownTime: false,
+                tags: '#gioi_han_chi_tieu_thang #tu_dong',
+                isTet: false,
+                is83: false,
+                is304: false,
+                isCashback: false,
+                isSystemGenerated: true,
+                isMonthlyLimitTransaction: true,
+                systemTransactionType: 'monthly_limit_advance',
+                monthlyLimitMonth: monthKey
+            };
+
+            app.data.transactions.push(transaction);
+            changed = true;
+        } else {
+            const protectedValues = {
+                amount: limit,
+                discountAmount: 0,
+                discountValue: null,
+                isCashback: false,
+                isSystemGenerated: true,
+                isMonthlyLimitTransaction: true,
+                systemTransactionType: 'monthly_limit_advance',
+                monthlyLimitMonth: monthKey
+            };
+
+            Object.entries(protectedValues).forEach(([key, value]) => {
+                if (transaction[key] !== value) {
+                    transaction[key] = value;
+                    changed = true;
+                }
+            });
+
+            if (!transaction.status) {
+                transaction.status = 'pending';
+                changed = true;
+            }
+        }
+
+        // Chỉ giữ một giao dịch hệ thống cho mỗi tháng.
+        if (matches.length > 1) {
+            const duplicateIds = new Set(
+                matches.slice(1).map(item => item.id)
+            );
+            app.data.transactions = app.data.transactions.filter(
+                item => !duplicateIds.has(item.id)
+            );
+            changed = true;
+        }
+
+        return changed;
+    },
+
+    syncAllMonthlyLimitTransactions() {
+        const months = new Set(
+            Object.keys(app.data.configs.monthlyLimits || {})
+        );
+
+        app.data.transactions.forEach(transaction => {
+            if (!this.isMonthlyLimitTransaction(transaction)) return;
+
+            const transactionMonth =
+                String(transaction.monthlyLimitMonth || '') ||
+                this.getLocalMonthKey(transaction.date);
+
+            if (transactionMonth) months.add(transactionMonth);
+        });
+
+        let changed = false;
+        months.forEach(month => {
+            if (this.syncMonthlyLimitTransaction(month)) changed = true;
+        });
+
+        return changed;
+    },
+
     isTransactionInMonth(transaction, month = app.data.filter.month) {
+        if (this.isMonthlyLimitTransaction(transaction)) {
+            const transactionMonth =
+                String(transaction.monthlyLimitMonth || '') ||
+                this.getLocalMonthKey(transaction?.date);
+
+            return transactionMonth === month;
+        }
+
         return this.getLocalMonthKey(transaction?.date) === month;
+    },
+
+    isRecognizedIncomeTransaction(transaction = {}) {
+        if (this.isMonthlyLimitTransaction(transaction)) {
+            return transaction.status === 'paid';
+        }
+
+        return transaction.type === 'Thu nhập' &&
+            transaction.status === 'paid';
+    },
+
+    getRecognizedIncomeAmount(
+        transaction = {},
+        month = app.data.filter.month
+    ) {
+        if (this.isMonthlyLimitTransaction(transaction)) {
+            const transactionMonth =
+                String(transaction.monthlyLimitMonth || '') ||
+                month;
+
+            return this.getMonthlyLimitValue(transactionMonth);
+        }
+
+        return Number(transaction.amount) || 0;
     },
 
     getTransactionTags(transaction = {}) {
@@ -72,6 +271,8 @@ app.logic = {
     },
 
     isDebtPaymentTransaction(transaction = {}) {
+        if (this.isMonthlyLimitTransaction(transaction)) return false;
+
         const tags = this.getTransactionTags(transaction);
         return tags.includes('#thanh_toan_no') ||
             tags.includes('#thanh_toan_phi') ||
@@ -121,6 +322,9 @@ app.logic = {
         const month = app.data.filter.month;
         const respectExclusion = options.respectExclusion !== false;
         return app.data.transactions.filter(t => {
+            // Giao dịch giới hạn là nguồn tiền hệ thống, không bao giờ là chi tiêu.
+            if (this.isMonthlyLimitTransaction(t)) return false;
+
             // 1. Bộ lọc cơ bản (Tháng, Loại, Trạng thái, Loại trừ thủ công)
             if (!this.isTransactionInMonth(t, month)) return false;
             if (t.type === 'Chuyển tiền') return false;
@@ -150,25 +354,89 @@ app.logic = {
         });
     },
 
-    // Tổng thu nhập đã thực sự nhận trong tháng ngân sách
-    getBudgetIncomeTotal(month = app.data.filter.month) {
-        return app.data.transactions
-            .filter(t => {
-                // Đúng tháng đang xem
-                if (!this.isTransactionInMonth(t, month)) return false;
+    // Tổng thu nhập đã thực sự được ghi nhận trong tháng ngân sách.
+    // Giao dịch giới hạn chỉ trở thành Thu nhập khi chuyển sang "Đã xong".
+    getBudgetIncomeTotal(
+        month = app.data.filter.month,
+        options = {}
+    ) {
+        const excludeMonthlyLimit =
+            options.excludeMonthlyLimit === true;
+        const respectDashboardExclusion =
+            options.respectDashboardExclusion === true;
 
-                // Chỉ lấy giao dịch thu nhập
-                if (t.type !== 'Thu nhập') return false;
+        return app.data.transactions.reduce((sum, transaction) => {
+            if (!this.isTransactionInMonth(transaction, month)) {
+                return sum;
+            }
 
-                // Chỉ cộng tiền đã thực sự nhận
-                if (t.status !== 'paid') return false;
+            if (this.isMonthlyLimitTransaction(transaction)) {
+                if (
+                    excludeMonthlyLimit ||
+                    transaction.status !== 'paid'
+                ) {
+                    return sum;
+                }
 
-                return true;
-            })
-            .reduce(
-                (sum, t) => sum + (Number(t.amount) || 0),
-                0
-            );
+                // Luôn lấy số từ cấu hình, không tin số tiền bị sửa trong giao dịch.
+                return sum + this.getMonthlyLimitValue(month);
+            }
+
+            // Thu nhập thông thường chỉ được tính khi người dùng tự tạo
+            // giao dịch loại Thu nhập và giao dịch đã hoàn thành.
+            if (
+                transaction.type !== 'Thu nhập' ||
+                transaction.status !== 'paid'
+            ) {
+                return sum;
+            }
+
+            if (
+                respectDashboardExclusion &&
+                transaction.excludeFromDashboard === true
+            ) {
+                return sum;
+            }
+
+            return sum + (Number(transaction.amount) || 0);
+        }, 0);
+    },
+
+    getMonthlyLimitFunding(month = app.data.filter.month) {
+        const limit = this.getMonthlyLimitValue(month);
+        const transaction = this.getMonthlyLimitTransaction(month);
+        const isRecognizedIncome =
+            transaction?.status === 'paid';
+
+        const regularIncome = this.getBudgetIncomeTotal(month, {
+            excludeMonthlyLimit: true
+        });
+
+        const recognizedLimitIncome =
+            isRecognizedIncome ? limit : 0;
+
+        const advanceCredit =
+            isRecognizedIncome ? 0 : limit;
+
+        const actualIncome =
+            regularIncome + recognizedLimitIncome;
+
+        return {
+            limit,
+            transaction,
+            isRecognizedIncome,
+            regularIncome,
+            recognizedLimitIncome,
+            advanceCredit,
+            actualIncome,
+
+            // Khoản giới hạn chỉ xuất hiện một lần:
+            // pending -> advanceCredit; paid -> recognizedLimitIncome.
+            availableBase:
+                regularIncome +
+                recognizedLimitIncome +
+                advanceCredit
+        };
     },
 
     getUpcomingDebts() {
@@ -185,6 +453,7 @@ app.logic = {
 
         // 2. Lấy tất cả giao dịch Pending
         const allPendingTxs = app.data.transactions.filter(t => {
+            if (this.isMonthlyLimitTransaction(t)) return false;
             if (t.status !== 'pending') return false;
             return app.logic.getLocalMonthKey(t.date) <= filterMonthStr;
         });
@@ -1946,8 +2215,11 @@ app.logic = {
         const [y, m] = currentMonth.split('-').map(Number);
         const daysInMonth = new Date(y, m, 0).getDate();
 
-        // Tổng thu nhập đã nhận trong tháng
-        const budgetIncome = this.getBudgetIncomeTotal(currentMonth);
+        // Nguồn tiền khả dụng gồm giới hạn cấp trước và thu nhập thực tế.
+        // Khi giao dịch giới hạn đã hoàn thành, nó chuyển từ phần cấp trước
+        // sang Thu nhập nhưng tổng khả dụng không đổi.
+        const funding = this.getMonthlyLimitFunding(currentMonth);
+        const budgetIncome = funding.actualIncome;
 
         // Tổng nguồn tiền được phép sử dụng
         // Giới hạn ngày vẫn dựa trên Giới hạn chi tiêu tháng
@@ -1989,7 +2261,7 @@ app.logic = {
 
         const upcoming = this.getUpcomingDebts();
         const available =
-            budgetIncome -
+            funding.availableBase -
             totalSpentMonth -
             (Number(upcoming.budgetTotal) || 0);
         const daysFunded = dailyCap > 0 ? Math.floor(available / dailyCap) : 0;
@@ -1997,6 +2269,10 @@ app.logic = {
         return {
             limit,
             budgetIncome,
+            regularIncome: funding.regularIncome,
+            recognizedLimitIncome: funding.recognizedLimitIncome,
+            advanceCredit: funding.advanceCredit,
+            availableBase: funding.availableBase,
             dailyCap,
             todaySpent,
             surplus: dailyCap - todaySpent,
@@ -2044,6 +2320,7 @@ app.logic = {
 
         // 3. Duyệt qua giao dịch
         app.data.transactions.forEach(t => {
+            if (this.isMonthlyLimitTransaction(t)) return;
             if (t.status !== 'paid') return;
 
             const txTime = new Date(t.date).getTime();
@@ -2074,6 +2351,7 @@ app.logic = {
         const CUTOFF_DATE = new Date("2026-01-28T00:00:00").getTime();
 
         app.data.transactions.forEach(t => {
+            if (this.isMonthlyLimitTransaction(t)) return;
             if (t.status !== 'paid') return;
 
             const txTime = new Date(t.date).getTime();

@@ -18,6 +18,7 @@ const app = {
             manualZaloAmount: null,
             zaloManualCount: 0,
             shopeePayBillingGroup: 2,
+            monthlyLimits: {},
             debtOverrides: {},
         },
         filter: {
