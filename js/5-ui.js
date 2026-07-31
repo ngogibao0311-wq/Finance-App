@@ -253,16 +253,16 @@ app.ui = {
             limit -
             totalUsed;
 
-        // Tỷ lệ thanh tiến trình phải dựa trên tổng nguồn khả dụng
-        const actualPercent = effectiveLimit > 0
+        // Tỷ lệ thanh tiến trình dựa trên Giới hạn chi tiêu tháng
+        const actualPercent = limit > 0
             ? Math.min(
                 100,
-                (totalExpense / effectiveLimit) * 100
+                (totalExpense / limit) * 100
             )
             : 0;
 
-        let projectedPercent = effectiveLimit > 0
-            ? (projectedDebt / effectiveLimit) * 100
+        let projectedPercent = limit > 0
+            ? (projectedDebt / limit) * 100
             : 0;
 
         if (actualPercent + projectedPercent > 100) {
@@ -363,11 +363,11 @@ app.ui = {
         <b>−${app.logic.formatCurrency(totalExpense)}</b>
 
         ${projectedDebt > 0
-            ? `<span>
+                ? `<span>
                 | Nợ: −${app.logic.formatCurrency(projectedDebt)}
                </span>`
-            : ''
-        }
+                : ''
+            }
     </div>
 `;
     },
