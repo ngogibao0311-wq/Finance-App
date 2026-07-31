@@ -18,6 +18,15 @@ app.logic = {
 
     // Sắp xếp giao dịch thống nhất toàn bộ ứng dụng
     compareTransactions(a = {}, b = {}) {
+        // --- [MỚI] ƯU TIÊN GIAO DỊCH HẠN MỨC LÊN TRÊN CÙNG ---
+        const isLimitA = a.isMonthlyLimitCredit === true;
+        const isLimitB = b.isMonthlyLimitCredit === true;
+
+        if (isLimitA !== isLimitB) {
+            return isLimitA ? -1 : 1; // Nếu A là hạn mức thì đẩy A lên trước (-1), ngược lại B lên trước
+        }
+        // ---------------------------------------------------
+
         const timeA = new Date(a.date).getTime();
         const timeB = new Date(b.date).getTime();
 
