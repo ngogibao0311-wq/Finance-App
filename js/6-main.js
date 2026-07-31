@@ -3,17 +3,6 @@ app.startSession = async function () {
     console.log("🔓 Access Granted: Loading Data...");
     await this.storage.load();
 
-    /*
-     * Tạo giao dịch hệ thống cho các Giới hạn tháng đã lưu từ trước.
-     * Hàm chỉ lưu lại khi thực sự có dữ liệu được tạo hoặc đồng bộ.
-     */
-    if (
-        this.logic.syncAllMonthlyLimitTransactions &&
-        this.logic.syncAllMonthlyLimitTransactions()
-    ) {
-        this.storage.save();
-    }
-
     // Sắp xếp lại toàn bộ dữ liệu giao dịch cũ
     if (this.data && this.data.transactions) {
         this.data.transactions.sort(
@@ -398,81 +387,6 @@ app.init = async function () {  // <-- Thêm async
                 }
             });
         }
-
-        /*
-         * Giao dịch được tạo từ Giới hạn tháng:
-         * - Chỉ cho đổi trạng thái và thông tin mô tả.
-         * - Không cho đổi số tiền, loại, ngày, tag hoặc giảm giá.
-         * - Không cho xóa trực tiếp; muốn đổi tiền phải sửa ô Giới hạn.
-         */
-        if (
-            id &&
-            txData &&
-            app.logic.isMonthlyLimitTransaction &&
-            app.logic.isMonthlyLimitTransaction(txData)
-        ) {
-            const lockedFieldIds = [
-                'tx-type',
-                'tx-amount',
-                'tx-discount',
-                'tx-date',
-                'tx-is-unknown-time',
-                'tx-tags',
-                'tx-is-cashback',
-                'tx-is-tet',
-                'tx-is-83',
-                'tx-is-304'
-            ];
-
-            lockedFieldIds.forEach(fieldId => {
-                const el = document.getElementById(fieldId);
-                if (el) {
-                    el.disabled = true;
-                    el.style.opacity = '0.6';
-                    el.title =
-                        'Trường này được quản lý bởi Giới hạn chi tiêu tháng';
-                }
-            });
-
-            const statusInput =
-                document.getElementById('tx-status');
-
-            if (statusInput) {
-                statusInput.disabled = false;
-                statusInput.style.opacity = '1';
-                statusInput.title =
-                    'Chuyển sang Đã xong khi khoản tiền đã thực sự nhận';
-            }
-
-            const deleteButton =
-                document.getElementById('btn-delete-tx');
-
-            if (deleteButton) {
-                deleteButton.classList.add('hidden');
-                deleteButton.onclick = null;
-            }
-
-            if (txSubmitBtn) {
-                txSubmitBtn.style.display = 'block';
-                txSubmitBtn.disabled = false;
-                txSubmitBtn.style.opacity = '1';
-                txSubmitBtn.innerHTML =
-                    '<i class="fa-solid fa-floppy-disk"></i> Cập nhật trạng thái';
-            }
-
-            if (lockedMsg) {
-                lockedMsg.style.display = 'flex';
-                lockedMsg.innerHTML =
-                    '<i class="fa-solid fa-lock"></i> ' +
-                    'Giao dịch hệ thống của Giới hạn tháng.<br>' +
-                    '<span style="font-size:0.8em">' +
-                    'Số tiền chỉ được đổi tại ô “Giới hạn chi tiêu (Tháng)”.' +
-                    '</span>';
-                lockedMsg.style.background = '#eef2ff';
-                lockedMsg.style.color = '#4338ca';
-                lockedMsg.style.border = '1px solid #c7d2fe';
-            }
-        }
     };
 };
 
@@ -752,65 +666,6 @@ app.events = {
                 isCashback: isCashback
             };
 
-            /*
-             * Bảo vệ giao dịch hệ thống của Giới hạn tháng.
-             * Mọi trường ảnh hưởng phép tính được lấy lại từ cấu hình,
-             * chỉ trạng thái do người dùng chọn được giữ nguyên.
-             */
-            const originalMonthlyLimitTx = id
-                ? app.data.transactions.find(t =>
-                    t.id == id &&
-                    app.logic.isMonthlyLimitTransaction &&
-                    app.logic.isMonthlyLimitTransaction(t)
-                )
-                : null;
-
-            if (originalMonthlyLimitTx) {
-                const linkedMonth = String(
-                    originalMonthlyLimitTx.monthlyLimitMonth ||
-                    app.logic.getLocalMonthKey(originalMonthlyLimitTx.date)
-                );
-
-                const linkedAmount = Math.max(
-                    0,
-                    Number(
-                        app.data.configs.monthlyLimits?.[linkedMonth]
-                    ) || 0
-                );
-
-                const [linkedYear, linkedMonthNumber] =
-                    linkedMonth.split('-').map(Number);
-
-                data.id = originalMonthlyLimitTx.id;
-                data.type = 'Thu nhập';
-                data.amount = linkedAmount;
-                data.discountAmount = 0;
-                data.discountValue = null;
-                data.date = new Date(
-                    linkedYear,
-                    linkedMonthNumber - 1,
-                    1,
-                    12,
-                    0,
-                    0
-                ).toISOString();
-                data.isUnknownTime = true;
-                data.isCashback = false;
-                data.isTet = false;
-                data.is83 = false;
-                data.is304 = false;
-
-                data.tags = [
-                    String(data.tags || ''),
-                    '#gioi_han_chi_tieu_thang',
-                    '#giao_dich_he_thong'
-                ].join(' ').trim();
-
-                data.isMonthlyLimitTransaction = true;
-                data.systemTransactionType = 'monthly_limit';
-                data.monthlyLimitMonth = linkedMonth;
-            }
-
             // Hiển thị thông báo nhỏ nếu có giảm giá hoặc hoàn tiền để người dùng biết
             if (discountMoney > 0) {
                 if (isCashback) {
@@ -840,7 +695,6 @@ app.events = {
                 let previewSpent = 0;
                 let previewDebt = 0;
                 let previewIncome = 0;
-                let previewMonthlyLimitBase = 0;
 
                 try {
                     const previewTransactions = originalTransactions
@@ -856,9 +710,6 @@ app.events = {
                     previewIncome =
                         app.logic.getBudgetIncomeTotal(currentMonth);
 
-                    previewMonthlyLimitBase =
-                        app.logic.getMonthlyLimitBudgetBase(currentMonth);
-
                     previewDebt =
                         Number(
                             app.logic.getUpcomingDebts().budgetTotal
@@ -871,7 +722,6 @@ app.events = {
                     previewSpent + previewDebt;
 
                 const remainingAfter =
-                    previewMonthlyLimitBase +
                     previewIncome -
                     newTotalUsed;
 
@@ -879,7 +729,6 @@ app.events = {
                     const over = Math.abs(remainingAfter);
                     const confirmOver = confirm(
                         `🚨 CẢNH BÁO CHÁY TÚI! 🚨\n\n` +
-                        `Khoản sẽ có: +${app.logic.formatCurrency(previewMonthlyLimitBase)}\n` +
                         `Thu nhập đã nhận: +${app.logic.formatCurrency(previewIncome)}\n` +
                         `Chi thực trả + Nợ: -${app.logic.formatCurrency(newTotalUsed)}\n` +
                         `---------------------------\n` +
@@ -890,7 +739,7 @@ app.events = {
                 } else if (remainingAfter < 100000) {
                     alert(
                         `⚠️ CẨN THẬN! Ví sắp cạn.\n\n` +
-                        `Khoản sẽ có: +${app.logic.formatCurrency(previewMonthlyLimitBase)}\n` +
+                        `Hạn mức: ${app.logic.formatCurrency(limit)}\n` +
                         `Thu nhập đã nhận: +${app.logic.formatCurrency(previewIncome)}\n` +
                         `Sau khi trừ chi tiêu và nợ,\n` +
                         `bạn còn khả dụng: ${app.logic.formatCurrency(remainingAfter)}\n\n` +
@@ -907,38 +756,7 @@ app.events = {
 
             if (id) {
                 const originalTx = app.data.transactions.find(t => t.id == id);
-
-                if (
-                    originalTx &&
-                    app.logic.isMonthlyLimitTransaction &&
-                    app.logic.isMonthlyLimitTransaction(originalTx)
-                ) {
-                    /*
-                     * Không tạo ID mới khi chuyển Đã xong.
-                     * Giao dịch vẫn là giao dịch hệ thống liên kết với
-                     * Giới hạn tháng, nhưng từ lúc paid sẽ được tính
-                     * như thu nhập thật và không cộng lại khoản dự kiến.
-                     */
-                    const idx = app.data.transactions.findIndex(
-                        t => t.id == id
-                    );
-
-                    if (idx !== -1) {
-                        app.data.transactions[idx] = data;
-                    }
-
-                    if (
-                        originalTx.status !== 'paid' &&
-                        data.status === 'paid'
-                    ) {
-                        app.ui.popup.show(
-                            '✅ Khoản dự kiến đã chuyển thành ' +
-                            '<b>thu nhập thực nhận</b>.<br>' +
-                            'Giới hạn tháng sẽ không được cộng lần hai.',
-                            'success'
-                        );
-                    }
-                } else if (originalTx && originalTx.status === 'planned' && data.status !== 'planned') {
+                if (originalTx && originalTx.status === 'planned' && data.status !== 'planned') {
                     data.id = Date.now();
                     if (data.type === 'Thu nhập' && data.status === 'pending') {
                         app.ui.popup.show("Đã chuyển trạng thái: <b>Sắp nhận tiền</b><br>(Đang chờ về ví)", "success");
@@ -3216,14 +3034,12 @@ document.getElementById('btn-ask-gemini').addEventListener('click', async () => 
     const currentMonth = app.data.filter.month;
     const txs = app.logic.getFilteredTxs();
 
-    const income =
-        app.logic.getBudgetIncomeTotal(currentMonth);
+    const income = txs
+        .filter(t => t.type === 'Thu nhập' && t.status === 'paid')
+        .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
     const expenses = app.logic.getBudgetTransactions({ respectExclusion: false });
     const totalExpense = expenses.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
-    const monthlyLimitBase =
-        app.logic.getMonthlyLimitBudgetBase(currentMonth);
-    const cashBalance =
-        monthlyLimitBase + income - totalExpense;
+    const cashBalance = income - totalExpense;
 
     const upcomingData =
         app.logic.getUpcomingDebts();
@@ -3235,12 +3051,10 @@ document.getElementById('btn-ask-gemini').addEventListener('click', async () => 
         .map(i => `${i.name} (${app.logic.formatCurrency((Number(i.amount) || 0) + (Number(i.penalty) || 0))})`)
         .join(', ');
 
-    // Lấy hạn mức (nếu có): dùng làm mốc tỷ lệ, không tự cộng hai lần.
+    // Lấy hạn mức (nếu có): tiền thực trả + khoản nợ phải giữ lại.
     const limit = Number(app.data.configs.monthlyLimits?.[currentMonth]) || 0;
     const totalBudgetUsed = totalExpense + upcomingDebt;
-    const remainingBudget = limit > 0
-        ? monthlyLimitBase + income - totalBudgetUsed
-        : null;
+    const remainingBudget = limit > 0 ? limit - totalBudgetUsed : null;
     const burnRate = limit > 0
         ? Math.round((totalBudgetUsed / limit) * 100)
         : (income > 0 ? Math.round((totalExpense / income) * 100) : 0);
@@ -3252,8 +3066,7 @@ document.getElementById('btn-ask-gemini').addEventListener('click', async () => 
     // Dữ liệu bối cảnh gửi cho AI
     const financialContext = `
     [DỮ LIỆU TÀI CHÍNH THÁNG ${currentMonth}]
-    - Khoản sẽ có từ Giới hạn tháng: ${app.logic.formatCurrency(monthlyLimitBase)}
-    - Tổng Thu Nhập đã nhận: ${app.logic.formatCurrency(income)}
+    - Tổng Thu Nhập: ${app.logic.formatCurrency(income)}
     - Tổng Chi Tiêu: ${app.logic.formatCurrency(totalExpense)}
     - Dòng tiền sau chi thực trả: ${app.logic.formatCurrency(cashBalance)}
     - Khả dụng sau khi giữ tiền trả nợ: ${app.logic.formatCurrency(availableAfterDebt)}
