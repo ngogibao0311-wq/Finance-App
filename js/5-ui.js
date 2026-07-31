@@ -6153,6 +6153,14 @@ ${t.tempExtraFeeReason
                 document.getElementById('tx-locked-msg').style.display = 'none';
                 countdownEl.textContent = '';
 
+                // --- [FIX LỖI 1] Reset sự kiện và ẩn bảng để không lây sang giao dịch thường ---
+                const statusInput = document.getElementById('tx-status');
+                if (statusInput) statusInput.onchange = null;
+
+                const matchContainer = document.getElementById('limit-income-selection-container');
+                if (matchContainer) matchContainer.style.display = 'none';
+                // -------------------------------------------------------------------------------
+
                 const inputs = modal.querySelectorAll('input, select');
                 inputs.forEach(input => input.disabled = false);
 

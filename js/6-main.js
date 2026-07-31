@@ -389,7 +389,6 @@ app.init = async function () {  // <-- Thêm async
         }
 
         // Giao dịch hạn mức: số tiền luôn lấy từ cấu hình tháng, không sửa trực tiếp.
-        // Giao dịch hạn mức: số tiền luôn lấy từ cấu hình tháng, không sửa trực tiếp.
         if (id && txData && app.logic.isMonthlyLimitCreditTransaction(txData)) {
             const assignedMonth = app.logic.getMonthlyLimitCreditMonth(txData);
             const configuredAmount = app.logic.getMonthlyLimitCreditAmount(assignedMonth);
@@ -399,11 +398,7 @@ app.init = async function () {  // <-- Thêm async
             const cashbackInput = document.getElementById('tx-is-cashback');
             const deleteButton = document.getElementById('btn-delete-tx');
             const systemMsg = document.getElementById('tx-locked-msg');
-            const statusInput = document.getElementById('tx-status'); // Lấy element status
-
-            // Ẩn container so khớp ban đầu
-            const matchContainer = document.getElementById('limit-income-selection-container');
-            if (matchContainer) matchContainer.style.display = 'none';
+            // statusInput và matchContainer đã được lấy ở Bước 1 bên trên
 
             // Các trường mô tả và trạng thái vẫn được phép chỉnh sửa.
             [
@@ -448,11 +443,19 @@ app.init = async function () {  // <-- Thêm async
                 systemMsg.innerHTML = `<i class="fa-solid fa-wallet"></i> ${statusText}<br><small>Số tiền đồng bộ từ Giới hạn chi tiêu (Tháng).</small>`;
             }
 
-            // --- BẮT SỰ KIỆN SO KHỚP KHI CHUYỂN SANG PAID ---
+            // --- [FIX LỖI 2] KIỂM TRA & HIỂN THỊ LẠI BẢNG SO KHỚP ---
+            // 1. Kiểm tra xem giao dịch này ĐÃ TỪNG SO KHỚP ĐỦ TIỀN CHƯA
+            const isAlreadyMatched = app.data.transactions.some(t => t.assignedToMonthlyLimit === txData.id);
+
+            // 2. Nếu trạng thái đang là 'paid' NHƯNG chưa so khớp đủ -> Bắt buộc gọi lại bảng để so khớp tiếp
+            if (txData.status === 'paid' && !isAlreadyMatched) {
+                app.ui.renderIncomeSelection(assignedMonth, configuredAmount);
+            }
+
+            // 3. Bắt sự kiện khi người dùng đổi qua lại giữa 'pending' và 'paid'
             if (statusInput) {
-                // Nếu mở form lên mà đang pending, bắt sự kiện chuyển status
                 statusInput.onchange = function(e) {
-                    if (e.target.value === 'paid' && txData.status === 'pending') {
+                    if (e.target.value === 'paid' && !isAlreadyMatched) {
                         app.ui.renderIncomeSelection(assignedMonth, configuredAmount);
                     } else {
                         if (matchContainer) matchContainer.style.display = 'none';
