@@ -247,11 +247,13 @@ app.ui = {
             Number(upcomingData.budgetTotal) || 0;
 
         /*
-         * Toàn bộ khoản đang hiện trong “Sắp đến hạn”.
-         * Giá trị này chỉ dùng để vẽ phần nét đứt.
-         */
-        const projectedDebtBar =
-            Number(upcomingData.displayTotal) || 0;
+ * Trong Ngân sách tháng chỉ hiển thị khoản nợ
+ * thực sự thuộc tháng đang xem.
+ *
+ * Nợ tháng sau vẫn hiển thị trong khối
+ * “Sắp đến hạn” riêng bên dưới.
+ */
+        const projectedDebtBar = projectedDebtBudget;
 
         // Hạn mức cấp trước và thu nhập thực tế thông thường.
         // Giao dịch hạn mức đã Đã xong không được cộng lại lần hai.
