@@ -18,7 +18,8 @@ const app = {
             manualZaloAmount: null,
             zaloManualCount: 0,
             shopeePayBillingGroup: 2,
-            monthlyLimits: {},
+            // Cơ chế hạn mức cấp trước chỉ áp dụng từ tháng 08/2026 trở đi.
+            monthlyLimitCreditStartMonth: '2026-08',
             debtOverrides: {},
         },
         filter: {
