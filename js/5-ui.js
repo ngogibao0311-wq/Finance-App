@@ -239,18 +239,28 @@ app.ui = {
         const upcomingData =
             app.logic.getUpcomingDebts();
 
-        const projectedDebt =
+        /*
+         * Nợ thuộc đúng kỳ thanh toán của tháng đang xem.
+         * Giá trị này mới được trừ vào Khả dụng.
+         */
+        const projectedDebtBudget =
             Number(upcomingData.budgetTotal) || 0;
+
+        /*
+         * Toàn bộ khoản đang hiện trong “Sắp đến hạn”.
+         * Giá trị này chỉ dùng để vẽ phần nét đứt.
+         */
+        const projectedDebtBar =
+            Number(upcomingData.displayTotal) || 0;
 
         // Thu nhập đã thực sự nhận trong tháng
         const budgetIncome =
             app.logic.getBudgetIncomeTotal(currentMonth);
 
-        // Hạn mức thực tế sau khi cộng thu nhập
+        // Khả dụng chỉ trừ nợ thuộc đúng tháng thanh toán
         const totalUsed =
-            totalExpense + projectedDebt;
+            totalExpense + projectedDebtBudget;
 
-        // Khả dụng = Thu nhập - Giới hạn - Chi - Nợ
         const remain =
             budgetIncome -
             totalUsed;
@@ -264,7 +274,7 @@ app.ui = {
             : 0;
 
         let projectedPercent = limit > 0
-            ? (projectedDebt / limit) * 100
+            ? (projectedDebtBar / limit) * 100
             : 0;
 
         if (actualPercent + projectedPercent > 100) {
@@ -357,10 +367,10 @@ app.ui = {
         Đã tiêu:
         <b>−${app.logic.formatCurrency(totalExpense)}</b>
 
-        ${projectedDebt > 0
+        ${projectedDebtBar > 0
                 ? `<span>
-                | Nợ: −${app.logic.formatCurrency(projectedDebt)}
-               </span>`
+        | Sắp đến hạn: ${app.logic.formatCurrency(projectedDebtBar)}
+       </span>`
                 : ''
             }
     </div>
