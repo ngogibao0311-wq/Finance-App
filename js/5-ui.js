@@ -250,7 +250,6 @@ app.ui = {
         // Khả dụng = Thu nhập - Giới hạn - Chi - Nợ
         const remain =
             budgetIncome -
-            limit -
             totalUsed;
 
         // Tỷ lệ thanh tiến trình dựa trên Giới hạn chi tiêu tháng
@@ -348,13 +347,6 @@ app.ui = {
         Thu nhập:
         <b style="color:var(--success)">
             +${app.logic.formatCurrency(budgetIncome)}
-        </b>
-    </div>
-
-    <div style="font-size:0.75rem; color:var(--text-muted);">
-        Giới hạn chi tiêu:
-        <b style="color:var(--danger)">
-            −${app.logic.formatCurrency(limit)}
         </b>
     </div>
 

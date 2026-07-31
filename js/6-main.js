@@ -720,7 +720,6 @@ app.events = {
 
                 const remainingAfter =
                     previewIncome -
-                    limit -
                     newTotalUsed;
 
                 if (remainingAfter < 0) {
@@ -728,7 +727,6 @@ app.events = {
                     const confirmOver = confirm(
                         `🚨 CẢNH BÁO CHÁY TÚI! 🚨\n\n` +
                         `Thu nhập đã nhận: +${app.logic.formatCurrency(previewIncome)}\n` +
-                        `Giới hạn chi tiêu: -${app.logic.formatCurrency(limit)}\n` +
                         `Chi thực trả + Nợ: -${app.logic.formatCurrency(newTotalUsed)}\n` +
                         `---------------------------\n` +
                         `THÂM HỤT: ${app.logic.formatCurrency(over)}\n\n` +

@@ -1887,7 +1887,6 @@ app.logic = {
         const upcoming = this.getUpcomingDebts();
         const available =
             budgetIncome -
-            limit -
             totalSpentMonth -
             upcoming.total;
         const daysFunded = dailyCap > 0 ? Math.floor(available / dailyCap) : 0;
