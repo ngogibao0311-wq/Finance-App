@@ -1444,33 +1444,10 @@ app.logic = {
         };
 
         /*
-         * Chỉ tính vào ngân sách những khoản:
-         * - Đến hạn trong tháng đang xem
-         * - Hoặc đã quá hạn từ các tháng trước
-         *
-         * Nợ đến hạn tháng sau vẫn hiển thị nhưng không bị trừ.
-         */
-        const budgetTotal = items.reduce(
-            (sum, item) => {
-                const dueDate = getDebtDueDate(item);
-
-                if (
-                    !dueDate ||
-                    Number.isNaN(dueDate.getTime()) ||
-                    dueDate > selectedMonthEnd
-                ) {
-                    return sum;
-                }
-
-                return (
-                    sum +
-                    (Number(item.amount) || 0) +
-                    (Number(item.penalty) || 0)
-                );
-            },
-            0
-        );
-
+ * Toàn bộ khoản đang hiển thị trong “Sắp đến hạn”
+ * đều được giữ lại để thanh toán và trừ khỏi Khả dụng.
+ */
+const budgetTotal = displayTotal;
         return {
             /*
              * Tổng tất cả nợ đang hiển thị trong
