@@ -372,7 +372,7 @@ app.ui = {
 
         app.data.transactions.forEach(t => {
             if (t.date && t.date.length >= 7) {
-                uniqueDates.add(t.date.substring(0, 7));
+                uniqueDates.add(app.logic.getLocalMonthKey(t.date));
             }
         });
 
@@ -447,7 +447,7 @@ app.ui = {
             `CẢNH BÁO XÓA THÁNG ${m}/${y}!\n\nBạn có chắc chắn muốn xóa TOÀN BỘ giao dịch và ẨN THÁNG NÀY khỏi danh sách?\nHành động này không thể hoàn tác!`,
             () => {
                 const initialLength = app.data.transactions.length;
-                app.data.transactions = app.data.transactions.filter(t => !t.date.startsWith(monthStr));
+                app.data.transactions = app.data.transactions.filter(t => !app.logic.isTransactionInMonth(t, monthStr));
 
                 // --- Xóa cấu hình ngân sách của tháng này ---
                 if (app.data.configs.monthlyLimits && app.data.configs.monthlyLimits[monthStr]) {
@@ -480,7 +480,7 @@ app.ui = {
             `CẢNH BÁO XÓA NĂM ${year}!\n\nBạn có chắc chắn muốn xóa TOÀN BỘ giao dịch và ẨN NĂM ${year} khỏi danh sách?\nHành động này không thể hoàn tác!`,
             () => {
                 const initialLength = app.data.transactions.length;
-                app.data.transactions = app.data.transactions.filter(t => !t.date.startsWith(`${year}-`));
+                app.data.transactions = app.data.transactions.filter(t => !app.logic.getLocalMonthKey(t.date).startsWith(`${year}-`));
 
                 if (!app.data.configs.deletedPeriods) app.data.configs.deletedPeriods = [];
 
@@ -1016,13 +1016,13 @@ app.ui = {
         // 2. Logic tính toán chi tiêu tháng (Giữ nguyên logic cũ)
         const month = app.data.filter.month;
         const isCreditZalo = (source) => {
-            const s = source.toLowerCase();
+            const s = String(source || '').toLowerCase();
             return s.includes('zalo') && (s.includes('trả sau') || s.includes('priority') || s.includes('paylater'));
         };
         const zaloTxs = app.data.transactions.filter(t => {
             const tags = t.tags || '';
             return t.type === 'Chi tiêu' &&
-                t.date.startsWith(month) &&
+                app.logic.isTransactionInMonth(t, month) &&
                 isCreditZalo(t.source) &&
                 !tags.includes('#phi_dich_vu') &&
                 !tags.includes('#thanh_toan_no') &&
@@ -2584,12 +2584,12 @@ ${payAllHTML}
 
         if (state.todayTxs && state.todayTxs.length > 0) {
             const listHTML = state.todayTxs.map(t => {
-                const isExcluded = t.excludeFromBudget === true;
+                const isExcluded = t.excludeFromBudget === true || t.excludeFromDailyBudget === true;
                 const rowOpacity = isExcluded ? '0.5' : '1';
                 const textDecor = isExcluded ? 'line-through' : 'none';
                 const iconColor = isExcluded ? '#9ca3af' : '#059669';
                 const iconClass = isExcluded ? 'fa-regular fa-eye-slash' : 'fa-regular fa-eye';
-                const title = isExcluded ? 'Bấm để TÍNH vào ngày' : 'Bấm để LOẠI KHỎI ngày';
+                const title = isExcluded ? 'Bấm để TÍNH lại vào kế hoạch ngày' : 'Bấm để LOẠI KHỎI kế hoạch ngày';
 
                 return `
                 <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.8rem; margin-bottom:6px; padding:4px 0; border-bottom:1px solid #f9fafb; opacity: ${rowOpacity}">
@@ -2616,13 +2616,11 @@ ${payAllHTML}
     toggleDailyExclusion(id) {
         const tx = app.data.transactions.find(t => t.id === id);
         if (tx) {
-            // Đảo ngược trạng thái loại trừ
-            tx.excludeFromBudget = !tx.excludeFromBudget;
+            // Tách riêng loại trừ kế hoạch ngày khỏi loại trừ ngân sách tháng.
+            // Trường excludeFromBudget cũ vẫn được giữ nguyên để không làm hỏng dữ liệu trước đây.
+            tx.excludeFromDailyBudget = !tx.excludeFromDailyBudget;
 
-            // Lưu dữ liệu
             app.storage.save();
-
-            // Vẽ lại giao diện để cập nhật thanh tiến trình và icon
             app.ui.renderAll();
         }
     },
@@ -2684,13 +2682,19 @@ ${payAllHTML}
         // Lọc thêm điều kiện: không bị loại trừ (excludeFromDashboard)
         const income = activeTxs
             .filter(t => isIncome(t) && t.status === 'paid' && !t.excludeFromDashboard)
-            .reduce((sum, t) => sum + t.amount, 0);
+            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
-        const expense = activeTxs
-            .filter(t => !isIncome(t) && t.type !== 'Chuyển tiền' && t.status !== 'planned' && !t.excludeFromDashboard)
-            .reduce((sum, t) => sum + t.amount, 0);
+        // Dashboard dùng cùng cơ sở tiền thực trả như ngân sách, nhưng vẫn giữ nút
+        // loại trừ riêng của Dashboard. Nhờ vậy giao dịch mua trả sau và giao dịch
+        // trả nợ không còn bị cộng hai lần.
+        const dashboardExpenseTxs = app.logic
+            .getBudgetTransactions({ respectExclusion: false })
+            .filter(t => !t.excludeFromDashboard);
 
-        // 3. CHI TIÊU NGÂN SÁCH (Giữ nguyên logic logic.getBudgetTransactions của bạn)
+        const expense = dashboardExpenseTxs
+            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+        // 3. CHI TIÊU NGÂN SÁCH
         const budgetTxs = app.logic.getBudgetTransactions();
         const budgetExpense = budgetTxs.reduce((sum, t) => sum + t.amount, 0);
 
@@ -2725,7 +2729,10 @@ ${payAllHTML}
         }
 
         this.updateFinancialWeather(income, expense, hasOverdue);
-        const topExpense = activeTxs.filter(t => !isIncome(t)).sort((a, b) => b.amount - a.amount).slice(0, 5); // Lấy top 5 giao dịch lớn nhất
+        const topExpense = dashboardExpenseTxs
+            .slice()
+            .sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0))
+            .slice(0, 5); // Lấy top 5 khoản tiền thực trả lớn nhất
 
         if (topExpense.length === 0) {
             document.getElementById('detail-expense').innerHTML = '<div style="opacity:0.7; font-style:italic; padding-top:10px;">Chưa có chi tiêu</div>';
@@ -2781,8 +2788,8 @@ ${payAllHTML}
         const tbody = document.getElementById('tx-table-body');
 
         tbody.innerHTML = monthlyTxs.sort((a, b) => {
-            const dayA = new Date(a.date).toISOString().slice(0, 10);
-            const dayB = new Date(b.date).toISOString().slice(0, 10);
+            const dayA = app.logic.getLocalDateKey(a.date);
+            const dayB = app.logic.getLocalDateKey(b.date);
             if (dayA !== dayB) return new Date(b.date) - new Date(a.date);
             if (a.isUnknownTime && !b.isUnknownTime) return -1;
             if (!a.isUnknownTime && b.isUnknownTime) return 1;
@@ -2821,6 +2828,14 @@ ${payAllHTML}
             } else if (t.status === 'paid') {
                 statusText = 'Thành công';
                 badgeClass = 'badge-success';
+
+                const statusTags = String(t.tags || '').toLowerCase();
+                if (statusTags.includes('#da_chuyen_tra_gop')) {
+                    statusText = 'Đã chuyển trả góp';
+                    badgeClass = 'badge-warning';
+                } else if (t.paidByGroup) {
+                    statusText = 'Đã tất toán';
+                }
 
                 // [MỚI] Badge riêng cho Chuyển tiền
                 if (isTransfer) {
@@ -3132,12 +3147,14 @@ ${payAllHTML}
             txs = monthlyTxs.filter(t => t.type === 'Thu nhập' && t.status === 'paid');
             title = "CHI TIẾT THU NHẬP"; themeColor = "#10b981";
         } else if (type === 'expense') {
-            txs = monthlyTxs.filter(t => t.type === 'Chi tiêu' && t.status !== 'planned');
-            title = "CHI TIẾT CHI TIÊU"; themeColor = "#ef4444";
+            txs = app.logic
+                .getBudgetTransactions({ respectExclusion: false })
+                .filter(t => !t.excludeFromDashboard);
+            title = "CHI TIẾT CHI TIÊU THỰC TRẢ"; themeColor = "#ef4444";
         } else if (type === 'debt') {
             // Lấy toàn bộ giao dịch liên quan đến nợ trong tháng (bao gồm cả đã trả và đang nợ)
             txs = app.data.transactions.filter(t => {
-                const isInMonth = t.date.startsWith(app.data.filter.month);
+                const isInMonth = app.logic.isTransactionInMonth(t, app.data.filter.month);
                 const isDebtSource = t.status === 'pending' && t.type !== 'Thu nhập';
                 const isPaidDebt = t.status === 'paid' && (
                     t.tags?.includes('#thanh_toan_no') ||
@@ -6232,25 +6249,29 @@ ${t.tempExtraFeeReason
                 const activeTxs = txs.filter(t => t.status !== 'cancelled');
 
                 const incomeTxs = activeTxs.filter(t => t.type === 'Thu nhập' && t.status === 'paid');
-                const expenseTxs = activeTxs.filter(t => t.type === 'Chi tiêu' && t.status !== 'planned');
-                const pendingExpenseTxs = activeTxs.filter(t => t.type === 'Chi tiêu' && t.status === 'pending');
+
+                // Báo cáo dùng cùng cơ sở tiền thực trả với Dashboard/ngân sách để tránh
+                // cộng cả đơn trả sau gốc lẫn giao dịch thanh toán nợ.
+                const expenseTxs = app.logic.getBudgetTransactions({ respectExclusion: false });
+                const upcomingData = app.logic.getUpcomingDebts();
 
                 const transferTxs = activeTxs.filter(t => t.type === 'Chuyển tiền' && t.status === 'paid');
-                const totalTransfer = transferTxs.reduce((s, t) => s + t.amount, 0);
+                const totalTransfer = transferTxs.reduce((s, t) => s + (Number(t.amount) || 0), 0);
 
-                const totalInc = incomeTxs.reduce((s, t) => s + t.amount, 0);
-                const totalExp = expenseTxs.reduce((s, t) => s + t.amount, 0); // Đã bao gồm cả nợ chưa trả
-                const totalPendingExp = pendingExpenseTxs.reduce((s, t) => s + t.amount, 0); // Phần chi tiêu nợ
+                const totalInc = incomeTxs.reduce((s, t) => s + (Number(t.amount) || 0), 0);
+                const totalExp = expenseTxs.reduce((s, t) => s + (Number(t.amount) || 0), 0);
+                const totalPendingExp = Number(upcomingData.total) || 0;
+                const totalBudgetUsed = totalExp + totalPendingExp;
                 const netBalance = totalInc - totalExp;
 
-                // 2. SỐ LIỆU NGÂN SÁCH
+                // 2. SỐ LIỆU NGÂN SÁCH: tiền đã trả + nợ cần giữ lại.
                 const budgetLimit = Number(app.data.configs.monthlyLimits?.[month]) || 0;
                 let budgetPercent = 0;
                 let budgetText = "Chưa thiết lập";
                 let budgetColor = "#94a3b8";
                 if (budgetLimit > 0) {
-                    budgetPercent = Math.min(100, (totalExp / budgetLimit) * 100);
-                    budgetText = `${app.logic.formatCurrency(totalExp)} / ${app.logic.formatCurrency(budgetLimit)}`;
+                    budgetPercent = Math.min(100, (totalBudgetUsed / budgetLimit) * 100);
+                    budgetText = `${app.logic.formatCurrency(totalExp)} đã trả + ${app.logic.formatCurrency(totalPendingExp)} dự phòng / ${app.logic.formatCurrency(budgetLimit)}`;
                     if (budgetPercent >= 100) budgetColor = "#ef4444";
                     else if (budgetPercent >= 80) budgetColor = "#f59e0b";
                     else budgetColor = "#10b981";
@@ -6268,9 +6289,12 @@ ${t.tempExtraFeeReason
 
                 const currentAssets = totalCash + totalBank + totalWallet;
 
-                // Tổng Nợ (Tín dụng + Khoản vay)
-                const upcomingData = app.logic.getUpcomingDebts();
-                const currentCreditDebt = upcomingData.displayTotal;
+                // Tổng Nợ: phần tín dụng sắp trả và toàn bộ dư nợ vay.
+                // getUpcomingDebts() có cả kỳ vay đến hạn, nên lọc loan ra trước khi
+                // cộng tổng dư nợ vay để không bị tính khoản vay hai lần.
+                const currentCreditDebt = (upcomingData.items || [])
+                    .filter(item => item.type !== 'loan')
+                    .reduce((sum, item) => sum + (Number(item.amount) || 0) + (Number(item.penalty) || 0), 0);
 
                 let currentLoanDebt = 0;
                 (app.data.loans || []).filter(l => l.status === 'active').forEach(l => {
@@ -6310,7 +6334,7 @@ ${t.tempExtraFeeReason
                         <div style="background:#fff1f2; border:1px solid #e11d48; border-radius:12px; padding:12px;">
                             <div style="font-size:0.75rem; color:#be123c; font-weight:700; text-transform:uppercase; margin-bottom:4px;"><i class="fa-solid fa-arrow-turn-up"></i> Tổng Chi Tiêu</div>
                             <div style="font-family:var(--font-mono); font-weight:900; font-size:1.2rem; color:#e11d48;">${formatNum(totalExp)}</div>
-                            ${totalPendingExp > 0 ? `<div style="font-size:0.65rem; color:#e11d48; opacity:0.8; margin-top:2px;">(Gồm ${formatNum(totalPendingExp)} đang nợ)</div>` : ''}
+                            ${totalPendingExp > 0 ? `<div style="font-size:0.65rem; color:#e11d48; opacity:0.8; margin-top:2px;">(Dự phòng nợ: ${formatNum(totalPendingExp)})</div>` : ''}
                         </div>
                     </div>
                     
@@ -7003,7 +7027,7 @@ ${t.tempExtraFeeReason
                 // Lọc dữ liệu: Chỉ lấy đơn Hủy hoặc đơn Khôi phục trong tháng hiện tại
                 const listTxs = app.data.transactions
                     .filter(t => {
-                        const isInMonth = t.date.startsWith(currentMonthFilter);
+                        const isInMonth = app.logic.isTransactionInMonth(t, currentMonthFilter);
                         const isTargetType = t.status === 'cancelled' || (t.place && t.place.startsWith('Khôi phục'));
                         return isInMonth && isTargetType;
                     })
@@ -7144,7 +7168,7 @@ ${t.tempExtraFeeReason
                 const month = app.data.filter.month;
 
                 const allExpenseCandidates = app.data.transactions.filter(t =>
-                    t.date.startsWith(month) &&
+                    app.logic.isTransactionInMonth(t, month) &&
                     t.type === 'Chi tiêu' &&
                     t.status === 'paid' &&
                     !t.tags?.includes('#du_no_chuyen_tiep')
@@ -7316,7 +7340,7 @@ ${t.tempExtraFeeReason
             },
 
             open() {
-                const txs = app.logic.getFilteredTxs().filter(t => t.type === 'Chi tiêu' && t.status !== 'cancelled');
+                const txs = app.logic.getBudgetTransactions({ respectExclusion: false });
                 const topItems = txs.sort((a, b) => b.amount - a.amount).slice(0, 5).map(t => ({
                     name: t.place,
                     amount: t.amount,
@@ -7356,8 +7380,17 @@ ${t.tempExtraFeeReason
                     stampClass = "stamp-paid";
                     icon = "fa-solid fa-sack-dollar";
                 } else {
-                    titleStamp = "ĐÃ TRẢ";
-                    stampClass = "stamp-paid";
+                    const tags = String(tx.tags || '').toLowerCase();
+                    if (tags.includes('#da_chuyen_tra_gop')) {
+                        titleStamp = "ĐÃ CHUYỂN TRẢ GÓP";
+                        stampClass = "stamp-void";
+                    } else if (tx.status === 'pending') {
+                        titleStamp = "CHƯA THANH TOÁN";
+                        stampClass = "stamp-void";
+                    } else {
+                        titleStamp = "ĐÃ TRẢ";
+                        stampClass = "stamp-paid";
+                    }
                 }
 
                 const item = [{

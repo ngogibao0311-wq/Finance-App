@@ -6,8 +6,8 @@ app.startSession = async function () {
     // Sắp xếp lại toàn bộ dữ liệu giao dịch cũ
     if (this.data && this.data.transactions) {
         this.data.transactions.sort((a, b) => {
-            const dayA = new Date(a.date).toISOString().slice(0, 10);
-            const dayB = new Date(b.date).toISOString().slice(0, 10);
+            const dayA = app.logic.getLocalDateKey(a.date);
+            const dayB = app.logic.getLocalDateKey(b.date);
 
             // Nếu khác ngày, sắp xếp theo ngày mới nhất
             if (dayA !== dayB) return new Date(b.date) - new Date(a.date);
@@ -473,8 +473,8 @@ app.events = {
                 tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:2rem; color:var(--text-muted)">Không tìm thấy giao dịch nào khớp lệnh!</td></tr>`;
             } else {
                 tbody.innerHTML = results.sort((a, b) => {
-                    const dayA = new Date(a.date).toISOString().slice(0, 10);
-                    const dayB = new Date(b.date).toISOString().slice(0, 10);
+                    const dayA = app.logic.getLocalDateKey(a.date);
+                    const dayB = app.logic.getLocalDateKey(b.date);
                     if (dayA !== dayB) return new Date(b.date) - new Date(a.date);
                     if (a.isUnknownTime && !b.isUnknownTime) return -1;
                     if (!a.isUnknownTime && b.isUnknownTime) return 1;
@@ -484,6 +484,13 @@ app.events = {
                     const isCancelled = t.status === 'cancelled';
                     let statusText = isCancelled ? 'Đã hủy' : (t.status === 'paid' ? 'Thành công' : (t.status === 'planned' ? 'Dự kiến' : 'Chưa trả'));
                     let badgeClass = isCancelled ? 'badge-secondary' : (t.status === 'paid' ? 'badge-success' : 'badge-warning');
+                    const statusTags = String(t.tags || '').toLowerCase();
+                    if (!isCancelled && statusTags.includes('#da_chuyen_tra_gop')) {
+                        statusText = 'Đã chuyển trả góp';
+                        badgeClass = 'badge-warning';
+                    } else if (!isCancelled && t.paidByGroup) {
+                        statusText = 'Đã tất toán';
+                    }
                     const amountClass = isInc ? 'var(--success)' : (isCancelled ? 'var(--text-muted)' : 'inherit');
                     const rowClass = isCancelled ? 'tx-cancelled' : '';
                     const amountPrefix = isInc ? '+' : '-';
@@ -692,24 +699,45 @@ app.events = {
             const limit = Number(app.data.configs.monthlyLimits?.[currentMonthLimit]) || 0;
             const currentMonth = app.data.filter.month;
 
-            if (data.type === 'Chi tiêu' && limit > 0 && data.status !== 'cancelled' && data.date.startsWith(currentMonth)) {
-                const currentBudgetTxs = app.logic.getBudgetTransactions();
-                const currentSpent = currentBudgetTxs
-                    .filter(t => t.id != data.id)
-                    .reduce((sum, t) => sum + t.amount, 0);
-                const upcomingData = app.logic.getUpcomingDebts();
-                const projectedDebt = upcomingData.total;
-                const newTotalUsed = currentSpent + projectedDebt + data.amount;
+            if (
+                data.type === 'Chi tiêu' &&
+                limit > 0 &&
+                data.status !== 'cancelled' &&
+                app.logic.isTransactionInMonth(data, currentMonth)
+            ) {
+                // Tính thử bằng đúng logic thật, thay vì luôn cộng data.amount.
+                // Cách cũ làm giao dịch trả sau/sửa giao dịch bị cộng trùng với nợ dự kiến.
+                const originalTransactions = app.data.transactions;
+                let previewSpent = 0;
+                let previewDebt = 0;
+
+                try {
+                    const previewTransactions = originalTransactions
+                        .filter(t => t.id != data.id)
+                        .concat({ ...data });
+
+                    app.data.transactions = previewTransactions;
+
+                    previewSpent = app.logic
+                        .getBudgetTransactions()
+                        .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+                    previewDebt = app.logic.getUpcomingDebts().total;
+                } finally {
+                    app.data.transactions = originalTransactions;
+                }
+
+                const newTotalUsed = previewSpent + previewDebt;
                 const remainingAfter = limit - newTotalUsed;
 
                 if (remainingAfter < 0) {
                     const over = Math.abs(remainingAfter);
                     const confirmOver = confirm(
-                        `🚨 CẢNH BÁO CHÁY TÚI! 🚨\n\nHạn mức: ${app.logic.formatCurrency(limit)}\nĐã tiêu + Nợ sắp trả: ${app.logic.formatCurrency(currentSpent + projectedDebt)}\nThêm khoản này: ${app.logic.formatCurrency(data.amount)}\n---------------------------\nSẼ VƯỢT QUÁ (Thâm hụt): ${app.logic.formatCurrency(over)}\n\nBạn có chắc chắn muốn "phá sản" không?`
+                        `🚨 CẢNH BÁO CHÁY TÚI! 🚨\n\nHạn mức: ${app.logic.formatCurrency(limit)}\nChi thực trả + Nợ cần giữ lại: ${app.logic.formatCurrency(newTotalUsed)}\n---------------------------\nSẼ VƯỢT QUÁ (Thâm hụt): ${app.logic.formatCurrency(over)}\n\nBạn có chắc chắn muốn tiếp tục không?`
                     );
                     if (!confirmOver) return;
                 } else if (remainingAfter < 100000) {
-                    alert(`⚠️ CẨN THẬN! Ví sắp cạn.\n\nSau khi trừ đi các khoản nợ phải trả tháng sau,\nbạn chỉ còn khả dụng: ${app.logic.formatCurrency(remainingAfter)}\nHãy cân nhắc kỹ!`);
+                    alert(`⚠️ CẨN THẬN! Ví sắp cạn.\n\nSau khi tính chi thực trả và toàn bộ nợ đang hiển thị,\nbạn chỉ còn khả dụng: ${app.logic.formatCurrency(remainingAfter)}\nHãy cân nhắc kỹ!`);
                 }
             }
 
@@ -852,8 +880,8 @@ app.events = {
             app.data.transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
 
             app.data.transactions.sort((a, b) => {
-                const dayA = new Date(a.date).toISOString().slice(0, 10);
-                const dayB = new Date(b.date).toISOString().slice(0, 10);
+                const dayA = app.logic.getLocalDateKey(a.date);
+                const dayB = app.logic.getLocalDateKey(b.date);
 
                 if (dayA !== dayB) return new Date(b.date) - new Date(a.date);
 
@@ -1148,15 +1176,30 @@ app.events = {
                         const txSource = useNewLogic ? "Tiền mặt" : plan.source;
                         const txDest = useNewLogic ? plan.source : null;
 
+                        const totalDue =
+                            (Number(payment.amount) || 0) +
+                            (Number(payment.penaltyAmt) || 0);
+                        const alreadyPaid = Number(payment.paidAmount) || 0;
+                        const remaining = Math.max(0, totalDue - alreadyPaid);
+
+                        if (remaining <= 0) {
+                            payment.paid = true;
+                            return;
+                        }
+
+                        const paymentDate = app.logic.getPaymentDate();
+                        payment.paidAmount = totalDue;
                         payment.paid = true;
+                        payment.paidAt = paymentDate;
+
                         app.data.transactions.push({
                             id: Date.now(),
                             type: 'Chi tiêu',
                             place: `Trả góp ${plan.source} kỳ ${payment.date}`,
                             source: txSource,
-                            destination: txDest, // [MỚI]
-                            amount: payment.amount,
-                            date: app.logic.getPaymentDate(),
+                            destination: txDest,
+                            amount: remaining,
+                            date: paymentDate,
                             tags: '#tra_gop',
                             status: 'paid'
                         });
@@ -2995,22 +3038,30 @@ document.getElementById('btn-ask-gemini').addEventListener('click', async () => 
     const currentMonth = app.data.filter.month;
     const txs = app.logic.getFilteredTxs();
 
-    const income = txs.filter(t => t.type === 'Thu nhập').reduce((sum, t) => sum + t.amount, 0);
-    const expenses = txs.filter(t => t.type === 'Chi tiêu' && t.status !== 'cancelled');
-    const totalExpense = expenses.reduce((sum, t) => sum + t.amount, 0);
-    const balance = income - totalExpense;
-
-    // Lấy hạn mức (nếu có)
-    const limit = Number(app.data.configs.monthlyLimits?.[currentMonth]) || 0;
-    const remainingBudget = limit > 0 ? limit - totalExpense : null;
-    const burnRate = limit > 0 ? Math.round((totalExpense / limit) * 100) : (income > 0 ? Math.round((totalExpense / income) * 100) : 0);
+    const income = txs
+        .filter(t => t.type === 'Thu nhập' && t.status === 'paid')
+        .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+    const expenses = app.logic.getBudgetTransactions({ respectExclusion: false });
+    const totalExpense = expenses.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+    const cashBalance = income - totalExpense;
 
     const upcomingData = app.logic.getUpcomingDebts();
-    const upcomingDebt = upcomingData.total;
-    const debtItems = upcomingData.items.map(i => `${i.name} (${app.logic.formatCurrency(i.amount)})`).join(', ');
+    const upcomingDebt = Number(upcomingData.total) || 0;
+    const availableAfterDebt = cashBalance - upcomingDebt;
+    const debtItems = upcomingData.items
+        .map(i => `${i.name} (${app.logic.formatCurrency((Number(i.amount) || 0) + (Number(i.penalty) || 0))})`)
+        .join(', ');
 
-    // Mở rộng Top 5 khoản tiêu kèm Tag để AI phân tích thói quen
-    const topSpending = expenses.sort((a, b) => b.amount - a.amount).slice(0, 5)
+    // Lấy hạn mức (nếu có): tiền thực trả + khoản nợ phải giữ lại.
+    const limit = Number(app.data.configs.monthlyLimits?.[currentMonth]) || 0;
+    const totalBudgetUsed = totalExpense + upcomingDebt;
+    const remainingBudget = limit > 0 ? limit - totalBudgetUsed : null;
+    const burnRate = limit > 0
+        ? Math.round((totalBudgetUsed / limit) * 100)
+        : (income > 0 ? Math.round((totalExpense / income) * 100) : 0);
+
+    // Mở rộng Top 5 khoản tiêu thực trả kèm Tag để AI phân tích thói quen
+    const topSpending = expenses.slice().sort((a, b) => b.amount - a.amount).slice(0, 5)
         .map(t => `- ${t.place} (${t.tags || 'Khác'}): ${app.logic.formatCurrency(t.amount)}`).join('\n');
 
     // Dữ liệu bối cảnh gửi cho AI
@@ -3018,8 +3069,9 @@ document.getElementById('btn-ask-gemini').addEventListener('click', async () => 
     [DỮ LIỆU TÀI CHÍNH THÁNG ${currentMonth}]
     - Tổng Thu Nhập: ${app.logic.formatCurrency(income)}
     - Tổng Chi Tiêu: ${app.logic.formatCurrency(totalExpense)}
-    - Số Dư Hiện Tại: ${app.logic.formatCurrency(balance)}
-    ${limit > 0 ? `- Hạn Mức Cài Đặt: ${app.logic.formatCurrency(limit)} (Đã tiêu ${burnRate}% hạn mức. Còn lại: ${app.logic.formatCurrency(remainingBudget)})` : `- Tỷ lệ chi tiêu so với thu nhập: ${burnRate}%`}
+    - Dòng tiền sau chi thực trả: ${app.logic.formatCurrency(cashBalance)}
+    - Khả dụng sau khi giữ tiền trả nợ: ${app.logic.formatCurrency(availableAfterDebt)}
+    ${limit > 0 ? `- Hạn Mức Cài Đặt: ${app.logic.formatCurrency(limit)} (Đã dùng/dự phòng ${burnRate}% hạn mức. Còn lại: ${app.logic.formatCurrency(remainingBudget)})` : `- Tỷ lệ chi tiêu so với thu nhập: ${burnRate}%`}
     - Nợ Sắp Phải Trả: ${app.logic.formatCurrency(upcomingDebt)} (${debtItems || 'Không có khoản nợ nào'})
     
     [TOP 5 KHOẢN CHI LỚN NHẤT THÁNG NÀY]

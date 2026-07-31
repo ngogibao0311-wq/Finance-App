@@ -4,12 +4,56 @@ app.logic = {
         return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
     },
 
+    // Chuẩn hóa ngày theo múi giờ địa phương. Dữ liệu cũ có thể là ISO UTC hoặc chuỗi giờ địa phương.
+    getLocalDateKey(value) {
+        const raw = String(value || '');
+        const date = new Date(raw);
+
+        if (Number.isNaN(date.getTime())) {
+            return raw.slice(0, 10);
+        }
+
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    },
+
+    getLocalMonthKey(value) {
+        return this.getLocalDateKey(value).slice(0, 7);
+    },
+
+    isTransactionInMonth(transaction, month = app.data.filter.month) {
+        return this.getLocalMonthKey(transaction?.date) === month;
+    },
+
+    getTransactionTags(transaction = {}) {
+        return String(transaction.tags || '').toLowerCase();
+    },
+
+    isDebtPaymentTransaction(transaction = {}) {
+        const tags = this.getTransactionTags(transaction);
+        return tags.includes('#thanh_toan_no') ||
+            tags.includes('#thanh_toan_phi') ||
+            tags.includes('#nop_phat') ||
+            tags.includes('#tra_gop') ||
+            tags.includes('#tat_toan_vay') ||
+            tags.includes('#tra_no_vay');
+    },
+
+    isCreditSource(source = '') {
+        const s = String(source || '').toLowerCase();
+        return (s.includes('zalo') && (s.includes('trả sau') || s.includes('priority') || s.includes('paylater'))) ||
+            (s.includes('momo') && (s.includes('trả sau') || s.includes('ví trả sau') || s.includes('credit'))) ||
+            s.includes('shopee') || s.includes('spay') || s.includes('airpay') ||
+            s.includes('tiktok') ||
+            s.includes('tín dụng') || s.includes('thẻ') || s.includes('credit') ||
+            s.includes('trả sau') || s.includes('paylater');
+    },
+
     getFilteredTxs() {
-        let filteredTxs = app.data.transactions.filter(t => t.date.startsWith(app.data.filter.month));
+        let filteredTxs = app.data.transactions.filter(t => this.isTransactionInMonth(t));
 
         return filteredTxs.sort((a, b) => {
-            const dayA = new Date(a.date).toISOString().slice(0, 10);
-            const dayB = new Date(b.date).toISOString().slice(0, 10);
+            const dayA = this.getLocalDateKey(a.date);
+            const dayB = this.getLocalDateKey(b.date);
 
             if (dayA !== dayB) return new Date(b.date) - new Date(a.date);
 
@@ -41,42 +85,29 @@ app.logic = {
     },
 
     // --- SỬA ĐỔI CHÍNH TẠI ĐÂY ---
-    getBudgetTransactions() {
+    getBudgetTransactions(options = {}) {
         const month = app.data.filter.month;
+        const respectExclusion = options.respectExclusion !== false;
         return app.data.transactions.filter(t => {
             // 1. Bộ lọc cơ bản (Tháng, Loại, Trạng thái, Loại trừ thủ công)
-            if (!t.date.startsWith(month)) return false;
+            if (!this.isTransactionInMonth(t, month)) return false;
             if (t.type === 'Chuyển tiền') return false;
             if (t.type !== 'Chi tiêu') return false;
             if (t.status !== 'paid') return false;
-            if (t.excludeFromBudget === true) return false;
+            if (respectExclusion && t.excludeFromBudget === true) return false;
 
-            const tags = (t.tags || "").toLowerCase();
-            const s = t.source.toLowerCase();
+            const tags = this.getTransactionTags(t);
+            const s = String(t.source || '').toLowerCase();
 
             // 2. [QUAN TRỌNG - TÍNH VÀO NGÂN SÁCH] Các khoản THANH TOÁN NỢ
             // Bao gồm: Trả gốc (#thanh_toan_no), Phí (#thanh_toan_phi), Phạt (#nop_phat), Trả góp (#tra_gop), Tất toán vay (#tat_toan_vay)
-            const isDebtPayment =
-                tags.includes('#thanh_toan_no') ||
-                tags.includes('#thanh_toan_phi') ||
-                tags.includes('#nop_phat') ||
-                tags.includes('#tra_gop') ||
-                tags.includes('#tat_toan_vay') ||
-                tags.includes('#tra_no_vay');
+            const isDebtPayment = this.isDebtPaymentTransaction(t);
 
             if (isDebtPayment) return true;
 
             // 3. [QUAN TRỌNG - KHÔNG TÍNH] Các khoản CHI TIÊU TÍN DỤNG GỐC
             // (Vì chúng ta đã tính tiền lúc trả nợ ở Bước 2 rồi, nếu tính thêm ở đây sẽ bị trùng lặp)
-            const isCreditSource =
-                (s.includes('zalo') && (s.includes('trả sau') || s.includes('priority') || s.includes('paylater'))) ||
-                (s.includes('momo') && (s.includes('trả sau') || s.includes('ví trả sau') || s.includes('credit'))) ||
-                (s.includes('shopee') || s.includes('spay') || s.includes('airpay')) ||
-                (s.includes('tiktok')) ||
-                (s.includes('tín dụng') || s.includes('thẻ') || s.includes('credit')); // Thẻ tín dụng chung
-
-            // Nếu là nguồn tín dụng và KHÔNG phải là giao dịch thanh toán nợ (đã check ở trên) -> BỎ QUA
-            if (isCreditSource) return false;
+            if (this.isCreditSource(s)) return false;
 
             // 4. Loại trừ các khoản trung gian/nội bộ
             if (tags.includes('#da_chuyen_tra_gop')) return false;
@@ -102,7 +133,7 @@ app.logic = {
         // 2. Lấy tất cả giao dịch Pending
         const allPendingTxs = app.data.transactions.filter(t => {
             if (t.status !== 'pending') return false;
-            return t.date.substring(0, 7) <= filterMonthStr;
+            return app.logic.getLocalMonthKey(t.date) <= filterMonthStr;
         });
 
         // --- LÀM LẠI TOÀN BỘ LOGIC ZALO PAY (FIX TRIỆT ĐỂ) ---
@@ -137,7 +168,7 @@ app.logic = {
             if (nowStartOfDay > dueDayStart) {
                 const relevantPayments = app.data.transactions.filter(t => {
                     if (t.status !== 'paid') return false;
-                    const s = t.source.toLowerCase();
+                    const s = String(t.source || '').toLowerCase();
                     const isZalo = s.includes('zalo') || s.includes('priority');
                     const tags = t.tags || "";
                     const isPayPrincipal = tags.includes('#thanh_toan_no') || tags.includes('#thanh_toan_phi');
@@ -164,7 +195,7 @@ app.logic = {
                 }
 
                 const paidPenaltyTotal = app.data.transactions.reduce((sum, t) => {
-                    const s = t.source.toLowerCase();
+                    const s = String(t.source || '').toLowerCase();
                     if (t.status === 'paid' &&
                         (s.includes('zalo') || s.includes('priority')) &&
                         t.tags && t.tags.includes('#nop_phat') &&
@@ -241,7 +272,7 @@ app.logic = {
             if (app.data.installmentPlans) {
                 Object.values(app.data.installmentPlans).forEach(plan => {
                     // Kiểm tra nguồn là MoMo
-                    if (plan.source.toLowerCase().includes('momo')) {
+                    if (String(plan.source || '').toLowerCase().includes('momo')) {
                         // Lấy các kỳ chưa trả và ngày <= tháng hiện tại
                         const unpaid = plan.payments.filter(p => !p.paid && p.date <= filterMonthStr);
                         momoInstallmentDebt += unpaid.reduce((sum, p) => sum + p.amount, 0);
@@ -308,7 +339,7 @@ app.logic = {
 
         // --- [FIX] XỬ LÝ SHOPEE: LỌC BỎ CÁC KHOẢN ĐÃ DỜI ---
         const shopeeTxs = allPendingTxs.filter(t => {
-            const s = t.source.toLowerCase();
+            const s = String(t.source || '').toLowerCase();
             const isShopee = s.includes('shopee') || s.includes('spay') || s.includes('airpay');
 
             if (!isShopee) return false;
@@ -391,7 +422,7 @@ app.logic = {
         }
 
         // --- XỬ LÝ TIKTOK PAYLATER ---
-        const tiktokTxs = allPendingTxs.filter(t => t.source.toLowerCase().includes('tiktok'));
+        const tiktokTxs = allPendingTxs.filter(t => String(t.source || '').toLowerCase().includes('tiktok'));
 
         if (tiktokTxs.length > 0) {
             const lastTx = tiktokTxs[tiktokTxs.length - 1];
@@ -1096,16 +1127,23 @@ app.logic = {
 
         items.sort((a, b) => (b.isOverdue ? 1 : 0) - (a.isOverdue ? 1 : 0));
 
+        const displayTotal = items.reduce(
+            (sum, item) => sum + (Number(item.amount) || 0) + (Number(item.penalty) || 0),
+            0
+        );
+
         return {
-            total: budgetPendingTotal,
-            displayTotal: items.reduce((sum, i) => sum + i.amount + (i.penalty || 0), 0),
+            // Ngân sách phải giữ lại toàn bộ khoản nợ đang hiển thị, gồm nợ quá hạn, đến hạn và kỳ kế tiếp.
+            // Trước đây chỉ cộng đúng kỳ tháng sau nên khoản quá hạn bị bỏ sót khỏi số tiền còn dư.
+            total: displayTotal,
+            displayTotal: displayTotal,
             items,
             monthLabel: displayNextMonth
         };
     },
 
     normalizeSource(source) {
-        const s = source.toLowerCase();
+        const s = String(source || '').toLowerCase();
         if (s.includes('zalo') && (s.includes('trả sau') || s.includes('priority') || s.includes('paylater'))) {
             return 'Trả sau Zalo Pay';
         }
@@ -1235,7 +1273,7 @@ app.logic = {
 
         const currentRealSum = app.data.transactions.reduce((sum, t) => {
             const tDate = new Date(t.date);
-            const s = t.source.toLowerCase();
+            const s = String(t.source || '').toLowerCase();
             const tags = t.tags || "";
             const isValid = t.type === 'Chi tiêu' &&
                 (t.status !== 'cancelled' || t.keepForZalo === true) &&
@@ -1391,7 +1429,7 @@ app.logic = {
 
     getBillingInfo(source, txDateStr) {
         const txDate = new Date(txDateStr);
-        const sourceLower = source.toLowerCase();
+        const sourceLower = String(source || '').toLowerCase();
         let dueResult = { dueDate: null, statementDate: null };
 
         if (
@@ -1493,15 +1531,15 @@ app.logic = {
         };
 
         // --- 1. XỬ LÝ ZALO PAY ---
-        const zaloFeeIndex = app.data.transactions.findIndex(t => t.place === feeMap.zalo.name && t.date.startsWith(month));
+        const zaloFeeIndex = app.data.transactions.findIndex(t => t.place === feeMap.zalo.name && app.logic.isTransactionInMonth(t, month));
 
         const hasZaloSpending = app.data.transactions.some(t => {
-            const s = t.source.toLowerCase();
+            const s = String(t.source || '').toLowerCase();
             const isZaloCredit = s.includes('zalo') && (s.includes('trả sau') || s.includes('priority') || s.includes('paylater'));
             const tags = t.tags || "";
 
             return t.type === 'Chi tiêu' &&
-                t.date.startsWith(month) &&
+                app.logic.isTransactionInMonth(t, month) &&
                 isZaloCredit &&
                 t.status !== 'cancelled' &&
                 !tags.includes('#phi_dich_vu') &&
@@ -1542,13 +1580,15 @@ app.logic = {
             return lower.includes('momo') && (lower.includes('trả sau') || lower.includes('ví trả sau') || lower.includes('credit'));
         };
 
-        const hasMomoInstallment = Object.values(app.data.installmentPlans || {}).some(plan => isCreditMomo(plan.source) && plan.createdDate.startsWith(month));
+        const hasMomoInstallment = Object.values(app.data.installmentPlans || {}).some(plan =>
+            isCreditMomo(String(plan.source || '')) && app.logic.getLocalMonthKey(plan.createdDate) === month
+        );
 
         const hasMomoSpending = app.data.transactions.some(t => {
             const tags = t.tags || "";
             return t.type === 'Chi tiêu' &&
-                t.date.startsWith(month) &&
-                isCreditMomo(t.source) &&
+                app.logic.isTransactionInMonth(t, month) &&
+                isCreditMomo(String(t.source || '')) &&
                 t.status !== 'cancelled' &&
                 !tags.includes('#phi_dich_vu') &&
                 !tags.includes('#thanh_toan_no') &&
@@ -1557,7 +1597,7 @@ app.logic = {
                 !tags.includes('#tra_no_vay');
         });
 
-        const momoFeeIndex = app.data.transactions.findIndex(t => t.place === feeMap.momo.name && t.date.startsWith(month));
+        const momoFeeIndex = app.data.transactions.findIndex(t => t.place === feeMap.momo.name && app.logic.isTransactionInMonth(t, month));
 
         if ((hasMomoSpending || hasMomoInstallment)) {
             if (momoFeeIndex === -1) {
@@ -1630,7 +1670,7 @@ app.logic = {
 
         const paidFeeTx = app.data.transactions.find(t =>
             t.place === 'Phí dịch vụ Zalo Pay' &&
-            t.date.startsWith(prevMonthStr) &&
+            app.logic.isTransactionInMonth(t, prevMonthStr) &&
             t.status === 'paid' &&
             t.amount >= 20000
         );
@@ -1638,11 +1678,11 @@ app.logic = {
         if (!paidFeeTx) return;
 
         const prevSpending = app.data.transactions.reduce((sum, t) => {
-            const s = t.source.toLowerCase();
+            const s = String(t.source || '').toLowerCase();
             const isCreditZalo = s.includes('zalo') && (s.includes('trả sau') || s.includes('priority') || s.includes('paylater'));
             const tags = t.tags || '';
 
-            if (t.type === 'Chi tiêu' && t.date.startsWith(prevMonthStr) && isCreditZalo && t.status !== 'cancelled' &&
+            if (t.type === 'Chi tiêu' && app.logic.isTransactionInMonth(t, prevMonthStr) && isCreditZalo && t.status !== 'cancelled' &&
                 !tags.includes('#phi_dich_vu') && !tags.includes('#thanh_toan_no') &&
                 !tags.includes('#du_no_chuyen_tiep') && !tags.includes('#tra_gop')) {
                 return sum + t.amount;
@@ -1745,83 +1785,57 @@ app.logic = {
         const currentMonth = app.data.filter.month;
         const limit = Number(app.data.configs.monthlyLimits?.[currentMonth]) || 0;
 
-        // 1. Xác định ngày hôm nay
         const now = new Date();
-        const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-
-        // 2. Lấy số ngày trong tháng
+        const todayStr = this.getLocalDateKey(now);
         const [y, m] = currentMonth.split('-').map(Number);
         const daysInMonth = new Date(y, m, 0).getDate();
+        const dailyCap = daysInMonth > 0 ? limit / daysInMonth : 0;
 
-        // 3. Tính ngân sách trung bình mỗi ngày (Daily Cap)
-        const dailyCap = limit / daysInMonth;
-
-        // 4. Tính chi tiêu HÔM NAY 
+        // Kế hoạch ngày chỉ phản ánh tiền thực sự đã chi.
+        // Giữ cả giao dịch bị loại trừ trong danh sách để người dùng có thể bật lại.
         const todayTxs = app.data.transactions.filter(t => {
-            // A. Phải là ngày hôm nay
-            const txDate = t.date.substring(0, 10);
-            if (txDate !== todayStr) return false;
+            if (this.getLocalDateKey(t.date) !== todayStr) return false;
+            if (t.type !== 'Chi tiêu' || t.type === 'Chuyển tiền') return false;
+            if (t.status !== 'paid') return false;
 
-            // [MỚI] Chặn Chuyển tiền ngay lập tức
-            if (t.type === 'Chuyển tiền') return false;
-
-            // B. Phải là Chi tiêu
-            if (t.type !== 'Chi tiêu') return false;
-
-            // C. Không bị loại trừ thủ công
-            if (t.excludeFromBudget) return false;
-
-            // D. [LOGIC MỚI] ÁP DỤNG QUY TẮC NGÂN SÁCH TÍN DỤNG
-            // 1. Nếu là trả nợ (gồm cả trả góp, trả phí, trả phạt) -> TÍNH (return true)
-            const tags = (t.tags || "").toLowerCase();
-            const isDebtPayment =
-                tags.includes('#thanh_toan_no') ||
-                tags.includes('#thanh_toan_phi') ||
-                tags.includes('#nop_phat') ||
-                tags.includes('#tra_gop') ||
-                tags.includes('#tat_toan_vay');
-
-            if (isDebtPayment) return true;
-
-            // 2. Nếu là tiêu dùng bằng tín dụng (Zalo/Momo/Shopee...) -> KHÔNG TÍNH (return false)
-            const s = t.source.toLowerCase();
-            const isCreditSource =
-                (s.includes('zalo') && (s.includes('trả sau') || s.includes('priority') || s.includes('paylater'))) ||
-                (s.includes('momo') && (s.includes('trả sau') || s.includes('ví trả sau') || s.includes('credit'))) ||
-                (s.includes('shopee') || s.includes('spay') || s.includes('airpay')) ||
-                (s.includes('tiktok')) ||
-                (s.includes('tín dụng') || s.includes('thẻ') || s.includes('credit'));
-
-            if (isCreditSource) return false;
-
-            // 3. Loại trừ luân chuyển nội bộ
+            const tags = this.getTransactionTags(t);
             if (tags.includes('#du_no_chuyen_tiep') || tags.includes('#da_chuyen_tra_gop')) return false;
+
+            if (this.isDebtPaymentTransaction(t)) return true;
+            if (this.isCreditSource(t.source)) return false;
 
             return true;
         });
 
-        const todaySpent = todayTxs.reduce((sum, t) => sum + t.amount, 0);
+        const countedTodayTxs = todayTxs.filter(t =>
+            t.excludeFromBudget !== true &&
+            t.excludeFromDailyBudget !== true
+        );
 
-        // 5. Tính số dư khả dụng tổng thể
-        // Sử dụng logic mới của getBudgetTransactions() để tính tổng chi tiêu chuẩn xác
+        const todaySpent = countedTodayTxs.reduce(
+            (sum, t) => sum + (Number(t.amount) || 0),
+            0
+        );
+
         const budgetTxs = this.getBudgetTransactions();
-        const totalSpentMonth = budgetTxs.reduce((sum, t) => sum + t.amount, 0);
+        const totalSpentMonth = budgetTxs.reduce(
+            (sum, t) => sum + (Number(t.amount) || 0),
+            0
+        );
 
         const upcoming = this.getUpcomingDebts();
-
-        // Công thức: Dư = Hạn mức - (Đã trả thực tế + Nợ sắp phải trả)
         const available = limit - totalSpentMonth - upcoming.total;
-
         const daysFunded = dailyCap > 0 ? Math.floor(available / dailyCap) : 0;
 
         return {
-            dailyCap: dailyCap,
-            todaySpent: todaySpent,
+            dailyCap,
+            todaySpent,
             surplus: dailyCap - todaySpent,
-            available: available,
+            available,
             daysFunded: Math.max(0, daysFunded),
             status: available < 0 ? 'broke' : 'ok',
-            todayTxs: todayTxs
+            todayTxs,
+            countedTodayTxs
         };
     },
 
