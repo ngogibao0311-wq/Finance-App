@@ -281,18 +281,46 @@ app.ui = {
             budgetIncome -
             totalUsed;
 
-        // Tỷ lệ thanh tiến trình dựa trên Giới hạn chi tiêu tháng
-        const actualPercent = limit > 0
+        /*
+         * Tổng sức chứa thật của thanh ngân sách:
+         *
+         * Hạn mức cấp trước
+         * + Thu nhập thực tế được phép tính vào ngân sách.
+         *
+         * Với các tháng dùng cơ chế cũ, tiếp tục lấy
+         * Giới hạn chi tiêu tháng làm số tiền nền.
+         */
+        const baseLimitForProgress =
+            app.logic.isMonthlyLimitCreditEnabled(currentMonth)
+                ? limitCredit
+                : limit;
+
+        const progressCapacity = Math.max(
+            0,
+            baseLimitForProgress + budgetIncome
+        );
+
+        /*
+         * Phần đã tiêu tính trên toàn bộ nguồn tiền khả dụng.
+         * Khi có thêm thu nhập, sức chứa thanh tăng lên,
+         * vì vậy phần đã sử dụng sẽ được hiển thị chính xác hơn.
+         */
+        const actualPercent = progressCapacity > 0
             ? Math.min(
                 100,
-                (totalExpense / limit) * 100
+                (totalExpense / progressCapacity) * 100
             )
             : 0;
 
-        let projectedPercent = limit > 0
-            ? (projectedDebtBar / limit) * 100
+        /*
+         * Phần nợ dự kiến tiếp tục được vẽ riêng
+         * bằng thanh sọc như chức năng hiện tại.
+         */
+        let projectedPercent = progressCapacity > 0
+            ? (projectedDebtBar / progressCapacity) * 100
             : 0;
 
+        // Không cho tổng hai phần vượt khỏi chiều dài thanh
         if (actualPercent + projectedPercent > 100) {
             projectedPercent = Math.max(
                 0,
@@ -352,8 +380,8 @@ app.ui = {
             remainEl.innerHTML = `Khả dụng: <b style="color:var(--danger)">${app.logic.formatCurrency(remain)}</b>`;
 
         } else if (
-            limit > 0 &&
-            (totalUsed / limit) > 0.8
+            progressCapacity > 0 &&
+            (totalUsed / progressCapacity) > 0.8
         ) {
             // --- CẢNH BÁO ---
             barActual.classList.add('warning');
