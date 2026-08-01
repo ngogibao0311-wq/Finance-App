@@ -290,15 +290,27 @@ app.ui = {
          * Với các tháng dùng cơ chế cũ, tiếp tục lấy
          * Giới hạn chi tiêu tháng làm số tiền nền.
          */
-        const baseLimitForProgress =
-            app.logic.isMonthlyLimitCreditEnabled(currentMonth)
-                ? limitCredit
-                : limit;
+        const usesMonthlyLimitCredit =
+            app.logic.isMonthlyLimitCreditEnabled(currentMonth);
 
-        const progressCapacity = Math.max(
-            0,
-            baseLimitForProgress + budgetIncome
-        );
+        /*
+         * Từ 08/2026 trở đi:
+         * Hạn mức cấp trước + thu nhập thực tế
+         * làm tăng sức chứa của thanh.
+         *
+         * Các tháng trước 08/2026:
+         * Giữ nguyên thanh ngân sách theo cách cũ,
+         * chỉ dựa trên Giới hạn chi tiêu tháng.
+         */
+        const progressCapacity = usesMonthlyLimitCredit
+            ? Math.max(
+                0,
+                limitCredit + budgetIncome
+            )
+            : Math.max(
+                0,
+                limit
+            );
 
         /*
          * Phần đã tiêu tính trên toàn bộ nguồn tiền khả dụng.
