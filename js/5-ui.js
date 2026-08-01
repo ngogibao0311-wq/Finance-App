@@ -3213,7 +3213,7 @@ ${payAllHTML}
                 },
                 plugins: {
                     legend: {
-                        position: 'right', // Chuyển chú thích sang phải để biểu đồ to hơn theo chiều dọc
+                        position: window.innerWidth <= 768 ? 'bottom' : 'right',
                         labels: {
                             boxWidth: 12,
                             padding: 15,

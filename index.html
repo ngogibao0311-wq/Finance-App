@@ -7,7 +7,7 @@
     <title>FinDash - Cartoon Edition</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://<div id=" security-overlay"fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
         href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&family=JetBrains+Mono:wght@600&family=Black+Ops+One&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap"
         rel="stylesheet">
@@ -68,8 +68,7 @@
         <div style="margin-top: 2rem; font-size: 0.8rem; color: #555;">Được bảo vệ bởi AES-256 Encryption</div>
     </div>
 
-    <div id="mobile-backdrop" class="mobile-backdrop hidden" onclick="app.ui.toggleMobileMenu()"
-        style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999"></div>
+    <div id="mobile-backdrop" class="mobile-backdrop" aria-hidden="true"></div>
 
     <aside id="sidebar">
         <div class="brand-box">
@@ -237,19 +236,23 @@
 
     <main>
         <header class="main-header">
-            <div style="display:flex; align-items:center; gap: 1rem;">
-                <button class="btn-ghost mobile-menu-toggle" onclick="app.ui.toggleMobileMenu()"
-                    style="display:inline-flex; font-size: 1.5rem; color: var(--text-main);">
-                    <i class="fa-solid fa-bars"></i>
-                </button>
-                <div>
-                    <h1 class="page-title" id="periodDisplay">Dashboard</h1>
-                    <p class="page-subtitle">Xin chào, hôm nay bạn tiêu gì?</p>
-                </div>
+            <button type="button"
+                class="btn-ghost mobile-menu-toggle"
+                onclick="app.ui.toggleMobileMenu()"
+                aria-label="Mở menu"
+                aria-expanded="false">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+
+            <div class="mobile-header-title">
+                <h1 class="page-title" id="periodDisplay">Dashboard</h1>
+                <p class="page-subtitle">Xin chào, hôm nay bạn tiêu gì?</p>
             </div>
+
             <div class="search-container">
                 <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                <input type="text" id="search-input" class="search-input" placeholder="Tìm giao dịch...">
+                <input type="text" id="search-input" class="search-input"
+                    placeholder="Tìm giao dịch..." autocomplete="off">
             </div>
         </header>
 
@@ -1492,12 +1495,6 @@
             activateHoliday304Theme();
             activateHoliday83Theme();
 
-            // Logic cũ của App
-            if (typeof app !== 'undefined' && app.security) {
-                app.security.init();
-            } else if (typeof app !== 'undefined') {
-                app.startSession();
-            }
         });
 
 

@@ -3337,31 +3337,67 @@ document.getElementById('gemini-prompt').addEventListener('keypress', (e) => {
 window.app = window.app || {};
 window.app.ui = window.app.ui || {};
 
-// 2. Định nghĩa hàm mở menu
-app.ui.toggleMobileMenu = function () {
-    console.log("Đã bấm nút menu!"); // Kiểm tra xem nút có ăn không
-
+// 2. Điều khiển menu mobile thống nhất
+app.ui.toggleMobileMenu = function (forceOpen) {
     const sidebar = document.getElementById('sidebar');
     const backdrop = document.getElementById('mobile-backdrop');
+    const toggleButtons = document.querySelectorAll('.mobile-menu-toggle');
 
-    // Tìm thấy sidebar thì thêm/bớt class 'active'
-    if (sidebar) {
-        sidebar.classList.toggle('active');
-    } else {
-        console.error("Lỗi: Không tìm thấy ID 'sidebar' trong HTML");
-    }
+    if (!sidebar) return false;
 
-    // Xử lý màn hình đen mờ che nền (nếu có)
+    const shouldOpen = typeof forceOpen === 'boolean'
+        ? forceOpen
+        : !sidebar.classList.contains('active');
+
+    // Trên mobile luôn mở sidebar ở trạng thái đầy đủ.
+    if (shouldOpen) sidebar.classList.remove('collapsed');
+
+    sidebar.classList.toggle('active', shouldOpen);
+    document.body.classList.toggle('mobile-menu-open', shouldOpen);
+
     if (backdrop) {
-        if (sidebar.classList.contains('active')) {
-            backdrop.style.display = 'block'; // Hiện
-            setTimeout(() => backdrop.classList.add('active'), 10); // Hiệu ứng mờ dần
-        } else {
-            backdrop.classList.remove('active'); // Mất hiệu ứng
-            setTimeout(() => backdrop.style.display = 'none', 300); // Ẩn hẳn
-        }
+        // Xóa style inline của phiên bản cũ để CSS quản lý.
+        backdrop.style.removeProperty('display');
+        backdrop.classList.toggle('active', shouldOpen);
+        backdrop.setAttribute('aria-hidden', String(!shouldOpen));
     }
+
+    toggleButtons.forEach((button) => {
+        button.setAttribute('aria-expanded', String(shouldOpen));
+        button.setAttribute(
+            'aria-label',
+            shouldOpen ? 'Đóng menu' : 'Mở menu'
+        );
+    });
+
+    return shouldOpen;
 };
+
+// Đóng menu khi chuyển sang màn hình máy tính.
+window.addEventListener('resize', () => {
+    if (window.innerWidth > 768) {
+        app.ui.toggleMobileMenu(false);
+    }
+}, { passive: true });
+
+// Nhấn Escape để đóng menu.
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && window.innerWidth <= 768) {
+        app.ui.toggleMobileMenu(false);
+    }
+});
+
+// Chạm vào nền tối để đóng menu.
+document.addEventListener('DOMContentLoaded', () => {
+    const backdrop = document.getElementById('mobile-backdrop');
+
+    if (backdrop) {
+        backdrop.setAttribute('aria-hidden', 'true');
+        backdrop.addEventListener('click', () => {
+            app.ui.toggleMobileMenu(false);
+        });
+    }
+});
 // ==========================================
 // THUẬT TOÁN ĐO KHOẢNG CÁCH CHỈNH SỬA (MỚI)
 // ==========================================
@@ -3478,3 +3514,41 @@ function isTargetLanguage(text, targetLang) {
     // Nếu là ngôn ngữ khác (Tiếng Nhật, v.v.) có thể mở rộng sau, tạm thời false để AI tự xử lý
     return false;
 }
+// ==========================================================
+// FIX TRẠNG THÁI KHÓA CUỘN MOBILE BỊ SÓT
+// ==========================================================
+(() => {
+    const clearStaleMobileScrollLock = () => {
+        if (window.innerWidth > 768) return;
+
+        const sidebar = document.getElementById('sidebar');
+        const backdrop = document.getElementById('mobile-backdrop');
+
+        const isMenuOpen =
+            sidebar?.classList.contains('active') === true;
+
+        document.body.classList.toggle(
+            'mobile-menu-open',
+            isMenuOpen
+        );
+
+        if (!isMenuOpen && backdrop) {
+            backdrop.classList.remove('active');
+            backdrop.setAttribute('aria-hidden', 'true');
+        }
+    };
+
+    document.addEventListener(
+        'DOMContentLoaded',
+        clearStaleMobileScrollLock
+    );
+
+    window.addEventListener(
+        'pageshow',
+        clearStaleMobileScrollLock
+    );
+
+    window.addEventListener('orientationchange', () => {
+        setTimeout(clearStaleMobileScrollLock, 150);
+    });
+})();
