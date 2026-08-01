@@ -2107,35 +2107,89 @@ app.logic = {
 
         return 0.03 * term;
     },
+    isZaloPrioritySource(source = '') {
+        const s = String(source || '').toLowerCase();
+
+        return s.includes('zalo') && (
+            s.includes('trả sau') ||
+            s.includes('priority') ||
+            s.includes('paylater') ||
+            s.includes('pay later')
+        );
+    },
+
     getZaloAccumulation(ignoreManual = false) {
-        const reviewDate = new Date(app.data.configs.zaloReviewDate);
+        const reviewKey = String(
+            app.data.configs.zaloReviewDate || ''
+        );
+
+        let reviewDate;
+
+        // Đọc YYYY-MM-DD theo giờ địa phương và lấy hết ngày xét hạng.
+        if (/^\d{4}-\d{2}-\d{2}$/.test(reviewKey)) {
+            const [year, month, day] =
+                reviewKey.split('-').map(Number);
+
+            reviewDate = new Date(
+                year,
+                month - 1,
+                day,
+                23,
+                59,
+                59,
+                999
+            );
+        } else {
+            reviewDate = new Date(reviewKey);
+            reviewDate.setHours(23, 59, 59, 999);
+        }
+
+        if (Number.isNaN(reviewDate.getTime())) {
+            return 0;
+        }
+
         const startDate = new Date(reviewDate);
         startDate.setMonth(startDate.getMonth() - 6);
+        startDate.setHours(0, 0, 0, 0);
 
-        const currentRealSum = app.data.transactions.reduce((sum, t) => {
-            const tDate = new Date(t.date);
-            const s = String(t.source || '').toLowerCase();
-            const tags = t.tags || "";
-            const isValid = t.type === 'Chi tiêu' &&
-                (t.status !== 'cancelled' || t.keepForZalo === true) &&
-                t.status !== 'planned' &&
-                s.includes('zalo') &&
-                t.skipZalo !== true &&
-                !tags.includes('#du_no_chuyen_tiep') &&
-                !tags.includes('#thanh_toan_no') &&
-                !tags.includes('#tra_gop') &&
-                !tags.includes('#tat_toan_vay') &&
-                (tDate >= startDate && tDate <= reviewDate);
+        const currentRealSum =
+            app.data.transactions.reduce((sum, t) => {
+                const tDate = new Date(t.date);
+                const tags = String(t.tags || '');
 
-            if (isValid) {
-                return sum + t.amount;
-            }
-            return sum;
-        }, 0);
+                const isValid =
+                    !Number.isNaN(tDate.getTime()) &&
+                    t.type === 'Chi tiêu' &&
+                    (
+                        t.status !== 'cancelled' ||
+                        t.keepForZalo === true
+                    ) &&
+                    t.status !== 'planned' &&
+                    app.logic.isZaloPrioritySource(t.source) &&
+                    t.skipZalo !== true &&
+                    !tags.includes('#phi_dich_vu') &&
+                    !tags.includes('#du_no_chuyen_tiep') &&
+                    !tags.includes('#thanh_toan_no') &&
+                    !tags.includes('#tra_gop') &&
+                    !tags.includes('#tat_toan_vay') &&
+                    tDate >= startDate &&
+                    tDate <= reviewDate;
 
-        if (ignoreManual) return currentRealSum;
-        const offset = Number(app.data.configs.manualZaloOffset || 0);
-        return currentRealSum + offset;
+                return isValid
+                    ? sum + (Number(t.amount) || 0)
+                    : sum;
+            }, 0);
+
+        if (ignoreManual) {
+            return currentRealSum;
+        }
+
+        const offset = Number(
+            app.data.configs.manualZaloOffset || 0
+        );
+
+        // Không cho tổng tích lũy trở thành số âm.
+        return Math.max(0, currentRealSum + offset);
     },
     getTikTokInstallmentQuote(principal, months) {
         const originalPrincipal = Math.max(
@@ -2237,26 +2291,116 @@ app.logic = {
         };
     },
     checkAndRolloverZaloCycle() {
+        const configs = app.data.configs;
         const today = new Date();
-        const reviewDate = new Date(app.data.configs.zaloReviewDate);
 
-        if (today > reviewDate) {
-            const finalAccumulated = app.logic.getZaloAccumulation();
-            let achievedRankId = 'member';
-            if (finalAccumulated >= 60000000) achievedRankId = 'diamond';
-            else if (finalAccumulated >= 18000000) achievedRankId = 'gold';
-            else if (finalAccumulated >= 3000000) achievedRankId = 'silver';
+        const parseReviewDate = (value) => {
+            const key = String(value || '');
 
-            app.data.configs.manualZaloRank = achievedRankId;
+            if (/^\d{4}-\d{2}-\d{2}$/.test(key)) {
+                const [year, month, day] =
+                    key.split('-').map(Number);
 
-            const nextReview = new Date(reviewDate);
-            nextReview.setMonth(nextReview.getMonth() + 6);
-            app.data.configs.zaloReviewDate = nextReview.toISOString().split('T')[0];
+                return new Date(
+                    year,
+                    month - 1,
+                    day,
+                    23,
+                    59,
+                    59,
+                    999
+                );
+            }
 
-            app.data.configs.manualZaloAmount = 0;
+            const parsed = new Date(key);
+            parsed.setHours(23, 59, 59, 999);
 
+            return parsed;
+        };
+
+        const formatDateKey = (date) => (
+            `${date.getFullYear()}-` +
+            `${String(date.getMonth() + 1)
+                .padStart(2, '0')}-` +
+            `${String(date.getDate())
+                .padStart(2, '0')}`
+        );
+
+        let reviewDate =
+            parseReviewDate(configs.zaloReviewDate);
+
+        if (Number.isNaN(reviewDate.getTime())) {
+            console.error(
+                'Ngày xét hạng Zalo không hợp lệ:',
+                configs.zaloReviewDate
+            );
+            return;
+        }
+
+        let rolledCycles = 0;
+        let finalAccumulated = 0;
+        let achievedRankId =
+            configs.manualZaloRank || 'member';
+
+        /*
+         * Duyệt liên tục cho đến khi ngày xét hạng
+         * nằm trong tương lai.
+         */
+        while (
+            today > reviewDate &&
+            rolledCycles < 24
+        ) {
+            finalAccumulated =
+                app.logic.getZaloAccumulation(false);
+
+            achievedRankId =
+                app.logic.getZaloRankInfo(
+                    finalAccumulated,
+                    null
+                ).id;
+
+            configs.manualZaloRank =
+                achievedRankId;
+
+            // Xóa toàn bộ điều chỉnh của chu kỳ cũ.
+            configs.manualZaloAmount = null;
+            configs.manualZaloOffset = 0;
+            configs.zaloManualCount = 0;
+
+            const nextReview =
+                new Date(reviewDate);
+
+            nextReview.setMonth(
+                nextReview.getMonth() + 6
+            );
+
+            nextReview.setHours(
+                23,
+                59,
+                59,
+                999
+            );
+
+            reviewDate = nextReview;
+
+            configs.zaloReviewDate =
+                formatDateKey(reviewDate);
+
+            rolledCycles += 1;
+        }
+
+        if (rolledCycles > 0) {
             app.storage.save();
-            alert(`🎉 CHÚC MỪNG!\nĐã kết thúc chu kỳ xét hạng Zalo Priority.\n\n- Tổng chi tiêu: ${app.logic.formatCurrency(finalAccumulated)}\n- Hạng mới: ${achievedRankId.toUpperCase()}\n- Ngày xét hạng tới: ${app.data.configs.zaloReviewDate}`);
+
+            alert(
+                `🎉 Đã cập nhật ${rolledCycles} chu kỳ Zalo Priority.\n\n` +
+                `- Tổng chi tiêu chu kỳ gần nhất: ` +
+                `${app.logic.formatCurrency(finalAccumulated)}\n` +
+                `- Hạng hiện tại: ` +
+                `${achievedRankId.toUpperCase()}\n` +
+                `- Ngày xét hạng tới: ` +
+                `${configs.zaloReviewDate}`
+            );
         }
     },
 
@@ -2376,13 +2520,15 @@ app.logic = {
 
         const hasZaloSpending = app.data.transactions.some(t => {
             const s = String(t.source || '').toLowerCase();
-            const isZaloCredit = s.includes('zalo') && (s.includes('trả sau') || s.includes('priority') || s.includes('paylater'));
+            const isZaloCredit =
+                app.logic.isZaloPrioritySource(t.source);
             const tags = t.tags || "";
 
             return t.type === 'Chi tiêu' &&
                 app.logic.isTransactionInMonth(t, month) &&
                 isZaloCredit &&
                 t.status !== 'cancelled' &&
+                t.status !== 'planned' &&
                 !tags.includes('#phi_dich_vu') &&
                 !tags.includes('#thanh_toan_no') &&
                 !tags.includes('#tra_gop') &&
@@ -2500,7 +2646,11 @@ app.logic = {
 
     processPriorityRefund() {
         const now = new Date();
-        const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const prevDate = new Date(
+            now.getFullYear(),
+            now.getMonth() - 1,
+            1
+        );
         const prevMonthStr = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
         const refundTagKey = `#hoan_phi_zalo_${prevMonthStr.replace('-', '_')}`;
 
@@ -2519,11 +2669,13 @@ app.logic = {
         if (!paidFeeTx) return;
 
         const prevSpending = app.data.transactions.reduce((sum, t) => {
-            const s = String(t.source || '').toLowerCase();
-            const isCreditZalo = s.includes('zalo') && (s.includes('trả sau') || s.includes('priority') || s.includes('paylater'));
+            const isCreditZalo =
+                app.logic.isZaloPrioritySource(t.source);
             const tags = t.tags || '';
 
-            if (t.type === 'Chi tiêu' && app.logic.isTransactionInMonth(t, prevMonthStr) && isCreditZalo && t.status !== 'cancelled' &&
+            if (t.type === 'Chi tiêu' && app.logic.isTransactionInMonth(t, prevMonthStr) && isCreditZalo &&
+                t.status !== 'cancelled' &&
+                t.status !== 'planned' &&
                 !tags.includes('#phi_dich_vu') && !tags.includes('#thanh_toan_no') &&
                 !tags.includes('#du_no_chuyen_tiep') && !tags.includes('#tra_gop')) {
                 return sum + t.amount;

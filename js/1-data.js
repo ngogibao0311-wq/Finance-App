@@ -16,6 +16,7 @@ const app = {
             sidebarCollapsed: false,
             manualZaloRank: null,
             manualZaloAmount: null,
+            manualZaloOffset: 0,
             zaloManualCount: 0,
             shopeePayBillingGroup: 2,
             // Cơ chế hạn mức cấp trước chỉ áp dụng từ tháng 08/2026 trở đi.

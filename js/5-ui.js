@@ -1151,10 +1151,8 @@ app.ui = {
 
         // 2. Logic tính toán chi tiêu tháng (Giữ nguyên logic cũ)
         const month = app.data.filter.month;
-        const isCreditZalo = (source) => {
-            const s = String(source || '').toLowerCase();
-            return s.includes('zalo') && (s.includes('trả sau') || s.includes('priority') || s.includes('paylater'));
-        };
+        const isCreditZalo = (source) =>
+            app.logic.isZaloPrioritySource(source);
         const zaloTxs = app.data.transactions.filter(t => {
             const tags = t.tags || '';
             return t.type === 'Chi tiêu' &&
@@ -1165,7 +1163,8 @@ app.ui = {
                 !tags.includes('#du_no_chuyen_tiep') &&
                 !tags.includes('#tat_toan_vay') &&
                 !tags.includes('#nop_phat') &&
-                t.status !== 'cancelled';
+                t.status !== 'cancelled' &&
+                t.status !== 'planned';
         });
 
         const totalZaloSpend = zaloTxs.reduce((sum, t) => sum + t.amount, 0);
@@ -3601,8 +3600,8 @@ ${payAllHTML}
                     tx.isCancelDateFixed = false;
 
                     // Logic Zalo Priority
-                    const s = tx.source.toLowerCase();
-                    const isZaloType = s.includes('zalo') && (s.includes('trả sau') || s.includes('priority'));
+                    const isZaloType =
+                        app.logic.isZaloPrioritySource(tx.source);
 
                     if (isZaloType) {
                         setTimeout(() => {

@@ -937,8 +937,13 @@ app.events = {
                 }
             }
 
-            const sCheck = data.source.toLowerCase();
-            if (!isMonthlyLimitCreditTx && sCheck.includes('zalo')) {
+            const isZaloPriority =
+                app.logic.isZaloPrioritySource(data.source);
+
+            if (
+                !isMonthlyLimitCreditTx &&
+                isZaloPriority
+            ) {
                 const isCounted = confirm(`Giao dịch Zalo: "${data.place}"\n\nBạn có muốn tính số tiền này vào Zalo Priority không?\n- OK: Có tính\n- Cancel: Không tính`);
                 data.skipZalo = !isCounted;
             }
