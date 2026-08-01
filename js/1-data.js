@@ -22,6 +22,7 @@ const app = {
             guestMode: false,
             apiKeys: { gemini: '' },
             sidebarCollapsed: false,
+            configPanelCollapsed: true,
             manualZaloRank: null,
             manualZaloAmount: null,
             manualZaloOffset: 0,

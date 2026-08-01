@@ -456,3 +456,42 @@ main {
         height: 60px !important;
     }
 }
+/* =====================================================
+   THU GỌN RIÊNG PHẦN CẤU HÌNH
+   ===================================================== */
+
+.config-panel-header {
+    cursor: pointer;
+    user-select: none;
+}
+
+#config-collapse-icon {
+    margin-left: 6px;
+    font-size: 0.7rem;
+    transition: transform 0.25s ease;
+}
+
+/* Ẩn Cloud Firebase và Gemini API Key */
+.config-panel.is-collapsed #config-inputs {
+    display: none !important;
+}
+
+/* Làm bảng thấp lại khi thu gọn */
+.config-panel.is-collapsed {
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+}
+
+/* Giảm khoảng cách giữa Cấu hình và đồng hồ */
+.config-panel.is-collapsed .config-panel-header {
+    margin-bottom: 8px !important;
+}
+
+.config-panel.is-collapsed .config-panel-footer {
+    margin-top: 0 !important;
+}
+
+/* Mũi tên quay sang phải khi thu gọn */
+.config-panel.is-collapsed #config-collapse-icon {
+    transform: rotate(-90deg);
+}

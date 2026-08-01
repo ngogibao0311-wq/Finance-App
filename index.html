@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FinDash - Cartoon Edition</title>
+    <title>FinDash — Premium Finance Dashboard</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -33,9 +33,11 @@
     <link rel="stylesheet" href="css/7-mobile.css">
     <link rel="stylesheet" href="css/8-holiday-304.css">
     <link rel="stylesheet" href="css/9-holiday-83.css">
+    <!-- Giao diện Premium V2: chỉ ghi đè phần nhìn, không chạm dữ liệu/chức năng -->
+    <link rel="stylesheet" href="css/10-premium-ui.css">
 </head>
 
-<body>
+<body class="ui-v2">
     <div id="security-overlay" class="hidden">
         <div class="lock-icon-box"><i class="fa-solid fa-lock"></i></div>
         <h2 style="margin-bottom: 0.5rem;">Private Mode</h2>
@@ -172,10 +174,15 @@
             </div>
         </div>
 
-        <div class="config-panel">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <span style="font-size: 0.9rem; font-weight:800; color: var(--text-main);"><i
-                        class="fa-solid fa-gears"></i> Cấu hình</span>
+        <div class="config-panel is-collapsed" id="config-panel">
+            <div id="config-panel-header" class="config-panel-header" title="Mở hoặc thu gọn cấu hình"
+                style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+
+                <span style="font-size:0.9rem; font-weight:800; color:var(--text-main);">
+                    <i class="fa-solid fa-gears"></i>
+                    Cấu hình
+                    <i id="config-collapse-icon" class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+                </span>
 
                 <div style="display: flex; gap: 0.5rem;">
                     <button id="guestModeBtn" class="btn-ghost" title="Che số tiền"><i
@@ -222,8 +229,9 @@
                     </button>
                 </div>
             </div>
-            <div
-                style="margin-top: 1rem; font-size: 0.8rem; font-weight:700; color: var(--text-muted); text-align: center; display:flex; justify-content:space-between; align-items:center">
+            <div class="config-panel-footer" style="margin-top:1rem; font-size:0.8rem; font-weight:700;
+    color:var(--text-muted); text-align:center; display:flex;
+    justify-content:space-between; align-items:center;">
                 <span>
                     <i class="fa-solid fa-clock"></i>
                     <span id="clock" style="font-family: 'Courier Prime', monospace; font-weight:bold;">--:--</span>
@@ -236,11 +244,8 @@
 
     <main>
         <header class="main-header">
-            <button type="button"
-                class="btn-ghost mobile-menu-toggle"
-                onclick="app.ui.toggleMobileMenu()"
-                aria-label="Mở menu"
-                aria-expanded="false">
+            <button type="button" class="btn-ghost mobile-menu-toggle" onclick="app.ui.toggleMobileMenu()"
+                aria-label="Mở menu" aria-expanded="false">
                 <i class="fa-solid fa-bars"></i>
             </button>
 
@@ -251,8 +256,8 @@
 
             <div class="search-container">
                 <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                <input type="text" id="search-input" class="search-input"
-                    placeholder="Tìm giao dịch..." autocomplete="off">
+                <input type="text" id="search-input" class="search-input" placeholder="Tìm giao dịch..."
+                    autocomplete="off">
             </div>
         </header>
 
@@ -528,23 +533,23 @@
                 </div>
 
                 <div style="margin-bottom: 1.5rem;">
-                    <div style="display: flex; gap: 10px; align-items: flex-start;">
-                        <div style="flex: 2;">
+                    <div class="tx-price-row" style="display: flex; gap: 10px; align-items: flex-start;">
+                        <div class="tx-original-price-field" style="flex: 2;">
                             <label class="form-label">Giá Gốc (Chưa giảm)</label>
                             <div style="position: relative;">
                                 <input type="text" id="tx-amount" class="form-input"
                                     style="font-size: 1.8rem; font-weight: 900; color: var(--primary); padding-left: 2.5rem;"
                                     required placeholder="0"
                                     onkeyup="this.value=this.value.replace(/[^0-9]/g,''); app.ui.calcDiscount()">
-                                <span
+                                <span class="tx-currency-prefix"
                                     style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); font-size: 1.5rem; color: var(--text-muted);">₫</span>
                             </div>
                         </div>
-                        <div style="flex: 1;">
-                            <label class="form-label"
+                        <div class="tx-discount-field" style="flex: 1;">
+                            <label class="form-label tx-discount-label"
                                 style="display: flex; justify-content: space-between; align-items: center;">
                                 <span id="discount-label-text">Giảm giá</span>
-                                <label
+                                <label class="tx-cashback-toggle"
                                     style="display: flex; align-items: center; gap: 4px; font-weight: 700; font-size: 0.75rem; cursor: pointer; color: var(--primary);">
                                     <input type="checkbox" id="tx-is-cashback" onchange="app.ui.toggleCashbackMode()"
                                         style="accent-color: var(--primary); width: 14px; height: 14px; cursor: pointer;">

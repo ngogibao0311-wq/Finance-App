@@ -64,8 +64,26 @@ app.init = async function () {  // <-- Thêm async
     // Load config trước để biết trạng thái sidebar, v.v. (Từ IndexedDB)
     try {
         const savedConfig = await app.storage.idbGet('fm_configs');
-        if (savedConfig) this.data.configs = { ...this.data.configs, ...savedConfig };
-        if (this.data.configs.sidebarCollapsed) document.getElementById('sidebar').classList.add('collapsed');
+        if (savedConfig) {
+            this.data.configs = {
+                ...this.data.configs,
+                ...savedConfig
+            };
+        }
+
+        if (this.data.configs.sidebarCollapsed) {
+            document.getElementById('sidebar')?.classList.add('collapsed');
+        }
+
+        /* Khôi phục trạng thái thu gọn của bảng Cấu hình */
+        const configPanel = document.getElementById('config-panel');
+
+        if (configPanel) {
+            configPanel.classList.toggle(
+                'is-collapsed',
+                this.data.configs.configPanelCollapsed !== false
+            );
+        }
     } catch (e) { }
 
     // Setup sự kiện
@@ -497,13 +515,34 @@ app.events = {
             });
         });
 
-        // 2. Logic cũ: Nút thu gọn sidebar trên Desktop
+        // Nút thu gọn toàn bộ sidebar
         document.getElementById('btn-toggle-sidebar').addEventListener('click', () => {
             const sidebar = document.getElementById('sidebar');
+
             sidebar.classList.toggle('collapsed');
-            app.data.configs.sidebarCollapsed = sidebar.classList.contains('collapsed');
+
+            app.data.configs.sidebarCollapsed =
+                sidebar.classList.contains('collapsed');
+
             app.storage.save();
         });
+
+        // Thu gọn hoặc mở riêng bảng Cấu hình
+        const configPanel = document.getElementById('config-panel');
+        const configPanelHeader = document.getElementById('config-panel-header');
+
+        if (configPanel && configPanelHeader) {
+            configPanelHeader.addEventListener('click', event => {
+                if (event.target.closest('button')) return;
+
+                configPanel.classList.toggle('is-collapsed');
+
+                app.data.configs.configPanelCollapsed =
+                    configPanel.classList.contains('is-collapsed');
+
+                app.storage.save();
+            });
+        }
 
         // 3. [THÊM MỚI] Logic đóng menu khi chạm ra ngoài vùng menu (Mobile)
         document.addEventListener('click', (event) => {
@@ -529,6 +568,25 @@ app.events = {
                 }
             };
         });
+
+        // Mobile: chạm đúng vùng nền tối bên ngoài form giao dịch để đóng.
+        // Không chạy khi chạm bên trong modal và không thay đổi dữ liệu đã lưu.
+        const transactionOverlay = document.getElementById('modal-tx');
+        if (transactionOverlay && !transactionOverlay.dataset.mobileBackdropCloseBound) {
+            transactionOverlay.dataset.mobileBackdropCloseBound = 'true';
+
+            transactionOverlay.addEventListener('click', (event) => {
+                if (window.innerWidth > 768) return;
+                if (event.target !== transactionOverlay) return;
+
+                transactionOverlay.classList.remove('active');
+
+                if (app.ui.transactionModalInterval) {
+                    clearInterval(app.ui.transactionModalInterval);
+                    app.ui.transactionModalInterval = null;
+                }
+            });
+        }
 
         const removeAccents = (str) => {
             return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
