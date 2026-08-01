@@ -2107,8 +2107,261 @@ app.logic = {
 
         return 0.03 * term;
     },
+    parseZaloDateKey(value, endOfDay = false) {
+        const raw = String(value || '');
+        let date;
+
+        if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+            const [year, month, day] =
+                raw.split('-').map(Number);
+
+            date = new Date(
+                year,
+                month - 1,
+                day
+            );
+        } else {
+            date = new Date(value);
+        }
+
+        if (Number.isNaN(date.getTime())) {
+            return null;
+        }
+
+        date.setHours(
+            endOfDay ? 23 : 0,
+            endOfDay ? 59 : 0,
+            endOfDay ? 59 : 0,
+            endOfDay ? 999 : 0
+        );
+
+        return date;
+    },
+
+    formatZaloDateKey(value) {
+        const date = value instanceof Date
+            ? value
+            : this.parseZaloDateKey(value);
+
+        if (
+            !date ||
+            Number.isNaN(date.getTime())
+        ) {
+            return '';
+        }
+
+        return (
+            `${date.getFullYear()}-` +
+            `${String(date.getMonth() + 1)
+                .padStart(2, '0')}-` +
+            `${String(date.getDate())
+                .padStart(2, '0')}`
+        );
+    },
+
+    shiftZaloDateKey(
+        value,
+        months = 0,
+        days = 0
+    ) {
+        const base =
+            this.parseZaloDateKey(value);
+
+        if (!base) return '';
+
+        const originalDay = base.getDate();
+
+        const firstOfTargetMonth = new Date(
+            base.getFullYear(),
+            base.getMonth() +
+            Number(months || 0),
+            1,
+            12,
+            0,
+            0,
+            0
+        );
+
+        const lastDayOfTargetMonth =
+            new Date(
+                firstOfTargetMonth
+                    .getFullYear(),
+                firstOfTargetMonth
+                    .getMonth() + 1,
+                0
+            ).getDate();
+
+        const result = new Date(
+            firstOfTargetMonth.getFullYear(),
+            firstOfTargetMonth.getMonth(),
+            Math.min(
+                originalDay,
+                lastDayOfTargetMonth
+            ),
+            12,
+            0,
+            0,
+            0
+        );
+
+        result.setDate(
+            result.getDate() +
+            Number(days || 0)
+        );
+
+        return this.formatZaloDateKey(result);
+    },
+
+    ensureZaloPriorityConfig() {
+        const configs = app.data.configs;
+
+        const validRanks = [
+            'member',
+            'silver',
+            'gold',
+            'diamond'
+        ];
+
+        const todayKey =
+            this.formatZaloDateKey(
+                new Date()
+            );
+
+        let changed = false;
+
+        /*
+         * Chuyển dữ liệu hạng cũ sang
+         * zaloCurrentRank.
+         */
+        if (
+            !validRanks.includes(
+                configs.zaloCurrentRank
+            )
+        ) {
+            configs.zaloCurrentRank =
+                validRanks.includes(
+                    configs.manualZaloRank
+                )
+                    ? configs.manualZaloRank
+                    : 'member';
+
+            changed = true;
+        }
+
+        const hasReviewDate =
+            /^\d{4}-\d{2}-\d{2}$/.test(
+                String(
+                    configs.zaloReviewDate ||
+                    ''
+                )
+            );
+
+        const hasStartDate =
+            /^\d{4}-\d{2}-\d{2}$/.test(
+                String(
+                    configs.zaloRankStartDate ||
+                    ''
+                )
+            );
+
+        /*
+         * Có ngày xét nhưng chưa có ngày
+         * bắt đầu: suy ra chu kỳ cũ.
+         *
+         * Ví dụ:
+         * xét 30/06 -> bắt đầu 01/01.
+         */
+        if (
+            !hasStartDate &&
+            hasReviewDate
+        ) {
+            configs.zaloRankStartDate =
+                this.shiftZaloDateKey(
+                    this.shiftZaloDateKey(
+                        configs.zaloReviewDate,
+                        0,
+                        1
+                    ),
+                    -6,
+                    0
+                )
+
+            changed = true;
+        }
+
+        /*
+         * Không có dữ liệu ngày nào thì
+         * bắt đầu chu kỳ từ hôm nay.
+         */
+        if (
+            !/^\d{4}-\d{2}-\d{2}$/.test(
+                String(
+                    configs.zaloRankStartDate ||
+                    ''
+                )
+            )
+        ) {
+            configs.zaloRankStartDate =
+                todayKey;
+
+            changed = true;
+        }
+
+        /*
+         * Chu kỳ đầu:
+         * ngày xét = ngày bắt đầu + 6 tháng
+         * - 1 ngày.
+         */
+        if (!hasReviewDate) {
+            configs.zaloReviewDate =
+                this.shiftZaloDateKey(
+                    configs.zaloRankStartDate,
+                    6,
+                    -1
+                );
+
+            changed = true;
+        }
+
+        if (
+            configs.zaloRankStartDate >
+            configs.zaloReviewDate
+        ) {
+            configs.zaloRankStartDate =
+                this.shiftZaloDateKey(
+                    this.shiftZaloDateKey(
+                        configs.zaloReviewDate,
+                        0,
+                        1
+                    ),
+                    -6,
+                    0
+                )
+
+            changed = true;
+        }
+
+        return changed;
+    },
+
+    /*
+     * Dùng cho xét hạng Priority.
+     * Chấp nhận ZaloPay thường,
+     * ZaloPay Priority và Trả sau.
+     */
     isZaloPrioritySource(source = '') {
-        const s = String(source || '').toLowerCase();
+        return String(source || '')
+            .toLowerCase()
+            .includes('zalo');
+    },
+
+    /*
+     * Chỉ dùng cho phí dịch vụ Trả sau.
+     * Không dùng hàm này để xét hạng.
+     */
+    isZaloPayLaterSource(source = '') {
+        const s = String(source || '')
+            .toLowerCase();
 
         return s.includes('zalo') && (
             s.includes('trả sau') ||
@@ -2118,78 +2371,186 @@ app.logic = {
         );
     },
 
-    getZaloAccumulation(ignoreManual = false) {
-        const reviewKey = String(
-            app.data.configs.zaloReviewDate || ''
+    isZaloPriorityEligibleTransaction(
+        transaction = {}
+    ) {
+        const tags = String(
+            transaction.tags || ''
         );
 
-        let reviewDate;
+        const excludedTags = [
+            '#phi_dich_vu',
+            '#thanh_toan_no',
+            '#du_no_chuyen_tiep',
+            '#tra_gop',
+            '#tat_toan_vay',
+            '#tra_no_vay',
+            '#nop_phat',
+            '#chuyen_tien',
+            '#chuyen_khoan',
+            '#ban_chung_khoan',
+            '#ban_chung_chi_quy'
+        ];
 
-        // Đọc YYYY-MM-DD theo giờ địa phương và lấy hết ngày xét hạng.
-        if (/^\d{4}-\d{2}-\d{2}$/.test(reviewKey)) {
-            const [year, month, day] =
-                reviewKey.split('-').map(Number);
+        return (
+            transaction.type === 'Chi tiêu' &&
 
-            reviewDate = new Date(
-                year,
-                month - 1,
-                day,
-                23,
-                59,
-                59,
-                999
+            transaction.status !==
+            'cancelled' &&
+
+            transaction.status !==
+            'planned' &&
+
+            transaction.skipZalo !== true &&
+
+            this.isZaloPrioritySource(
+                transaction.source
+            ) &&
+
+            !excludedTags.some(tag =>
+                tags.includes(tag)
+            )
+        );
+    },
+
+    getZaloEligibleTransactions(
+        options = {}
+    ) {
+        this.ensureZaloPriorityConfig();
+
+        const configs = app.data.configs;
+
+        const todayKey =
+            this.formatZaloDateKey(
+                new Date()
             );
-        } else {
-            reviewDate = new Date(reviewKey);
-            reviewDate.setHours(23, 59, 59, 999);
+
+        /*
+         * ZaloPay chốt số hết ngày
+         * trước ngày xét hạng.
+         */
+        const cutoffKey =
+            this.shiftZaloDateKey(
+                configs.zaloReviewDate,
+                0,
+                -1
+            );
+
+        const startKey = String(
+            options.startKey ||
+            configs.zaloRankStartDate
+        );
+
+        const defaultEndKey =
+            todayKey < cutoffKey
+                ? todayKey
+                : cutoffKey;
+
+        const endKey = String(
+            options.endKey ||
+            defaultEndKey
+        );
+
+        const startDate =
+            this.parseZaloDateKey(
+                startKey,
+                false
+            );
+
+        const endDate =
+            this.parseZaloDateKey(
+                endKey,
+                true
+            );
+
+        if (
+            !startDate ||
+            !endDate ||
+            startDate.getTime() >
+            endDate.getTime()
+        ) {
+            return [];
         }
 
-        if (Number.isNaN(reviewDate.getTime())) {
-            return 0;
-        }
+        return app.data.transactions
+            .filter(transaction => {
+                if (
+                    !this
+                        .isZaloPriorityEligibleTransaction(
+                            transaction
+                        )
+                ) {
+                    return false;
+                }
 
-        const startDate = new Date(reviewDate);
-        startDate.setMonth(startDate.getMonth() - 6);
-        startDate.setHours(0, 0, 0, 0);
+                const transactionDate =
+                    new Date(
+                        transaction.date
+                    );
 
+                if (
+                    Number.isNaN(
+                        transactionDate.getTime()
+                    )
+                ) {
+                    return false;
+                }
+
+                return (
+                    transactionDate >=
+                    startDate &&
+                    transactionDate <=
+                    endDate
+                );
+            })
+            .sort((a, b) => {
+                const timeDiff =
+                    new Date(a.date).getTime() -
+                    new Date(b.date).getTime();
+
+                if (timeDiff !== 0) {
+                    return timeDiff;
+                }
+
+                return (
+                    (Number(a.id) || 0) -
+                    (Number(b.id) || 0)
+                );
+            });
+    },
+
+    getZaloAccumulation(
+        ignoreManual = false,
+        options = {}
+    ) {
         const currentRealSum =
-            app.data.transactions.reduce((sum, t) => {
-                const tDate = new Date(t.date);
-                const tags = String(t.tags || '');
-
-                const isValid =
-                    !Number.isNaN(tDate.getTime()) &&
-                    t.type === 'Chi tiêu' &&
-                    (
-                        t.status !== 'cancelled' ||
-                        t.keepForZalo === true
-                    ) &&
-                    t.status !== 'planned' &&
-                    app.logic.isZaloPrioritySource(t.source) &&
-                    t.skipZalo !== true &&
-                    !tags.includes('#phi_dich_vu') &&
-                    !tags.includes('#du_no_chuyen_tiep') &&
-                    !tags.includes('#thanh_toan_no') &&
-                    !tags.includes('#tra_gop') &&
-                    !tags.includes('#tat_toan_vay') &&
-                    tDate >= startDate &&
-                    tDate <= reviewDate;
-
-                return isValid
-                    ? sum + (Number(t.amount) || 0)
-                    : sum;
-            }, 0);
+            this.getZaloEligibleTransactions(
+                options
+            )
+                .reduce(
+                    (sum, transaction) =>
+                        sum +
+                        (
+                            Number(
+                                transaction.amount
+                            ) || 0
+                        ),
+                    0
+                );
 
         if (ignoreManual) {
             return currentRealSum;
         }
 
         const offset = Number(
-            app.data.configs.manualZaloOffset || 0
+            app.data.configs
+                .manualZaloOffset || 0
         );
 
-        // Không cho tổng tích lũy trở thành số âm.
-        return Math.max(0, currentRealSum + offset);
+        return Math.max(
+            0,
+            currentRealSum + offset
+        );
     },
     getTikTokInstallmentQuote(principal, months) {
         const originalPrincipal = Math.max(
@@ -2245,163 +2606,462 @@ app.logic = {
             payments: payments
         };
     },
-    getZaloRankInfo(amount, manualRankOverride = null) {
+    getZaloRankInfo(
+        amount,
+        manualRankOverride = null
+    ) {
         const ranks = {
-            'diamond': { id: 'diamond', name: 'Kim Cương', color: 'var(--rank-diamond)', fee: 20000, next: null, min: 60000000, order: 4 },
-            'gold': { id: 'gold', name: 'Vàng', color: 'var(--rank-gold)', fee: 20000, next: 60000000, min: 18000000, order: 3 },
-            'silver': { id: 'silver', name: 'Bạc', color: 'var(--rank-silver)', fee: 20000, next: 18000000, min: 3000000, order: 2 },
-            'member': { id: 'member', name: 'Thành viên', color: '#3f3f46', fee: 20000, next: 3000000, min: 0, order: 1 }
+            diamond: {
+                id: 'diamond',
+                name: 'Kim Cương',
+                color:
+                    'var(--rank-diamond)',
+                fee: 20000,
+                next: null,
+                min: 60000000,
+                order: 4
+            },
+
+            gold: {
+                id: 'gold',
+                name: 'Vàng',
+                color:
+                    'var(--rank-gold)',
+                fee: 20000,
+                next: 60000000,
+                min: 18000000,
+                order: 3
+            },
+
+            silver: {
+                id: 'silver',
+                name: 'Bạc',
+                color:
+                    'var(--rank-silver)',
+                fee: 20000,
+                next: 18000000,
+                min: 3000000,
+                order: 2
+            },
+
+            member: {
+                id: 'member',
+                name: 'Thành viên',
+                color: '#3f3f46',
+                fee: 20000,
+                next: 3000000,
+                min: 0,
+                order: 1
+            }
         };
 
-        if (manualRankOverride && ranks[manualRankOverride]) {
-            return ranks[manualRankOverride];
+        if (
+            manualRankOverride &&
+            ranks[manualRankOverride]
+        ) {
+            return ranks[
+                manualRankOverride
+            ];
         }
 
-        if (amount >= 60000000) return ranks['diamond'];
-        if (amount >= 18000000) return ranks['gold'];
-        if (amount >= 3000000) return ranks['silver'];
-        return ranks['member'];
+        const normalizedAmount =
+            Math.max(
+                0,
+                Number(amount) || 0
+            );
+
+        if (
+            normalizedAmount >=
+            60000000
+        ) {
+            return ranks.diamond;
+        }
+
+        if (
+            normalizedAmount >=
+            18000000
+        ) {
+            return ranks.gold;
+        }
+
+        if (
+            normalizedAmount >=
+            3000000
+        ) {
+            return ranks.silver;
+        }
+
+        return ranks.member;
     },
-    getZaloRetentionState() {
-        const currentAccumulated = app.logic.getZaloAccumulation(false);
-        const baseRankInfo = app.logic.getZaloRankInfo(currentAccumulated, app.data.configs.manualZaloRank);
-        const realRankInfo = app.logic.getZaloRankInfo(currentAccumulated, null);
 
-        let effectiveRank = baseRankInfo;
-        if (realRankInfo.order > baseRankInfo.order) {
-            effectiveRank = realRankInfo;
-        }
+    getZaloRetentionState() {
+        this.ensureZaloPriorityConfig();
+
+        const accumulated =
+            this.getZaloAccumulation(false);
+
+        /*
+         * Hạng hiện tại được giữ nguyên
+         * đến ngày xét hạng.
+         */
+        const currentRank =
+            this.getZaloRankInfo(
+                0,
+                app.data.configs
+                    .zaloCurrentRank
+            );
+
+        /*
+         * Hạng dự kiến tại ngày xét dựa
+         * trên số tích lũy của chu kỳ này.
+         */
+        const projectedRank =
+            this.getZaloRankInfo(
+                accumulated
+            );
 
         let status = 'keep';
         let missing = 0;
 
-        if (realRankInfo.order < baseRankInfo.order) {
+        if (
+            projectedRank.order <
+            currentRank.order
+        ) {
             status = 'drop';
-            missing = baseRankInfo.min - currentAccumulated;
-        } else if (realRankInfo.order > baseRankInfo.order) {
+
+            missing = Math.max(
+                0,
+                currentRank.min -
+                accumulated
+            );
+        } else if (
+            projectedRank.order >
+            currentRank.order
+        ) {
             status = 'upgraded';
         }
 
         return {
-            currentRank: effectiveRank,
-            projectedRank: realRankInfo,
-            totalAccumulated: currentAccumulated,
-            status: status,
-            missing: missing
+            currentRank,
+            projectedRank,
+            totalAccumulated:
+                accumulated,
+            status,
+            missing,
+
+            startDate:
+                app.data.configs
+                    .zaloRankStartDate,
+
+            reviewDate:
+                app.data.configs
+                    .zaloReviewDate,
+
+            cutoffDate:
+                this.shiftZaloDateKey(
+                    app.data.configs
+                        .zaloReviewDate,
+                    0,
+                    -1
+                )
         };
     },
-    checkAndRolloverZaloCycle() {
-        const configs = app.data.configs;
-        const today = new Date();
 
-        const parseReviewDate = (value) => {
-            const key = String(value || '');
+    /*
+     * Đủ mốc hạng cao hơn thì
+     * nâng hạng ngay.
+     */
+    applyZaloInstantUpgrade(
+        options = {}
+    ) {
+        this.ensureZaloPriorityConfig();
 
-            if (/^\d{4}-\d{2}-\d{2}$/.test(key)) {
-                const [year, month, day] =
-                    key.split('-').map(Number);
+        const configs =
+            app.data.configs;
 
-                return new Date(
-                    year,
-                    month - 1,
-                    day,
-                    23,
-                    59,
-                    59,
-                    999
-                );
-            }
-
-            const parsed = new Date(key);
-            parsed.setHours(23, 59, 59, 999);
-
-            return parsed;
-        };
-
-        const formatDateKey = (date) => (
-            `${date.getFullYear()}-` +
-            `${String(date.getMonth() + 1)
-                .padStart(2, '0')}-` +
-            `${String(date.getDate())
-                .padStart(2, '0')}`
-        );
-
-        let reviewDate =
-            parseReviewDate(configs.zaloReviewDate);
-
-        if (Number.isNaN(reviewDate.getTime())) {
-            console.error(
-                'Ngày xét hạng Zalo không hợp lệ:',
-                configs.zaloReviewDate
+        const currentRank =
+            this.getZaloRankInfo(
+                0,
+                configs.zaloCurrentRank
             );
-            return;
+
+        const accumulated =
+            this.getZaloAccumulation(
+                false
+            );
+
+        const achievedRank =
+            this.getZaloRankInfo(
+                accumulated
+            );
+
+        if (
+            achievedRank.order <=
+            currentRank.order
+        ) {
+            return {
+                changed: false,
+                previousRank:
+                    currentRank,
+                currentRank,
+                accumulated
+            };
         }
 
-        let rolledCycles = 0;
-        let finalAccumulated = 0;
-        let achievedRankId =
-            configs.manualZaloRank || 'member';
+        /*
+         * Tìm ngày giao dịch làm tổng tiền
+         * chạm mốc hạng mới.
+         */
+        const transactions =
+            this.getZaloEligibleTransactions();
+
+        const offset = Number(
+            configs.manualZaloOffset || 0
+        );
+
+        let runningTotal = offset;
+
+        let upgradeDate =
+            this.formatZaloDateKey(
+                new Date()
+            );
+
+        for (
+            const transaction of
+            transactions
+        ) {
+            runningTotal +=
+                Number(
+                    transaction.amount
+                ) || 0;
+
+            if (
+                runningTotal >=
+                achievedRank.min
+            ) {
+                upgradeDate =
+                    this.getLocalDateKey(
+                        transaction.date
+                    );
+
+                break;
+            }
+        }
+
+        configs.zaloCurrentRank =
+            achievedRank.id;
+
+        // Giữ tương thích dữ liệu cũ.
+        configs.manualZaloRank =
+            achievedRank.id;
 
         /*
-         * Duyệt liên tục cho đến khi ngày xét hạng
-         * nằm trong tương lai.
+         * Khi lên hạng, chu kỳ 6 tháng
+         * mới bắt đầu ngay từ ngày lên hạng.
+         */
+        configs.zaloRankStartDate =
+            upgradeDate;
+
+        configs.zaloReviewDate =
+            this.shiftZaloDateKey(
+                upgradeDate,
+                6,
+                -1
+            );
+
+        configs.manualZaloAmount =
+            null;
+
+        configs.manualZaloOffset = 0;
+        configs.zaloManualCount = 0;
+
+        if (options.save !== false) {
+            app.storage.save();
+        }
+
+        return {
+            changed: true,
+            previousRank: currentRank,
+            currentRank: achievedRank,
+            accumulated,
+            upgradeDate,
+
+            reviewDate:
+                configs.zaloReviewDate
+        };
+    },
+
+    checkAndRolloverZaloCycle(
+        options = {}
+    ) {
+        const configs =
+            app.data.configs;
+
+        let changed =
+            this.ensureZaloPriorityConfig();
+
+        const todayKey =
+            this.formatZaloDateKey(
+                new Date()
+            );
+
+        let rolledCycles = 0;
+        let lastCycleAmount = 0;
+
+        let lastRank =
+            this.getZaloRankInfo(
+                0,
+                configs.zaloCurrentRank
+            );
+
+        /*
+         * Ngày xét hạng là ngày mở
+         * chu kỳ mới.
+         *
+         * Chu kỳ cũ chỉ tính đến hết
+         * ngày hôm trước.
          */
         while (
-            today > reviewDate &&
+            todayKey >=
+            configs.zaloReviewDate &&
             rolledCycles < 24
         ) {
-            finalAccumulated =
-                app.logic.getZaloAccumulation(false);
+            const oldReviewDate =
+                configs.zaloReviewDate;
 
-            achievedRankId =
-                app.logic.getZaloRankInfo(
-                    finalAccumulated,
-                    null
-                ).id;
+            const cutoffDate =
+                this.shiftZaloDateKey(
+                    oldReviewDate,
+                    0,
+                    -1
+                );
+
+            lastCycleAmount =
+                this.getZaloAccumulation(
+                    false,
+                    {
+                        startKey:
+                            configs
+                                .zaloRankStartDate,
+
+                        endKey:
+                            cutoffDate
+                    }
+                );
+
+            /*
+             * Đến ngày xét:
+             * đủ mức nào thì giữ hoặc
+             * chuyển về đúng mức đó.
+             */
+            lastRank =
+                this.getZaloRankInfo(
+                    lastCycleAmount
+                );
+
+            configs.zaloCurrentRank =
+                lastRank.id;
 
             configs.manualZaloRank =
-                achievedRankId;
+                lastRank.id;
 
-            // Xóa toàn bộ điều chỉnh của chu kỳ cũ.
-            configs.manualZaloAmount = null;
+            /*
+             * Ngày xét hạng đồng thời là
+             * ngày bắt đầu chu kỳ mới.
+             *
+             * Ví dụ:
+             * 30/06 -> chu kỳ tiếp theo
+             * xét ngày 30/12.
+             */
+            configs.zaloRankStartDate =
+                oldReviewDate;
+
+            configs.zaloReviewDate =
+                this.shiftZaloDateKey(
+                    oldReviewDate,
+                    6,
+                    0
+                );
+
+            configs.manualZaloAmount =
+                null;
+
             configs.manualZaloOffset = 0;
             configs.zaloManualCount = 0;
 
-            const nextReview =
-                new Date(reviewDate);
-
-            nextReview.setMonth(
-                nextReview.getMonth() + 6
-            );
-
-            nextReview.setHours(
-                23,
-                59,
-                59,
-                999
-            );
-
-            reviewDate = nextReview;
-
-            configs.zaloReviewDate =
-                formatDateKey(reviewDate);
-
             rolledCycles += 1;
+            changed = true;
         }
 
-        if (rolledCycles > 0) {
+        /*
+         * Sau khi xử lý ngày xét,
+         * kiểm tra tiếp khả năng nâng
+         * hạng tức thì trong chu kỳ mới.
+         */
+        const upgradeResult =
+            this.applyZaloInstantUpgrade({
+                save: false
+            });
+
+        if (upgradeResult.changed) {
+            changed = true;
+        }
+
+        if (
+            changed &&
+            options.save !== false
+        ) {
             app.storage.save();
-
-            alert(
-                `🎉 Đã cập nhật ${rolledCycles} chu kỳ Zalo Priority.\n\n` +
-                `- Tổng chi tiêu chu kỳ gần nhất: ` +
-                `${app.logic.formatCurrency(finalAccumulated)}\n` +
-                `- Hạng hiện tại: ` +
-                `${achievedRankId.toUpperCase()}\n` +
-                `- Ngày xét hạng tới: ` +
-                `${configs.zaloReviewDate}`
-            );
         }
+
+        if (
+            options.notify !== false
+        ) {
+            const messages = [];
+
+            if (rolledCycles > 0) {
+                messages.push(
+                    `Đã xét ${rolledCycles} chu kỳ ZaloPay Priority.\n` +
+                    `Tổng chu kỳ gần nhất: ${this.formatCurrency(lastCycleAmount)}\n` +
+                    `Hạng sau xét: ${lastRank.name}\n` +
+                    `Ngày xét tiếp theo: ${configs.zaloReviewDate}`
+                );
+            }
+
+            if (
+                upgradeResult.changed
+            ) {
+                messages.push(
+                    `Đã nâng hạng ngay lên ${upgradeResult.currentRank.name}.\n` +
+                    `Chu kỳ mới bắt đầu: ${upgradeResult.upgradeDate}\n` +
+                    `Ngày xét tiếp theo: ${upgradeResult.reviewDate}`
+                );
+            }
+
+            if (
+                messages.length > 0
+            ) {
+                alert(
+                    `🎉 ZALOPAY PRIORITY\n\n` +
+                    messages.join('\n\n')
+                );
+            }
+        }
+
+        return {
+            changed,
+            rolledCycles,
+            upgradeResult,
+
+            currentRank:
+                configs.zaloCurrentRank,
+
+            startDate:
+                configs.zaloRankStartDate,
+
+            reviewDate:
+                configs.zaloReviewDate
+        };
     },
 
     getPaymentDate() {
@@ -2521,7 +3181,9 @@ app.logic = {
         const hasZaloSpending = app.data.transactions.some(t => {
             const s = String(t.source || '').toLowerCase();
             const isZaloCredit =
-                app.logic.isZaloPrioritySource(t.source);
+                app.logic.isZaloPayLaterSource(
+                    t.source
+                );
             const tags = t.tags || "";
 
             return t.type === 'Chi tiêu' &&
@@ -2670,7 +3332,9 @@ app.logic = {
 
         const prevSpending = app.data.transactions.reduce((sum, t) => {
             const isCreditZalo =
-                app.logic.isZaloPrioritySource(t.source);
+                app.logic.isZaloPayLaterSource(
+                    t.source
+                );
             const tags = t.tags || '';
 
             if (t.type === 'Chi tiêu' && app.logic.isTransactionInMonth(t, prevMonthStr) && isCreditZalo &&
@@ -2683,8 +3347,11 @@ app.logic = {
             return sum;
         }, 0);
 
-        const accumulated = app.logic.getZaloAccumulation(false);
-        const rankInfo = app.logic.getZaloRankInfo(accumulated, app.data.configs.manualZaloRank);
+        const rankInfo =
+            app.logic.getZaloRankInfo(
+                0,
+                app.data.configs.zaloCurrentRank
+            );
 
         let refundAmount = 0;
         const threshold = 2500000;

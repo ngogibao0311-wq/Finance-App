@@ -1144,15 +1144,25 @@ app.ui = {
             feeEl.style.background = rankInfo.fee === 0 ? '#10b981' : '#000'; // Xanh nếu free, Đen nếu mất phí
 
             // Footer thẻ
-            const reviewDate = new Date(app.data.configs.zaloReviewDate);
-            document.getElementById('forecast-date').textContent = `${reviewDate.getDate()}/${reviewDate.getMonth() + 1}`;
+            const reviewDate =
+                app.logic.parseZaloDateKey(
+                    app.data.configs.zaloReviewDate
+                );
+
+            document.getElementById(
+                'forecast-date'
+            ).textContent = reviewDate
+                    ? `${reviewDate.getDate()}/${reviewDate.getMonth() + 1}`
+                    : '--/--';
             document.getElementById('forecast-next-rank').textContent = retentionInfo.projectedRank.name;
         }
 
         // 2. Logic tính toán chi tiêu tháng (Giữ nguyên logic cũ)
         const month = app.data.filter.month;
         const isCreditZalo = (source) =>
-            app.logic.isZaloPrioritySource(source);
+            app.logic.isZaloPayLaterSource(
+                source
+            );
         const zaloTxs = app.data.transactions.filter(t => {
             const tags = t.tags || '';
             return t.type === 'Chi tiêu' &&
@@ -3599,29 +3609,22 @@ ${payAllHTML}
                     tx.cancelledDate = new Date().toISOString();
                     tx.isCancelDateFixed = false;
 
-                    // Logic Zalo Priority
                     const isZaloType =
-                        app.logic.isZaloPrioritySource(tx.source);
+                        app.logic.isZaloPrioritySource(
+                            tx.source
+                        );
 
-                    if (isZaloType) {
-                        setTimeout(() => {
-                            app.ui.popup.confirm(
-                                'Giao dịch Zalo Priority!\nBạn có muốn GIỮ LẠI điểm tích lũy hạng cho giao dịch này không?',
-                                () => {
-                                    tx.keepForZalo = true;
-                                    refreshUI();
-                                    app.ui.popup.show('Đã hủy nhưng vẫn tính điểm Priority!', 'success');
-                                }
-                            );
-                            // Nếu user bấm Cancel (Không giữ điểm)
-                            if (!tx.keepForZalo) {
-                                refreshUI();
-                            }
-                        }, 300);
-                    } else {
-                        refreshUI();
-                        app.ui.popup.show("Đã hủy giao dịch!", "success");
-                    }
+                    // Giao dịch hủy không được giữ điểm Priority
+                    tx.keepForZalo = false;
+
+                    refreshUI();
+
+                    app.ui.popup.show(
+                        isZaloType
+                            ? 'Đã hủy giao dịch. Số tiền này không còn được tính vào ZaloPay Priority.'
+                            : 'Đã hủy giao dịch!',
+                        'success'
+                    );
                 }
             );
         }

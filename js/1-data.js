@@ -10,7 +10,15 @@ const app = {
         cashWallets: [],
         configs: {
             zaloLevel: 'standard',
-            zaloReviewDate: '2025-06-30',
+
+            // Hạng chính thức đang được hưởng
+            zaloCurrentRank: 'member',
+
+            // Ngày bắt đầu chu kỳ hạng hiện tại
+            zaloRankStartDate: '',
+
+            // Ngày xét hạng tiếp theo
+            zaloReviewDate: '',
             guestMode: false,
             apiKeys: { gemini: '' },
             sidebarCollapsed: false,

@@ -622,8 +622,23 @@ app.events = {
                 app.data.configs.manualZaloAmount = targetAmount;
             }
 
-            app.data.configs.manualZaloRank = rank || null;
-            app.data.configs.zaloManualCount = count + 1;
+            if (rank) {
+                app.data.configs
+                    .zaloCurrentRank =
+                    rank;
+
+                app.data.configs
+                    .manualZaloRank =
+                    rank;
+            } else {
+                app.data.configs
+                    .manualZaloRank =
+                    null;
+            }
+
+            app.data.configs
+                .zaloManualCount =
+                count + 1;
 
             // Lưu và Render lại
             app.storage.save();
@@ -938,14 +953,35 @@ app.events = {
             }
 
             const isZaloPriority =
-                app.logic.isZaloPrioritySource(data.source);
+                app.logic
+                    .isZaloPrioritySource(
+                        data.source
+                    );
 
             if (
                 !isMonthlyLimitCreditTx &&
+                data.type === 'Chi tiêu' &&
                 isZaloPriority
             ) {
-                const isCounted = confirm(`Giao dịch Zalo: "${data.place}"\n\nBạn có muốn tính số tiền này vào Zalo Priority không?\n- OK: Có tính\n- Cancel: Không tính`);
-                data.skipZalo = !isCounted;
+                const isCounted =
+                    confirm(
+                        `Giao dịch ZaloPay: "${data.place}"\n\n` +
+
+                        `Đây có phải khoản thanh toán hợp lệ để xét hạng Priority không?\n\n` +
+
+                        `OK: Có tính\n` +
+                        `Cancel: Không tính\n\n` +
+
+                        `Không tính chuyển tiền, chuyển khoản ngân hàng, bán chứng khoán hoặc bán chứng chỉ quỹ.`
+                    );
+
+                data.skipZalo =
+                    !isCounted;
+
+            } else if (
+                data.type !== 'Chi tiêu'
+            ) {
+                data.skipZalo = true;
             }
 
             if (id) {
@@ -1103,7 +1139,15 @@ app.events = {
                 }
             }
 
-            if (app.logic.fixAllTags) app.logic.fixAllTags();
+            if (app.logic.fixAllTags) {
+                app.logic.fixAllTags();
+            }
+
+            app.logic.checkAndRolloverZaloCycle({
+                save: false,
+                notify: true
+            });
+
             app.storage.save();
             app.logic.updateFees();
             app.ui.renderAll();
@@ -1161,10 +1205,40 @@ app.events = {
             if (!input) return;
 
             input.addEventListener('change', e => {
-                if (id === 'zalo-review-date') {
-                    app.data.configs.zaloReviewDate = e.target.value;
+                if (
+                    id ===
+                    'zalo-review-date'
+                ) {
+                    app.data.configs
+                        .zaloReviewDate =
+                        e.target.value;
+
+                    /*
+                     * Ví dụ:
+                     * xét 30/06
+                     * -> bắt đầu 01/01.
+                     */
+                    app.data.configs
+                        .zaloRankStartDate =
+                        app.logic.shiftZaloDateKey(
+                            app.logic.shiftZaloDateKey(
+                                e.target.value,
+                                0,
+                                1
+                            ),
+                            -6,
+                            0
+                        );
+
+                    app.logic
+                        .checkAndRolloverZaloCycle({
+                            save: false,
+                            notify: false
+                        });
+
                     app.logic.updateFees();
-                    app.ui.renderZaloWidget();
+                    app.ui
+                        .renderZaloWidget();
                 }
 
                 if (id === 'gemini-key') {
@@ -3136,12 +3210,25 @@ app.dataTools = {
                 totalSkipped += overrideResult.skipped;
 
                 // Sửa lại tag nếu hệ thống có hàm này
-                if (app.logic.fixAllTags) {
+                if (
+                    app.logic.fixAllTags
+                ) {
                     app.logic.fixAllTags();
                 }
 
-                // Lưu toàn bộ xuống IndexedDB
+                /*
+                 * Xử lý ngày xét hạng và
+                 * nâng hạng ngay sau khi
+                 * giao dịch được lưu.
+                 */
+                app.logic
+                    .checkAndRolloverZaloCycle({
+                        save: false,
+                        notify: true
+                    });
+
                 app.storage.save();
+                app.logic.updateFees();
 
                 // Cập nhật giao diện
                 app.ui.init();
