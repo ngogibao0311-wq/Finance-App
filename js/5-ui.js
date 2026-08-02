@@ -3491,7 +3491,6 @@ ${payAllHTML}
                 
                 ${t.orderCode ? `<div style="font-size:0.75rem; color:#ea580c; font-weight:700; margin-top:4px;"><i class="fa-solid fa-box"></i> ${t.orderCode}</div>` : ''}
             </td>
-            </td>
             <td>
     <div style="font-weight:600; display:flex; align-items:center; gap:6px;">
         ${placeDisplay}
@@ -3515,8 +3514,7 @@ ${payAllHTML}
 
     <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">
         ${brandDisplay} ${t.tags || ''}
-    </div>
-</td>div>
+    div>
             </td>
             <td>
                 ${t.destination
