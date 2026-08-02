@@ -3514,7 +3514,6 @@ ${payAllHTML}
 
     <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">
         ${brandDisplay} ${t.tags || ''}
-    div>
             </td>
             <td>
                 ${t.destination
