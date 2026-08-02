@@ -6826,6 +6826,277 @@ ${t.tempExtraFeeReason
         },
 
         reports: {
+            getCategoryTag(transaction = {}) {
+                const rawTags = String(
+                    transaction.tags || ''
+                ).trim();
+
+                if (!rawTags) return 'Khác';
+
+                // Hỗ trợ tag ngăn cách bằng dấu cách hoặc dấu phẩy.
+                const detectedTags =
+                    rawTags.match(/#[^\s,]+/g) ||
+                    rawTags
+                        .split(',')
+                        .map(tag => tag.trim())
+                        .filter(Boolean);
+
+                const cleanTags = detectedTags.filter(tag => {
+                    const normalized =
+                        String(tag || '').toLowerCase();
+
+                    return (
+                        !normalized.startsWith('#tra_gop') &&
+                        !normalized.startsWith('#da_chuyen') &&
+                        !normalized.startsWith('#du_no')
+                    );
+                });
+
+                return cleanTags[0] || 'Khác';
+            },
+
+            openTagDetails(encodedTag = '') {
+                let selectedTag = 'Khác';
+
+                try {
+                    selectedTag =
+                        decodeURIComponent(
+                            String(encodedTag || '')
+                        ) || 'Khác';
+                } catch (error) {
+                    selectedTag =
+                        String(encodedTag || '') || 'Khác';
+                }
+
+                // Dùng cùng dữ liệu thực trả với báo cáo.
+                const transactions = app.logic
+                    .getBudgetTransactions({
+                        respectExclusion: false
+                    })
+                    .filter(transaction =>
+                        this.getCategoryTag(transaction) ===
+                        selectedTag
+                    )
+                    .sort((a, b) =>
+                        app.logic.compareTransactions(a, b)
+                    );
+
+                const total = transactions.reduce(
+                    (sum, transaction) =>
+                        sum +
+                        (Number(transaction.amount) || 0),
+                    0
+                );
+
+                const escapeHTML = value =>
+                    String(value ?? '')
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;')
+                        .replace(/'/g, '&#039;');
+
+                const rowsHTML = transactions
+                    .map(transaction => {
+                        const date =
+                            new Date(transaction.date);
+
+                        const dateText =
+                            Number.isNaN(date.getTime())
+                                ? 'Không rõ thời gian'
+                                : date.toLocaleString(
+                                    'vi-VN',
+                                    {
+                                        day: '2-digit',
+                                        month: '2-digit',
+                                        year: 'numeric',
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                    }
+                                );
+
+                        const amount =
+                            Number(transaction.amount) || 0;
+
+                        const originalAmount =
+                            Number(
+                                transaction.originalAmount
+                            ) || amount;
+
+                        const hasLinkedPrice =
+                            originalAmount !== amount;
+
+                        return `
+                    <div style="
+                        display:flex;
+                        justify-content:space-between;
+                        align-items:flex-start;
+                        gap:12px;
+                        padding:11px 4px;
+                        border-bottom:1px dashed #e2e8f0;
+                    ">
+                        <div style="
+                            min-width:0;
+                            flex:1;
+                        ">
+                            <div style="
+                                color:#334155;
+                                font-size:0.88rem;
+                                font-weight:800;
+                                overflow-wrap:anywhere;
+                            ">
+                                ${escapeHTML(
+                            transaction.place ||
+                            'Khoản chi không tên'
+                        )}
+                            </div>
+
+                            <div style="
+                                margin-top:3px;
+                                color:#94a3b8;
+                                font-size:0.72rem;
+                            ">
+                                <i class="fa-regular fa-clock"></i>
+                                ${escapeHTML(dateText)}
+                            </div>
+
+                            <div style="
+                                margin-top:3px;
+                                color:#64748b;
+                                font-size:0.72rem;
+                            ">
+                                ${escapeHTML(
+                            transaction.source ||
+                            'Không rõ nguồn'
+                        )}
+
+                                ${transaction.destination
+                                ? ` → ${escapeHTML(
+                                    transaction.destination
+                                )}`
+                                : ''
+                            }
+                            </div>
+
+                            ${hasLinkedPrice
+                                ? `
+                                    <div style="
+                                        margin-top:4px;
+                                        color:#0f766e;
+                                        font-size:0.68rem;
+                                        font-weight:800;
+                                    ">
+                                        <i class="fa-solid fa-link"></i>
+                                        Mệnh giá:
+                                        ${app.logic.formatCurrency(
+                                    originalAmount
+                                )}
+                                        · Tính thực trả
+                                    </div>
+                                `
+                                : ''
+                            }
+                        </div>
+
+                        <div style="
+                            flex-shrink:0;
+                            color:#ef4444;
+                            font-family:var(--font-mono);
+                            font-size:0.86rem;
+                            font-weight:900;
+                            white-space:nowrap;
+                        ">
+                            -${app.logic.formatCurrency(
+                                amount
+                            )}
+                        </div>
+                    </div>
+                `;
+                    })
+                    .join('');
+
+                const contentHTML = `
+            <div>
+                <div style="
+                    display:flex;
+                    justify-content:space-between;
+                    align-items:center;
+                    gap:12px;
+                    margin-bottom:10px;
+                    padding:10px 12px;
+                    border:1px solid #c4b5fd;
+                    border-radius:12px;
+                    background:#f5f3ff;
+                ">
+                    <div>
+                        <div style="
+                            color:#6d28d9;
+                            font-size:0.75rem;
+                            font-weight:800;
+                        ">
+                            ${transactions.length}
+                            khoản thuộc
+                            ${escapeHTML(selectedTag)}
+                        </div>
+
+                        <div style="
+                            margin-top:2px;
+                            color:#7c3aed;
+                            font-size:0.68rem;
+                        ">
+                            Tháng
+                            ${escapeHTML(
+                    app.data.filter.month
+                )}
+                        </div>
+                    </div>
+
+                    <div style="
+                        color:#6d28d9;
+                        font-family:var(--font-mono);
+                        font-size:0.95rem;
+                        font-weight:900;
+                        white-space:nowrap;
+                    ">
+                        ${app.logic.formatCurrency(total)}
+                    </div>
+                </div>
+
+                <div>
+                    ${rowsHTML || `
+                        <div style="
+                            padding:24px;
+                            color:#94a3b8;
+                            text-align:center;
+                            font-style:italic;
+                        ">
+                            Không có khoản chi nào.
+                        </div>
+                    `}
+                </div>
+            </div>
+        `;
+
+                app.ui.popup.el.classList.add(
+                    'credit-detail-popup'
+                );
+
+                app.ui.popup.show(
+                    contentHTML,
+                    'info'
+                );
+
+                if (app.ui.popup.title) {
+                    app.ui.popup.title.textContent =
+                        `Chi tiết ${selectedTag}`;
+                }
+
+                if (app.ui.popup.icon) {
+                    app.ui.popup.icon.className =
+                        'fa-solid fa-tags';
+                }
+            },
+
             open() {
                 const modal = document.getElementById('modal-report');
                 if (!modal) return;
@@ -6906,14 +7177,14 @@ ${t.tempExtraFeeReason
 
                 // 4. DANH MỤC CHI TIÊU & BIỂU ĐỒ
                 const tagMap = {};
+
                 expenseTxs.forEach(t => {
-                    let tag = 'Khác';
-                    if (t.tags) {
-                        const cleanTags = t.tags.split(',').map(tag => tag.trim())
-                            .filter(tag => !tag.startsWith('#tra_gop') && !tag.startsWith('#da_chuyen') && !tag.startsWith('#du_no'));
-                        if (cleanTags.length > 0) tag = cleanTags[0];
-                    }
-                    tagMap[tag] = (tagMap[tag] || 0) + t.amount;
+                    const tag =
+                        this.getCategoryTag(t);
+
+                    tagMap[tag] =
+                        (tagMap[tag] || 0) +
+                        (Number(t.amount) || 0);
                 });
                 const sortedTags = Object.entries(tagMap).sort((a, b) => b[1] - a[1]);
 
@@ -7024,19 +7295,88 @@ ${t.tempExtraFeeReason
                     const color = colors[index % colors.length];
 
                     return `
-                        <div style="margin-bottom: 10px;">
-                            <div style="display:flex; justify-content:space-between; font-size:0.8rem; font-weight:700; margin-bottom:4px;">
-                                <span style="display:flex; align-items:center; gap:6px;">
-                                    <span style="display:inline-block; width:8px; height:8px; background:${color}; border-radius:50%;"></span>
-                                    ${tag}
-                                </span>
-                                <span>${formatNum(amt)} <span style="font-size:0.7rem; color:var(--text-muted); font-weight:normal">(${percent.toFixed(1)}%)</span></span>
-                            </div>
-                            <div style="height:6px; background:#f1f5f9; border-radius:99px; overflow:hidden;">
-                                <div style="height:100%; width:${percent}%; background:${color}; border-radius:99px;"></div>
-                            </div>
-                        </div>
-                    `;
+    <div
+        class="report-category-item"
+        data-report-tag="${encodeURIComponent(tag)}"
+        role="button"
+        tabindex="0"
+        title="Nhấn để xem các khoản thuộc ${tag}"
+        style="
+            margin-bottom:10px;
+            padding:8px 10px;
+            border:1px solid transparent;
+            border-radius:10px;
+            cursor:pointer;
+            transition:
+                background .2s,
+                border-color .2s,
+                transform .2s;
+        "
+    >
+        <div style="
+            display:flex;
+            justify-content:space-between;
+            gap:12px;
+            font-size:0.8rem;
+            font-weight:700;
+            margin-bottom:4px;
+        ">
+            <span style="
+                display:flex;
+                align-items:center;
+                gap:6px;
+                min-width:0;
+            ">
+                <span style="
+                    display:inline-block;
+                    width:8px;
+                    height:8px;
+                    flex-shrink:0;
+                    background:${color};
+                    border-radius:50%;
+                "></span>
+
+                <span style="overflow-wrap:anywhere;">
+                    ${tag}
+                </span>
+
+                <i
+                    class="fa-solid fa-chevron-right"
+                    style="
+                        color:#94a3b8;
+                        font-size:0.62rem;
+                    "
+                ></i>
+            </span>
+
+            <span style="flex-shrink:0;">
+                ${formatNum(amt)}
+
+                <span style="
+                    font-size:0.7rem;
+                    color:var(--text-muted);
+                    font-weight:normal;
+                ">
+                    (${percent.toFixed(1)}%)
+                </span>
+            </span>
+        </div>
+
+        <div style="
+            height:6px;
+            background:#f1f5f9;
+            border-radius:99px;
+            overflow:hidden;
+        ">
+            <div style="
+                height:100%;
+                width:${percent}%;
+                background:${color};
+                border-radius:99px;
+            "></div>
+        </div>
+    </div>
+`;
                 }).join('');
 
                 // 6. GẮN VÀO CONTAINER
@@ -7073,6 +7413,62 @@ ${t.tempExtraFeeReason
 
                     </div>
                 `;
+
+                container
+                    .querySelectorAll('.report-category-item')
+                    .forEach(item => {
+                        const openDetails = () => {
+                            this.openTagDetails(
+                                item.dataset.reportTag || ''
+                            );
+                        };
+
+                        item.addEventListener(
+                            'click',
+                            openDetails
+                        );
+
+                        item.addEventListener(
+                            'keydown',
+                            event => {
+                                if (
+                                    event.key === 'Enter' ||
+                                    event.key === ' '
+                                ) {
+                                    event.preventDefault();
+                                    openDetails();
+                                }
+                            }
+                        );
+
+                        item.addEventListener(
+                            'mouseenter',
+                            () => {
+                                item.style.background =
+                                    '#f8fafc';
+
+                                item.style.borderColor =
+                                    '#e2e8f0';
+
+                                item.style.transform =
+                                    'translateX(2px)';
+                            }
+                        );
+
+                        item.addEventListener(
+                            'mouseleave',
+                            () => {
+                                item.style.background =
+                                    'transparent';
+
+                                item.style.borderColor =
+                                    'transparent';
+
+                                item.style.transform =
+                                    'translateX(0)';
+                            }
+                        );
+                    });
 
                 // 7. VẼ LẠI BIỂU ĐỒ TRÒN
                 if (app.ui.reportChartInstance) app.ui.reportChartInstance.destroy();
