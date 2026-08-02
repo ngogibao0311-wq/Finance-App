@@ -711,7 +711,7 @@ app.events = {
             app.ui.popup.show("✨ Đã áp dụng phép màu!<br>Hạng và Số tiền tích lũy đã được cập nhật.", "success");
         };
 
-        document.getElementById('form-tx').addEventListener('submit', (e) => {
+        document.getElementById('form-tx').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('tx-id').value;
             const originalTxForSubmit = id
@@ -838,6 +838,31 @@ app.events = {
                 isCashback: isCashback
             };
 
+            // Giữ liên kết cũ khi người dùng sửa giao dịch.
+            if (
+                originalTxForSubmit?.linkedTransferId !==
+                undefined &&
+                originalTxForSubmit?.linkedTransferId !==
+                null &&
+                originalTxForSubmit?.linkedTransferId !==
+                ''
+            ) {
+                data.linkedTransferId =
+                    originalTxForSubmit.linkedTransferId;
+            }
+
+            if (
+                originalTxForSubmit?.linkedExpenseId !==
+                undefined &&
+                originalTxForSubmit?.linkedExpenseId !==
+                null &&
+                originalTxForSubmit?.linkedExpenseId !==
+                ''
+            ) {
+                data.linkedExpenseId =
+                    originalTxForSubmit.linkedExpenseId;
+            }
+
             if (isMonthlyLimitCreditTx) {
                 const assignedMonth = app.logic.getMonthlyLimitCreditMonth(originalTxForSubmit);
                 const configuredAmount = app.logic.getMonthlyLimitCreditAmount(assignedMonth);
@@ -919,6 +944,86 @@ app.events = {
                             `Đã loại trừ ${selectedIds.length} giao dịch thu nhập vì đã so khớp đủ hạn mức.`
                         );
                     }
+                }
+            }
+
+                        // ==================================================
+            // SO KHỚP GIAO DỊCH NẠP VỚI GIAO DỊCH CHI TIÊU
+            // ==================================================
+            if (!isMonthlyLimitCreditTx) {
+                const isEligibleExpense =
+                    data.type === 'Chi tiêu' &&
+                    data.status === 'paid';
+
+                if (isEligibleExpense) {
+                    const existingLinkedTransfer =
+                        originalTxForSubmit
+                            ? app.logic
+                                .getLinkedTransferForExpense(
+                                    originalTxForSubmit
+                                )
+                            : null;
+
+                    const matchingTransfers =
+                        app.logic.findMatchingPaidTransfers(
+                            data,
+                            {
+                                expenseId: data.id
+                            }
+                        );
+
+                    // Khi sửa khoản chi đã liên kết,
+                    // vẫn đưa giao dịch cũ vào danh sách.
+                    if (
+                        existingLinkedTransfer &&
+                        !matchingTransfers.some(t =>
+                            String(t.id) ===
+                            String(
+                                existingLinkedTransfer.id
+                            )
+                        )
+                    ) {
+                        matchingTransfers.unshift(
+                            existingLinkedTransfer
+                        );
+                    }
+
+                    // Mặc định Cancel/Bỏ qua:
+                    // không liên kết và tính đủ mệnh giá.
+                    delete data.linkedTransferId;
+
+                    if (matchingTransfers.length > 0) {
+                        const shouldSelectTransfer =
+                            window.confirm(
+                                `Phát hiện ${matchingTransfers.length} giao dịch nạp đã thanh toán phù hợp.\n\n` +
+                                `Khoản chi: ${data.place || 'Không tên'}\n` +
+                                `Mệnh giá: ${app.logic.formatCurrency(data.amount)}\n\n` +
+                                `OK: Chọn giao dịch nạp để ngân sách tính số thực trả.\n` +
+                                `Cancel: Không liên kết và tính đủ mệnh giá.`
+                            );
+
+                        if (shouldSelectTransfer) {
+                            const selectedTransferId =
+                                await app.ui.popup
+                                    .selectTransferMatch(
+                                        matchingTransfers,
+                                        data
+                                    );
+
+                            if (
+                                selectedTransferId !== null &&
+                                selectedTransferId !== undefined &&
+                                selectedTransferId !== ''
+                            ) {
+                                data.linkedTransferId =
+                                    selectedTransferId;
+                            }
+                        }
+                    }
+                } else {
+                    // Không còn là Chi tiêu đã thanh toán
+                    // thì xóa đầu liên kết.
+                    delete data.linkedTransferId;
                 }
             }
 
@@ -1170,6 +1275,34 @@ app.events = {
                 };
                 app.data.transactions.push(cashbackData);
             }
+
+                        // Đồng bộ liên kết hai chiều sau khi giao dịch
+            // đã được thêm hoặc cập nhật trong CSDL.
+            if (
+                data.type === 'Chi tiêu' &&
+                data.status === 'paid' &&
+                data.linkedTransferId !== undefined &&
+                data.linkedTransferId !== null &&
+                data.linkedTransferId !== ''
+            ) {
+                app.logic.linkExpenseToTransfer(
+                    data.id,
+                    data.linkedTransferId
+                );
+            } else if (
+                data.type !== 'Chuyển tiền' ||
+                data.status !== 'paid'
+            ) {
+                // Cancel, đổi loại hoặc đổi trạng thái
+                // sẽ gỡ liên kết cũ.
+                app.logic.unlinkTransferExpenseLink(
+                    data.id
+                );
+            }
+
+            app.logic.cleanupTransferExpenseLinks({
+                save: false
+            });
 
             // [THÊM TẠI ĐÂY] - Sắp xếp lại toàn bộ CSDL gốc trước khi lưu vào Storage
             app.data.transactions.sort(

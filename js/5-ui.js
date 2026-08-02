@@ -81,6 +81,237 @@ app.ui = {
             this.el.classList.add('active');
         },
 
+        selectTransferMatch(matches = [], expense = {}) {
+            return new Promise(resolve => {
+                if (
+                    !Array.isArray(matches) ||
+                    matches.length === 0
+                ) {
+                    resolve(null);
+                    return;
+                }
+
+                const escapeHtml = value =>
+                    String(value ?? '')
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;')
+                        .replace(/'/g, '&#039;');
+
+                this.setupUI('info');
+
+                this.icon.className =
+                    'fa-solid fa-link';
+
+                this.iconBox.className =
+                    'icon-info';
+
+                this.title.textContent =
+                    'Chọn giao dịch nạp phù hợp';
+
+                this.input.style.display = 'none';
+
+                const rows = matches
+                    .map((transfer, index) => {
+                        const paid =
+                            Number(transfer.amount) || 0;
+
+                        const faceValue =
+                            app.logic.getTransferFaceValue(
+                                transfer
+                            );
+
+                        const discount =
+                            Math.max(
+                                0,
+                                faceValue - paid
+                            );
+
+                        const date =
+                            new Date(transfer.date);
+
+                        const dateText =
+                            Number.isNaN(date.getTime())
+                                ? 'Không rõ thời gian'
+                                : date.toLocaleString(
+                                    'vi-VN'
+                                );
+
+                        const route = [
+                            transfer.source,
+                            transfer.destination
+                        ]
+                            .filter(Boolean)
+                            .join(' → ');
+
+                        return `
+                            <label
+                                style="
+                                    display:block;
+                                    cursor:pointer;
+                                    margin:8px 0;
+                                "
+                            >
+                                <div
+                                    style="
+                                        display:flex;
+                                        gap:10px;
+                                        padding:10px;
+                                        border:1px solid #dbeafe;
+                                        border-radius:10px;
+                                        background:#f8fafc;
+                                    "
+                                >
+                                    <input
+                                        type="radio"
+                                        name="matched-transfer-choice"
+                                        value="${escapeHtml(
+                            transfer.id
+                        )}"
+                                        ${index === 0
+                                ? 'checked'
+                                : ''
+                            }
+                                    >
+
+                                    <div style="flex:1">
+                                        <b>
+                                            ${escapeHtml(
+                                transfer.place ||
+                                transfer.brand ||
+                                'Giao dịch nạp'
+                            )}
+                                        </b>
+
+                                        <div
+                                            style="
+                                                font-size:.75rem;
+                                                color:var(--text-muted);
+                                            "
+                                        >
+                                            ${escapeHtml(
+                                route ||
+                                'Không rõ nguồn–đích'
+                            )}
+                                            •
+                                            ${escapeHtml(
+                                dateText
+                            )}
+                                        </div>
+
+                                        <div
+                                            style="
+                                                font-size:.78rem;
+                                                margin-top:5px;
+                                            "
+                                        >
+                                            Thực trả:
+                                            <b
+                                                style="
+                                                    color:var(--success);
+                                                "
+                                            >
+                                                ${app.logic.formatCurrency(
+                                paid
+                            )}
+                                            </b>
+
+                                            &nbsp;|&nbsp;
+
+                                            Mệnh giá:
+                                            <b>
+                                                ${app.logic.formatCurrency(
+                                faceValue
+                            )}
+                                            </b>
+
+                                            ${discount > 0
+                                ? `
+                                                        &nbsp;|&nbsp;
+                                                        <span
+                                                            style="
+                                                                color:var(--success);
+                                                            "
+                                                        >
+                                                            Giảm
+                                                            ${app.logic.formatCurrency(
+                                    discount
+                                )}
+                                                        </span>
+                                                    `
+                                : ''
+                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            </label>
+                        `;
+                    })
+                    .join('');
+
+                this.renderMessage(`
+                    <div
+                        style="
+                            font-size:.82rem;
+                            margin-bottom:8px;
+                        "
+                    >
+                        Khoản chi
+                        <b>
+                            ${escapeHtml(
+                    expense.place || ''
+                )}
+                        </b>
+                        –
+                        <b>
+                            ${app.logic.formatCurrency(
+                    expense.amount
+                )}
+                        </b>
+                    </div>
+
+                    <div
+                        style="
+                            max-height:320px;
+                            overflow:auto;
+                        "
+                    >
+                        ${rows}
+                    </div>
+                `);
+
+                this.btnCancel.style.display =
+                    'block';
+
+                this.btnCancel.textContent =
+                    'Bỏ qua';
+
+                this.btnConfirm.textContent =
+                    'Liên kết';
+
+                this.btnCancel.onclick = () => {
+                    this.close();
+                    resolve(null);
+                };
+
+                this.btnConfirm.onclick = () => {
+                    const selected =
+                        this.msg.querySelector(
+                            'input[name="matched-transfer-choice"]:checked'
+                        );
+
+                    if (!selected) return;
+
+                    this.close();
+                    resolve(selected.value);
+                };
+
+                this.el.style.zIndex = '9999999';
+                this.el.classList.add('active');
+            });
+        },
+
         prompt(message, onConfirmCallback, title = 'Nhập liệu') {
             this.setupUI('info');
             this.icon.className = 'fa-solid fa-pen-to-square';
@@ -2817,7 +3048,7 @@ ${payAllHTML}
                         <div style="font-size:0.7rem; color:var(--text-muted)">${t.source}</div>
                     </div>
                     <div style="display:flex; align-items:center; gap: 8px;">
-                        <span style="font-weight:700; text-decoration: ${textDecor}">${fmt(t.amount)}</span>
+                        <span style="font-weight:700; text-decoration: ${textDecor}">${fmt(app.logic.getTransactionBudgetAmount(t))}</span>
                         <button onclick="app.ui.toggleDailyExclusion(${t.id})" 
                                 title="${title}"
                                 style="background:none; border:none; cursor:pointer; padding:4px; color:${iconColor}; font-size:1rem; transition:0.2s">
@@ -2859,6 +3090,13 @@ ${payAllHTML}
     // ------------------------------------------
 
     renderAll() {
+        // Dọn liên kết khi một trong hai giao dịch bị xóa,
+        // đổi loại hoặc đổi trạng thái.
+        const transferLinkSync =
+            app.logic.cleanupTransferExpenseLinks({
+                save: false
+            });
+
         // Đồng bộ giao dịch hạn mức.
         const limitSync =
             app.logic.syncAllMonthlyLimitCredits({
@@ -2875,6 +3113,7 @@ ${payAllHTML}
 
         // Chỉ lưu một lần sau khi đồng bộ xong.
         if (
+            transferLinkSync.changed ||
             limitSync.changed ||
             carryoverSync.changed
         ) {

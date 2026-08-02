@@ -717,6 +717,502 @@ app.logic = {
         return String(transaction.tags || '').toLowerCase();
     },
 
+    // ===== LIÊN KẾT NẠP GIẢM GIÁ ↔ CHI TIÊU =====
+    normalizeTransactionMatchText(value = '') {
+        return String(value || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/đ/g, 'd')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, ' ')
+            .trim();
+    },
+
+    transactionMatchTextEquals(a = '', b = '') {
+        const x = this.normalizeTransactionMatchText(a);
+        const y = this.normalizeTransactionMatchText(b);
+
+        if (!x || !y) return false;
+        if (x === y) return true;
+        if (Math.min(x.length, y.length) < 3) return false;
+
+        return x.includes(y) || y.includes(x);
+    },
+
+    // Mệnh giá = số thực trả + số được giảm trực tiếp.
+    getTransferFaceValue(transaction = {}) {
+        const paid = Number(transaction.amount) || 0;
+
+        const discount = transaction.isCashback === true
+            ? 0
+            : (Number(transaction.discountAmount) || 0);
+
+        return Math.max(0, paid + discount);
+    },
+
+    getLinkedTransferForExpense(expense = {}) {
+        if (
+            expense.type !== 'Chi tiêu' ||
+            expense.status !== 'paid'
+        ) {
+            return null;
+        }
+
+        if (
+            expense.linkedTransferId === undefined ||
+            expense.linkedTransferId === null ||
+            expense.linkedTransferId === ''
+        ) {
+            return null;
+        }
+
+        const expenseId = String(expense.id ?? '');
+
+        const transfer = app.data.transactions.find(t =>
+            String(t.id ?? '') ===
+            String(expense.linkedTransferId)
+        );
+
+        if (
+            !transfer ||
+            transfer.type !== 'Chuyển tiền' ||
+            transfer.status !== 'paid'
+        ) {
+            return null;
+        }
+
+        // Không cho một giao dịch nạp liên kết hai khoản chi.
+        if (
+            transfer.linkedExpenseId !== undefined &&
+            transfer.linkedExpenseId !== null &&
+            transfer.linkedExpenseId !== '' &&
+            String(transfer.linkedExpenseId) !== expenseId
+        ) {
+            return null;
+        }
+
+        return transfer;
+    },
+
+    // Chỉ dùng để tính Dashboard, ngân sách,
+    // kế hoạch ngày và báo cáo.
+    // Không thay đổi amount gốc trong lịch sử.
+    getTransactionBudgetAmount(transaction = {}) {
+        const transfer =
+            this.getLinkedTransferForExpense(transaction);
+
+        if (transfer) {
+            return Math.max(
+                0,
+                Number(transfer.amount) || 0
+            );
+        }
+
+        return Math.max(
+            0,
+            Number(transaction.amount) || 0
+        );
+    },
+
+    findMatchingPaidTransfers(expense = {}, options = {}) {
+        if (
+            expense.type !== 'Chi tiêu' ||
+            expense.status !== 'paid'
+        ) {
+            return [];
+        }
+
+        const amount =
+            Math.round(Number(expense.amount) || 0);
+
+        const expenseTime =
+            new Date(expense.date).getTime();
+
+        if (
+            amount <= 0 ||
+            !Number.isFinite(expenseTime)
+        ) {
+            return [];
+        }
+
+        const expenseId = String(
+            options.expenseId ??
+            expense.id ??
+            ''
+        );
+
+        // Nạp trước khoản chi tối đa 7 ngày.
+        const maxPastMs =
+            Number(options.maxPastMs) ||
+            7 * 24 * 60 * 60 * 1000;
+
+        // Cho phép lệch nhập dữ liệu tối đa 30 phút.
+        const maxFutureMs =
+            Number(options.maxFutureMs) ||
+            30 * 60 * 1000;
+
+        return app.data.transactions
+            .filter(transfer => {
+                if (
+                    transfer.type !== 'Chuyển tiền' ||
+                    transfer.status !== 'paid'
+                ) {
+                    return false;
+                }
+
+                if (
+                    transfer.linkedExpenseId !== undefined &&
+                    transfer.linkedExpenseId !== null &&
+                    transfer.linkedExpenseId !== '' &&
+                    String(transfer.linkedExpenseId) !==
+                    expenseId
+                ) {
+                    return false;
+                }
+
+                const transferTime =
+                    new Date(transfer.date).getTime();
+
+                if (!Number.isFinite(transferTime)) {
+                    return false;
+                }
+
+                const elapsed =
+                    expenseTime - transferTime;
+
+                if (
+                    elapsed < -maxFutureMs ||
+                    elapsed > maxPastMs
+                ) {
+                    return false;
+                }
+
+                // Ví dụ: 19.600 + giảm 400 = 20.000.
+                const faceValue = Math.round(
+                    this.getTransferFaceValue(transfer)
+                );
+
+                if (faceValue !== amount) {
+                    return false;
+                }
+
+                // Đích giao dịch nạp khớp nguồn/thương hiệu
+                // của giao dịch chi tiêu.
+                const routeMatch =
+                    this.transactionMatchTextEquals(
+                        transfer.destination,
+                        expense.source
+                    ) ||
+                    this.transactionMatchTextEquals(
+                        transfer.destination,
+                        expense.brand
+                    );
+
+                const brandMatch =
+                    this.transactionMatchTextEquals(
+                        transfer.brand,
+                        expense.brand
+                    ) ||
+                    this.transactionMatchTextEquals(
+                        transfer.brand,
+                        expense.source
+                    ) ||
+                    this.transactionMatchTextEquals(
+                        transfer.destination,
+                        expense.brand
+                    ) ||
+                    this.transactionMatchTextEquals(
+                        transfer.place,
+                        expense.brand
+                    ) ||
+                    this.transactionMatchTextEquals(
+                        transfer.brand,
+                        expense.place
+                    );
+
+                return routeMatch || brandMatch;
+            })
+            .sort((a, b) => {
+                const distanceA = Math.abs(
+                    expenseTime -
+                    new Date(a.date).getTime()
+                );
+
+                const distanceB = Math.abs(
+                    expenseTime -
+                    new Date(b.date).getTime()
+                );
+
+                if (distanceA !== distanceB) {
+                    return distanceA - distanceB;
+                }
+
+                return (
+                    (Number(b.id) || 0) -
+                    (Number(a.id) || 0)
+                );
+            });
+    },
+
+    unlinkTransferExpenseLink(transactionOrId) {
+        const id =
+            typeof transactionOrId === 'object'
+                ? transactionOrId?.id
+                : transactionOrId;
+
+        const key = String(id ?? '');
+
+        if (!key) return false;
+
+        let changed = false;
+
+        const transaction =
+            app.data.transactions.find(t =>
+                String(t.id ?? '') === key
+            );
+
+        // Giao dịch hiện tại là chi tiêu.
+        if (
+            transaction?.linkedTransferId !==
+            undefined
+        ) {
+            const transfer =
+                app.data.transactions.find(t =>
+                    String(t.id ?? '') ===
+                    String(
+                        transaction.linkedTransferId ??
+                        ''
+                    )
+                );
+
+            if (
+                transfer &&
+                String(
+                    transfer.linkedExpenseId ?? ''
+                ) === key
+            ) {
+                delete transfer.linkedExpenseId;
+                changed = true;
+            }
+
+            delete transaction.linkedTransferId;
+            changed = true;
+        }
+
+        // Giao dịch hiện tại là giao dịch nạp.
+        if (
+            transaction?.linkedExpenseId !==
+            undefined
+        ) {
+            const expense =
+                app.data.transactions.find(t =>
+                    String(t.id ?? '') ===
+                    String(
+                        transaction.linkedExpenseId ??
+                        ''
+                    )
+                );
+
+            if (
+                expense &&
+                String(
+                    expense.linkedTransferId ?? ''
+                ) === key
+            ) {
+                delete expense.linkedTransferId;
+                changed = true;
+            }
+
+            delete transaction.linkedExpenseId;
+            changed = true;
+        }
+
+        // Dọn các liên kết một chiều còn sót.
+        app.data.transactions.forEach(t => {
+            if (
+                String(t.linkedTransferId ?? '') === key
+            ) {
+                delete t.linkedTransferId;
+                changed = true;
+            }
+
+            if (
+                String(t.linkedExpenseId ?? '') === key
+            ) {
+                delete t.linkedExpenseId;
+                changed = true;
+            }
+        });
+
+        return changed;
+    },
+
+    linkExpenseToTransfer(expenseId, transferId) {
+        const expense =
+            app.data.transactions.find(t =>
+                String(t.id ?? '') ===
+                String(expenseId ?? '')
+            );
+
+        const transfer =
+            app.data.transactions.find(t =>
+                String(t.id ?? '') ===
+                String(transferId ?? '')
+            );
+
+        if (!expense || !transfer) return false;
+
+        if (
+            expense.type !== 'Chi tiêu' ||
+            expense.status !== 'paid'
+        ) {
+            return false;
+        }
+
+        if (
+            transfer.type !== 'Chuyển tiền' ||
+            transfer.status !== 'paid'
+        ) {
+            return false;
+        }
+
+        // Gỡ liên kết cũ trước khi liên kết mới.
+        this.unlinkTransferExpenseLink(expense.id);
+        this.unlinkTransferExpenseLink(transfer.id);
+
+        expense.linkedTransferId = transfer.id;
+        transfer.linkedExpenseId = expense.id;
+
+        return true;
+    },
+
+    cleanupTransferExpenseLinks(options = {}) {
+        const snapshot = () =>
+            app.data.transactions.map(t => [
+                String(t.id ?? ''),
+
+                t.linkedTransferId === undefined
+                    ? null
+                    : String(t.linkedTransferId),
+
+                t.linkedExpenseId === undefined
+                    ? null
+                    : String(t.linkedExpenseId)
+            ]);
+
+        const before =
+            JSON.stringify(snapshot());
+
+        const requests = [];
+
+        app.data.transactions.forEach(t => {
+            if (
+                t.type === 'Chi tiêu' &&
+                t.linkedTransferId !== undefined &&
+                t.linkedTransferId !== null &&
+                t.linkedTransferId !== ''
+            ) {
+                requests.push({
+                    expenseId: t.id,
+                    transferId: t.linkedTransferId,
+                    priority: 2
+                });
+            }
+
+            if (
+                t.type === 'Chuyển tiền' &&
+                t.linkedExpenseId !== undefined &&
+                t.linkedExpenseId !== null &&
+                t.linkedExpenseId !== ''
+            ) {
+                requests.push({
+                    expenseId: t.linkedExpenseId,
+                    transferId: t.id,
+                    priority: 1
+                });
+            }
+        });
+
+        // Xóa toàn bộ rồi dựng lại liên kết hợp lệ.
+        app.data.transactions.forEach(t => {
+            delete t.linkedTransferId;
+            delete t.linkedExpenseId;
+        });
+
+        const usedExpenses = new Set();
+        const usedTransfers = new Set();
+
+        requests
+            .sort((a, b) =>
+                b.priority - a.priority
+            )
+            .forEach(request => {
+                const expenseKey =
+                    String(request.expenseId ?? '');
+
+                const transferKey =
+                    String(request.transferId ?? '');
+
+                if (
+                    !expenseKey ||
+                    !transferKey ||
+                    usedExpenses.has(expenseKey) ||
+                    usedTransfers.has(transferKey)
+                ) {
+                    return;
+                }
+
+                const expense =
+                    app.data.transactions.find(t =>
+                        String(t.id ?? '') ===
+                        expenseKey
+                    );
+
+                const transfer =
+                    app.data.transactions.find(t =>
+                        String(t.id ?? '') ===
+                        transferKey
+                    );
+
+                if (!expense || !transfer) return;
+
+                if (
+                    expense.type !== 'Chi tiêu' ||
+                    expense.status !== 'paid'
+                ) {
+                    return;
+                }
+
+                if (
+                    transfer.type !== 'Chuyển tiền' ||
+                    transfer.status !== 'paid'
+                ) {
+                    return;
+                }
+
+                expense.linkedTransferId =
+                    transfer.id;
+
+                transfer.linkedExpenseId =
+                    expense.id;
+
+                usedExpenses.add(expenseKey);
+                usedTransfers.add(transferKey);
+            });
+
+        const changed =
+            before !== JSON.stringify(snapshot());
+
+        if (
+            changed &&
+            options.save !== false
+        ) {
+            app.storage.save();
+        }
+
+        return { changed };
+    },
+
     isDebtPaymentTransaction(transaction = {}) {
         const tags = this.getTransactionTags(transaction);
         return tags.includes('#thanh_toan_no') ||
@@ -793,6 +1289,25 @@ app.logic = {
 
             // 5. Còn lại (Tiền mặt, Bank thường...) -> TÍNH VÀO NGÂN SÁCH
             return true;
+        }).map(t => {
+            const budgetAmount =
+                this.getTransactionBudgetAmount(t);
+
+            const normalAmount =
+                Number(t.amount) || 0;
+
+            // Không thay object khi không có liên kết.
+            if (budgetAmount === normalAmount) {
+                return t;
+            }
+
+            // Trả về bản sao dùng cho Dashboard/ngân sách.
+            // Giao dịch trong app.data vẫn giữ nguyên 20.000đ.
+            return {
+                ...t,
+                originalAmount: normalAmount,
+                amount: budgetAmount
+            };
         });
     },
 
@@ -3482,7 +3997,9 @@ app.logic = {
         );
 
         const todaySpent = countedTodayTxs.reduce(
-            (sum, t) => sum + (Number(t.amount) || 0),
+            (sum, t) =>
+                sum +
+                this.getTransactionBudgetAmount(t),
             0
         );
 
