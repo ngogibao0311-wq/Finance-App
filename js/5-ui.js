@@ -3283,6 +3283,93 @@ ${payAllHTML}
                 let rowClass = isCancelled ? 'tx-cancelled' : '';
                 let placeDisplay = t.place; // Biến tạm để hiển thị tên
 
+                                // ==========================================
+                // HIỂN THỊ DẤU NHẬN BIẾT GIAO DỊCH LIÊN KẾT
+                // ==========================================
+                const linkedTransactionId = isTransfer
+                    ? t.linkedExpenseId
+                    : t.linkedTransferId;
+
+                const linkedTransaction =
+                    linkedTransactionId !== undefined &&
+                    linkedTransactionId !== null &&
+                    linkedTransactionId !== ''
+                        ? app.data.transactions.find(item =>
+                            String(item.id ?? '') ===
+                            String(linkedTransactionId)
+                        )
+                        : null;
+
+                const isTransferExpenseLinked =
+                    Boolean(linkedTransaction);
+
+                let transferExpenseLinkHTML = '';
+
+                if (linkedTransaction) {
+                    if (isTransfer) {
+                        // Đây là giao dịch nạp/chuyển tiền.
+                        transferExpenseLinkHTML = `
+                            <div
+                                title="Giao dịch nạp này đã được dùng để thanh toán cho một giao dịch chi tiêu."
+                                style="
+                                    display:flex;
+                                    align-items:center;
+                                    gap:4px;
+                                    width:fit-content;
+                                    margin-top:5px;
+                                    padding:2px 7px;
+                                    border-radius:999px;
+                                    border:1px solid #c4b5fd;
+                                    background:#f5f3ff;
+                                    color:#7c3aed;
+                                    font-size:0.67rem;
+                                    font-weight:800;
+                                "
+                            >
+                                <i class="fa-solid fa-link"></i>
+
+                                <span>
+                                    Đã dùng cho:
+                                    ${linkedTransaction.place || 'Chi tiêu'}
+                                </span>
+                            </div>
+                        `;
+                    } else {
+                        // Đây là giao dịch chi tiêu.
+                        const linkedPaidAmount =
+                            app.logic.getTransactionBudgetAmount(t);
+
+                        transferExpenseLinkHTML = `
+                            <div
+                                title="Khoản chi này đang lấy số thực trả từ giao dịch nạp đã liên kết."
+                                style="
+                                    display:flex;
+                                    align-items:center;
+                                    gap:4px;
+                                    width:fit-content;
+                                    margin-top:5px;
+                                    padding:2px 7px;
+                                    border-radius:999px;
+                                    border:1px solid #99f6e4;
+                                    background:#f0fdfa;
+                                    color:#0f766e;
+                                    font-size:0.67rem;
+                                    font-weight:800;
+                                "
+                            >
+                                <i class="fa-solid fa-link"></i>
+
+                                <span>
+                                    Liên kết nạp:
+                                    ${app.logic.formatCurrency(
+                                        linkedPaidAmount
+                                    )}
+                                </span>
+                            </div>
+                        `;
+                    }
+                }
+
                 if (t.isTet) {
                     rowClass = 'tet-style'; // Thêm class CSS Tết
                     placeDisplay = `🧧 ${t.place}`; // Thêm icon bao lì xì
