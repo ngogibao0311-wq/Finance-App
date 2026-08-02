@@ -7711,7 +7711,7 @@ ${t.tempExtraFeeReason
                         </div>
                     </div>
                     <div style="text-align:right; display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
-                        <div style="font-family:var(--font-mono); font-weight:700; font-size: 1rem;">${app.logic.formatCurrency(t.amount)}</div>
+                        <div style="font-family:var(--font-mono); font-weight:700; font-size: 1rem;">${app.logic.formatCurrency(budgetAmount)}</div>
                         
                         <button class="btn btn-budget-action ${actionClass}" 
                             onclick="app.ui.toggleBudgetExclusion(${t.id})">
