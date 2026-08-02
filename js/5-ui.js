@@ -7675,7 +7675,19 @@ ${t.tempExtraFeeReason
                     listEl.innerHTML = '<div style="text-align:center; padding:2rem; color:var(--text-muted)">Chưa có chi tiêu thực tế nào trong tháng.</div>';
                 } else {
                     listEl.innerHTML = allExpenseCandidates.map(t => {
-                        const isExcluded = t.excludeFromBudget === true;
+    const isExcluded = t.excludeFromBudget === true;
+
+    // Số tiền thực tế dùng cho ngân sách.
+    // Ví dụ: trả cước 20.000đ liên kết với nạp thực trả
+    // 19.600đ thì Chi Tiết Ngân Sách hiển thị 19.600đ.
+    const budgetAmount =
+        app.logic.getTransactionBudgetAmount(t);
+
+    const originalAmount =
+        Number(t.amount) || 0;
+
+    const hasLinkedTransfer =
+        budgetAmount !== originalAmount;
 
                         // --- CẤU HÌNH GIAO DIỆN ---
                         const opacity = isExcluded ? '0.6' : '1';
