@@ -3283,7 +3283,7 @@ ${payAllHTML}
                 let rowClass = isCancelled ? 'tx-cancelled' : '';
                 let placeDisplay = t.place; // Biến tạm để hiển thị tên
 
-                                // ==========================================
+                // ==========================================
                 // HIỂN THỊ DẤU NHẬN BIẾT GIAO DỊCH LIÊN KẾT
                 // ==========================================
                 const linkedTransactionId = isTransfer
@@ -3292,8 +3292,8 @@ ${payAllHTML}
 
                 const linkedTransaction =
                     linkedTransactionId !== undefined &&
-                    linkedTransactionId !== null &&
-                    linkedTransactionId !== ''
+                        linkedTransactionId !== null &&
+                        linkedTransactionId !== ''
                         ? app.data.transactions.find(item =>
                             String(item.id ?? '') ===
                             String(linkedTransactionId)
@@ -3362,8 +3362,8 @@ ${payAllHTML}
                                 <span>
                                     Liên kết nạp:
                                     ${app.logic.formatCurrency(
-                                        linkedPaidAmount
-                                    )}
+                            linkedPaidAmount
+                        )}
                                 </span>
                             </div>
                         `;
@@ -3493,10 +3493,30 @@ ${payAllHTML}
             </td>
             </td>
             <td>
-                <div style="font-weight:600">${placeDisplay}</div>
-                <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">
-                    ${brandDisplay} ${t.tags || ''}
-                </div>
+    <div style="font-weight:600; display:flex; align-items:center; gap:6px;">
+        ${placeDisplay}
+
+        ${isTransferExpenseLinked
+                        ? `
+                <i
+                    class="fa-solid fa-link"
+                    title="Giao dịch đã liên kết"
+                    style="
+                        color:#8b5cf6;
+                        font-size:0.72rem;
+                    "
+                ></i>
+            `
+                        : ''
+                    }
+    </div>
+
+    ${transferExpenseLinkHTML}
+
+    <div style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;">
+        ${brandDisplay} ${t.tags || ''}
+    </div>
+</td>div>
             </td>
             <td>
                 ${t.destination
@@ -7762,19 +7782,19 @@ ${t.tempExtraFeeReason
                     listEl.innerHTML = '<div style="text-align:center; padding:2rem; color:var(--text-muted)">Chưa có chi tiêu thực tế nào trong tháng.</div>';
                 } else {
                     listEl.innerHTML = allExpenseCandidates.map(t => {
-    const isExcluded = t.excludeFromBudget === true;
+                        const isExcluded = t.excludeFromBudget === true;
 
-    // Số tiền thực tế dùng cho ngân sách.
-    // Ví dụ: trả cước 20.000đ liên kết với nạp thực trả
-    // 19.600đ thì Chi Tiết Ngân Sách hiển thị 19.600đ.
-    const budgetAmount =
-        app.logic.getTransactionBudgetAmount(t);
+                        // Số tiền thực tế dùng cho ngân sách.
+                        // Ví dụ: trả cước 20.000đ liên kết với nạp thực trả
+                        // 19.600đ thì Chi Tiết Ngân Sách hiển thị 19.600đ.
+                        const budgetAmount =
+                            app.logic.getTransactionBudgetAmount(t);
 
-    const originalAmount =
-        Number(t.amount) || 0;
+                        const originalAmount =
+                            Number(t.amount) || 0;
 
-    const hasLinkedTransfer =
-        budgetAmount !== originalAmount;
+                        const hasLinkedTransfer =
+                            budgetAmount !== originalAmount;
 
                         // --- CẤU HÌNH GIAO DIỆN ---
                         const opacity = isExcluded ? '0.6' : '1';
