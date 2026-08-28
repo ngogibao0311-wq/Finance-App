@@ -483,7 +483,11 @@ app.init = async function () {  // <-- Thêm async
 
             // 2. Nếu trạng thái đang là 'paid' NHƯNG chưa so khớp đủ -> Bắt buộc gọi lại bảng để so khớp tiếp
             if (txData.status === 'paid' && !isAlreadyMatched) {
-                app.ui.renderIncomeSelection(assignedMonth, configuredAmount);
+                app.ui.renderIncomeSelection(
+                    assignedMonth,
+                    configuredAmount,
+                    txData.id
+                );
             } else {
                 if (matchContainer) matchContainer.style.display = 'none';
             }
@@ -751,8 +755,28 @@ app.events = {
             }
 
             const originalAmount = Number(document.getElementById('tx-amount').value.replace(/[^0-9]/g, ''));
-            const discountRaw = document.getElementById('tx-discount').value.replace(/[^0-9]/g, '');
-            const discountInput = Number(discountRaw) || 0;
+            const discountText =
+                document.getElementById('tx-discount')
+                    .value
+                    .trim()
+                    .toLowerCase();
+
+            const discountRaw =
+                discountText.replace(/[^0-9]/g, '');
+
+            const discountInput =
+                Number(discountRaw) || 0;
+
+            const hasPercent =
+                discountText.includes('%');
+
+            const hasCurrency =
+                discountText.includes('đ') ||
+                discountText.includes('vnd');
+
+            const isPercentDiscount =
+                hasPercent ||
+                (!hasCurrency && discountInput <= 100);
 
             let finalAmount = originalAmount;
             let discountMoney = 0;
@@ -762,7 +786,7 @@ app.events = {
             const isCashback = document.getElementById('tx-is-cashback') ? document.getElementById('tx-is-cashback').checked : false;
 
             if (discountInput > 0) {
-                if (discountInput <= 100) {
+                if (isPercentDiscount) {
                     discountMoney = Math.round(originalAmount * (discountInput / 100));
                 } else {
                     discountMoney = discountInput;
@@ -900,54 +924,90 @@ app.events = {
 
                     checks.forEach(chk => {
                         selectedSum +=
-                            Number(chk.getAttribute('data-amount')) || 0;
+                            Number(
+                                chk.getAttribute('data-amount')
+                            ) || 0;
 
-                        selectedIds.push(Number(chk.value));
+                        selectedIds.push(
+                            Number(chk.value)
+                        );
                     });
 
-                    // Tổng tiền đã được so khớp từ trước
+                    // Những khoản đã khớp từ lần lưu trước
                     const alreadyMatchedTotal =
                         app.data.transactions
                             .filter(t =>
-                                String(t.assignedToMonthlyLimit ?? '') ===
-                                String(data.id)
+                                String(
+                                    t.assignedToMonthlyLimit ?? ''
+                                ) === String(data.id)
                             )
                             .reduce(
                                 (sum, t) =>
-                                    sum + (Number(t.amount) || 0),
+                                    sum +
+                                    (Number(t.amount) || 0),
                                 0
                             );
 
-                    const matchedTotal =
-                        alreadyMatchedTotal + selectedSum;
-
-                    // Không cho lưu im lặng nếu tổng tiền chưa đủ
-                    if (matchedTotal < configuredAmount) {
-                        return app.ui.popup.show(
-                            `Tổng thu nhập đã chọn mới đạt <b>${app.logic.formatCurrency(matchedTotal)}</b>.<br>` +
-                            `Còn thiếu <b>${app.logic.formatCurrency(configuredAmount - matchedTotal)}</b> để so khớp hạn mức.`,
-                            'error'
-                        );
-                    }
-
-                    // Loại các giao dịch đã chọn khỏi ngân sách và Dashboard
+                    /*
+                     * QUAN TRỌNG:
+                     * Không chặn lưu khi chưa đủ.
+                     *
+                     * Thu nhập được chọn trở thành
+                     * Thu nhập thực tế.
+                     */
                     app.data.transactions.forEach(t => {
-                        if (selectedIds.includes(Number(t.id))) {
-                            t.excludeFromBudget = true;
-                            t.excludeFromDashboard = true;
-                            t.assignedToMonthlyLimit = data.id;
+                        if (
+                            selectedIds.includes(
+                                Number(t.id)
+                            )
+                        ) {
+                            t.assignedToMonthlyLimit =
+                                data.id;
+
+                            // Đây là tiền thật nên PHẢI
+                            // được tính vào ngân sách
+                            t.excludeFromBudget = false;
+                            t.excludeFromDashboard = false;
                         }
                     });
 
-                    if (selectedIds.length > 0) {
-                        console.log(
-                            `Đã loại trừ ${selectedIds.length} giao dịch thu nhập vì đã so khớp đủ hạn mức.`
-                        );
-                    }
+                    const matchedTotal =
+                        alreadyMatchedTotal +
+                        selectedSum;
+
+                    // Lưu để dễ nhận biết trạng thái
+                    data.limitMatchedAmount =
+                        matchedTotal;
+
+                    data.limitMatchIncomplete =
+                        matchedTotal < configuredAmount;
+
+                } else {
+
+                    /*
+                     * Nếu người dùng chuyển Hạn mức
+                     * trở lại trạng thái chưa xong,
+                     * bỏ liên kết so khớp.
+                     */
+                    app.data.transactions.forEach(t => {
+                        if (
+                            String(
+                                t.assignedToMonthlyLimit ?? ''
+                            ) === String(data.id)
+                        ) {
+                            delete t.assignedToMonthlyLimit;
+
+                            t.excludeFromBudget = false;
+                            t.excludeFromDashboard = false;
+                        }
+                    });
+
+                    data.limitMatchedAmount = 0;
+                    data.limitMatchIncomplete = false;
                 }
             }
 
-                        // ==================================================
+            // ==================================================
             // SO KHỚP GIAO DỊCH NẠP VỚI GIAO DỊCH CHI TIÊU
             // ==================================================
             if (!isMonthlyLimitCreditTx) {
@@ -1276,7 +1336,7 @@ app.events = {
                 app.data.transactions.push(cashbackData);
             }
 
-                        // Đồng bộ liên kết hai chiều sau khi giao dịch
+            // Đồng bộ liên kết hai chiều sau khi giao dịch
             // đã được thêm hoặc cập nhật trong CSDL.
             if (
                 data.type === 'Chi tiêu' &&

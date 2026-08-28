@@ -487,7 +487,10 @@ app.ui = {
         const projectedDebtBar = projectedDebtBudget;
 
         // Hạn mức cấp trước và thu nhập thực tế thông thường.
-        const limitCredit = app.logic.getMonthlyLimitCreditAmount(currentMonth);
+        const limitCredit =
+            app.logic.getMonthlyLimitRemainingCredit(
+                currentMonth
+            );
         const budgetIncome = app.logic.getBudgetIncomeTotal(currentMonth);
 
         // [MỚI] Kiểm tra trạng thái giao dịch hạn mức
@@ -496,12 +499,6 @@ app.ui = {
 
         let displayLimit = limitCredit;
         let displayIncome = budgetIncome;
-
-        // Nếu đã xong, dồn Cấp trước vào Thu nhập thực tế để hiển thị
-        if (isLimitPaid) {
-            displayLimit = 0;
-            displayIncome = budgetIncome + limitCredit;
-        }
 
         // Khả dụng chỉ trừ nợ thuộc đúng tháng thanh toán
         const totalUsed =
@@ -644,30 +641,83 @@ app.ui = {
         // 5. Cập nhật Text "Đã tiêu"
         let incomeHtml = '';
         if (app.logic.isMonthlyLimitCreditEnabled(currentMonth)) {
-            if (isLimitPaid) {
-                // Đã xong -> Ẩn Cấp trước, gộp tiền vào Thu nhập thực tế
+
+            // Đã xong nhưng vẫn còn phần Cấp trước chưa được
+            // Thu nhập thực tế bù đủ.
+            if (isLimitPaid && displayLimit > 0) {
                 incomeHtml = `
-                <div>
-                    Thu nhập thực tế:
-                    <b style="color:var(--success)">
-                        +${app.logic.formatCurrency(displayIncome)}
-                    </b>
-                </div>`;
+        <div>
+            Cấp trước:
+            <b style="color:var(--primary)">
+                +${app.logic.formatCurrency(displayLimit)}
+            </b>
+
+            <span style="
+                margin-left:6px;
+                color:var(--danger);
+                font-size:.72rem;
+                font-weight:800;
+            ">
+                <i class="fa-solid fa-circle-exclamation"></i>
+                Đang thiếu
+            </span>
+        </div>
+
+        <div>
+            Thu nhập thực tế:
+            <b style="color:var(--success)">
+                +${app.logic.formatCurrency(displayIncome)}
+            </b>
+        </div>
+
+        <div style="
+            font-size:.72rem;
+            color:var(--danger);
+            margin-top:2px;
+        ">
+            Còn thiếu
+            <b>${app.logic.formatCurrency(displayLimit)}</b>
+            để khớp đủ hạn mức.
+        </div>`;
+
+            } else if (isLimitPaid) {
+
+                // Đã có đủ Thu nhập thực tế để thay toàn bộ Cấp trước
+                incomeHtml = `
+        <div>
+            Thu nhập thực tế:
+            <b style="color:var(--success)">
+                +${app.logic.formatCurrency(displayIncome)}
+            </b>
+
+            <span style="
+                margin-left:6px;
+                color:var(--success);
+                font-size:.72rem;
+                font-weight:800;
+            ">
+                <i class="fa-solid fa-circle-check"></i>
+                Đã khớp đủ
+            </span>
+        </div>`;
+
             } else {
-                // Chưa xong -> Hiện song song cả 2
+
+                // Hạn mức chưa chuyển sang Đã xong
                 incomeHtml = `
-                <div>
-                    Cấp trước:
-                    <b style="color:var(--primary)">
-                        +${app.logic.formatCurrency(displayLimit)}
-                    </b>
-                </div>
-                <div>
-                    Thu nhập thực tế:
-                    <b style="color:var(--success)">
-                        +${app.logic.formatCurrency(displayIncome)}
-                    </b>
-                </div>`;
+        <div>
+            Cấp trước:
+            <b style="color:var(--primary)">
+                +${app.logic.formatCurrency(displayLimit)}
+            </b>
+        </div>
+
+        <div>
+            Thu nhập thực tế:
+            <b style="color:var(--success)">
+                +${app.logic.formatCurrency(displayIncome)}
+            </b>
+        </div>`;
             }
         } else {
             // Không bật tính năng Giới hạn tháng
@@ -903,11 +953,43 @@ app.ui = {
     },
 
     calcDiscount() {
-        const amountVal = document.getElementById('tx-amount').value.replace(/[^0-9]/g, '');
-        const discountVal = document.getElementById('tx-discount').value.replace(/[^0-9]/g, '');
+        const amountVal =
+            document.getElementById('tx-amount')
+                .value
+                .replace(/[^0-9]/g, '');
 
-        const originalPrice = parseFloat(amountVal) || 0;
-        const discountInput = parseFloat(discountVal) || 0;
+        const discountText =
+            document.getElementById('tx-discount')
+                .value
+                .trim()
+                .toLowerCase();
+
+        const discountVal =
+            discountText.replace(/[^0-9]/g, '');
+
+        const originalPrice =
+            parseFloat(amountVal) || 0;
+
+        const discountInput =
+            parseFloat(discountVal) || 0;
+
+        // Có dấu % => chắc chắn là phần trăm
+        const hasPercent =
+            discountText.includes('%');
+
+        // Có "đ" hoặc "vnd" => chắc chắn là số tiền
+        const hasCurrency =
+            discountText.includes('đ') ||
+            discountText.includes('vnd');
+
+        // Giữ tương thích cách nhập cũ:
+        // 1 -> vẫn hiểu là 1%
+        // 1% -> 1%
+        // 500 -> 500đ
+        // 500đ -> 500đ
+        const isPercentDiscount =
+            hasPercent ||
+            (!hasCurrency && discountInput <= 100);
         const hintEl = document.getElementById('discount-hint');
         const isCashback = document.getElementById('tx-is-cashback') && document.getElementById('tx-is-cashback').checked;
 
@@ -916,9 +998,13 @@ app.ui = {
             let finalPrice = 0;
             let noteText = '';
 
-            if (discountInput <= 100) {
-                discountMoney = originalPrice * (discountInput / 100);
-                noteText = `${discountInput}%`;
+            if (isPercentDiscount) {
+                discountMoney =
+                    originalPrice *
+                    (discountInput / 100);
+
+                noteText =
+                    `${discountInput}%`;
             } else {
                 discountMoney = discountInput;
                 noteText = new Intl.NumberFormat('vi-VN').format(discountMoney);
@@ -2961,21 +3047,54 @@ ${payAllHTML}
     },
 
     // --- BỔ SUNG HÀM SO KHỚP THU NHẬP ---
-    renderIncomeSelection(month, limitAmount) {
+    renderIncomeSelection(month, limitAmount, limitTransactionId = null) {
         const container = document.getElementById('limit-income-selection-container');
         const listEl = document.getElementById('limit-income-list');
         const statusEl = document.getElementById('limit-income-status');
 
         if (!container || !listEl || !statusEl) return;
 
+        const limitTx =
+            limitTransactionId
+                ? app.data.transactions.find(
+                    t =>
+                        String(t.id) ===
+                        String(limitTransactionId)
+                )
+                : app.logic
+                    .getMonthlyLimitCreditTransaction(
+                        month
+                    );
+
+        const limitTxId =
+            limitTx?.id;
+
+        const alreadyMatched =
+            limitTxId
+                ? app.data.transactions
+                    .filter(t =>
+                        String(
+                            t.assignedToMonthlyLimit ?? ''
+                        ) ===
+                        String(limitTxId)
+                    )
+                    .reduce(
+                        (sum, t) =>
+                            sum +
+                            (Number(t.amount) || 0),
+                        0
+                    )
+                : 0;
+
         // Lọc giao dịch: Loại Thu nhập, Đã trả, Cùng tháng, Chưa bị loại trừ, Không phải giao dịch hạn mức
         const incomes = app.data.transactions.filter(t =>
             t.type === 'Thu nhập' &&
             t.status === 'paid' &&
             !t.isMonthlyLimitCredit &&
+            !t.assignedToMonthlyLimit &&
             !t.excludeFromBudget &&
             app.logic.getLocalMonthKey(t.date) === month
-        ).slice(0, 10); // Lấy tối đa 10 giao dịch
+        ).slice(0, 10);
 
         if (incomes.length === 0) {
             listEl.innerHTML = '<div style="font-size:0.8rem; color:#64748b; text-align:center;">Không có giao dịch thu nhập nào khả dụng trong tháng này.</div>';
@@ -3003,13 +3122,33 @@ ${payAllHTML}
         // Logic tính toán khi check
         const calculateSum = () => {
             const checks = document.querySelectorAll('.limit-income-chk:checked');
-            let sum = 0;
+            let sum = alreadyMatched;
             checks.forEach(chk => sum += Number(chk.getAttribute('data-amount')));
 
             if (sum >= limitAmount) {
-                statusEl.innerHTML = `<span style="color:var(--success)"><i class="fa-solid fa-check-circle"></i> Đã đủ điều kiện (Tổng: ${app.logic.formatCurrency(sum)})</span>`;
+                statusEl.innerHTML = `
+        <span style="color:var(--success)">
+            <i class="fa-solid fa-check-circle"></i>
+            Đã khớp đủ
+            (Tổng:
+            ${app.logic.formatCurrency(sum)})
+        </span>
+    `;
             } else {
-                statusEl.innerHTML = `<span style="color:var(--danger)"><i class="fa-solid fa-circle-exclamation"></i> Thiếu ${app.logic.formatCurrency(limitAmount - sum)}</span>`;
+                statusEl.innerHTML = `
+        <span style="color:var(--danger)">
+            <i class="fa-solid fa-circle-exclamation"></i>
+            <b>Đang thiếu</b>
+            ${app.logic.formatCurrency(
+                    limitAmount - sum
+                )}
+            <br>
+            <small>
+                Đã khớp:
+                ${app.logic.formatCurrency(sum)}
+            </small>
+        </span>
+    `;
             }
         };
 

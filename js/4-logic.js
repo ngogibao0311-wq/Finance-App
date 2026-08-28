@@ -123,6 +123,53 @@ app.logic = {
         ) || null;
     },
 
+    // Tổng Thu nhập thực tế đã dùng để bù cho Hạn mức tháng
+    getMonthlyLimitMatchedIncomeTotal(month = app.data.filter.month) {
+        const limitTx =
+            this.getMonthlyLimitCreditTransaction(month);
+
+        if (!limitTx) return 0;
+
+        return app.data.transactions
+            .filter(t =>
+                !this.isMonthlyLimitCreditTransaction(t) &&
+                t.type === 'Thu nhập' &&
+                t.status === 'paid' &&
+                String(t.assignedToMonthlyLimit ?? '') ===
+                String(limitTx.id)
+            )
+            .reduce(
+                (sum, t) =>
+                    sum + (Number(t.amount) || 0),
+                0
+            );
+    },
+
+    // Phần Cấp trước còn lại sau khi đã có Thu nhập thực tế bù vào
+    getMonthlyLimitRemainingCredit(month = app.data.filter.month) {
+        const configured =
+            this.getMonthlyLimitCreditAmount(month);
+
+        if (configured <= 0) return 0;
+
+        const limitTx =
+            this.getMonthlyLimitCreditTransaction(month);
+
+        // Chưa chuyển sang Đã xong:
+        // vẫn sử dụng toàn bộ Cấp trước như hiện tại
+        if (!limitTx || limitTx.status !== 'paid') {
+            return configured;
+        }
+
+        const matched =
+            this.getMonthlyLimitMatchedIncomeTotal(month);
+
+        return Math.max(
+            0,
+            configured - matched
+        );
+    },
+
     syncMonthlyLimitCredit(month = app.data.filter.month, options = {}) {
         if (!this.isMonthlyLimitCreditEnabled(month)) {
             return { changed: false, transaction: null };
@@ -342,9 +389,7 @@ app.logic = {
         }
 
         const limitCredit =
-            this.getMonthlyLimitCreditAmount(
-                monthKey
-            );
+            this.getMonthlyLimitRemainingCredit(monthKey);
 
         const income =
             this.getBudgetIncomeTotal(monthKey);
@@ -1321,7 +1366,10 @@ app.logic = {
                 if (t.type !== 'Thu nhập') return false;
                 if (t.status !== 'paid') return false;
                 // [MỚI] Loại bỏ thu nhập đã dùng để so khớp đắp vào Cấp trước
-                if (t.excludeFromBudget === true) return false;
+                if (
+                    t.excludeFromBudget === true &&
+                    !t.assignedToMonthlyLimit
+                ) return false;
                 return true;
             })
             .reduce(
@@ -1359,7 +1407,7 @@ app.logic = {
     },
 
     getBudgetAvailableBase(month = app.data.filter.month) {
-        return this.getMonthlyLimitCreditAmount(month) +
+        return this.getMonthlyLimitRemainingCredit(month) +
             this.getBudgetIncomeTotal(month);
     },
 
@@ -3967,7 +4015,8 @@ app.logic = {
 
         // Thu nhập thực tế thông thường và khoản hạn mức được cấp trước.
         const budgetIncome = this.getBudgetIncomeTotal(currentMonth);
-        const limitCredit = this.getMonthlyLimitCreditAmount(currentMonth);
+        const limitCredit =
+            this.getMonthlyLimitRemainingCredit(currentMonth);
 
         // Tổng nguồn tiền được phép sử dụng
         // Giới hạn ngày vẫn dựa trên Giới hạn chi tiêu tháng
