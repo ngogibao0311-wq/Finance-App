@@ -1378,32 +1378,52 @@ app.logic = {
             );
     },
 
-    // Tổng thu nhập chính thức để hiển thị/báo cáo.
-    // Giao dịch hạn mức chỉ được đưa vào đây khi ở trạng thái Đã xong.
+    // Tổng THU NHẬP THỰC TẾ chính thức để hiển thị/báo cáo.
+    //
+    // QUAN TRỌNG:
+    // Giao dịch "Hạn mức chi tiêu tháng" chỉ là tiền CẤP TRƯỚC,
+    // không phải một khoản thu nhập thật.
+    //
+    // Khi chuyển Hạn mức sang "Đã xong", tuyệt đối không cộng
+    // toàn bộ Hạn mức vào Tổng Thu nhập.
+    // Chỉ các giao dịch Thu nhập thật mới được tính.
     getActualIncomeTotal(month = app.data.filter.month, options = {}) {
         const respectDashboardExclusion =
             options.respectDashboardExclusion === true;
 
-        const regularIncome = app.data.transactions
+        return app.data.transactions
             .filter(t => {
-                if (!this.isTransactionInMonth(t, month)) return false;
-                if (this.isMonthlyLimitCreditTransaction(t)) return false;
-                if (t.type !== 'Thu nhập' || t.status !== 'paid') return false;
-                if (respectDashboardExclusion && t.excludeFromDashboard) return false;
+                if (!this.isTransactionInMonth(t, month)) {
+                    return false;
+                }
+
+                // Không bao giờ tính giao dịch Hạn mức
+                // thành Thu nhập thực tế.
+                if (this.isMonthlyLimitCreditTransaction(t)) {
+                    return false;
+                }
+
+                if (
+                    t.type !== 'Thu nhập' ||
+                    t.status !== 'paid'
+                ) {
+                    return false;
+                }
+
+                if (
+                    respectDashboardExclusion &&
+                    t.excludeFromDashboard
+                ) {
+                    return false;
+                }
+
                 return true;
             })
             .reduce(
-                (sum, t) => sum + (Number(t.amount) || 0),
+                (sum, t) =>
+                    sum + (Number(t.amount) || 0),
                 0
             );
-
-        const limitTx = this.getMonthlyLimitCreditTransaction(month);
-        const completedLimitIncome =
-            limitTx && limitTx.status === 'paid'
-                ? this.getMonthlyLimitCreditAmount(month)
-                : 0;
-
-        return regularIncome + completedLimitIncome;
     },
 
     getBudgetAvailableBase(month = app.data.filter.month) {
