@@ -518,10 +518,15 @@ app.ui = {
         const totalUsed =
             totalExpense + projectedDebtBudget;
 
-        const remain =
-            limitCredit +
-            budgetIncome -
-            totalUsed;
+        // Khả dụng luôn dựa trên HẠN MỨC GỐC.
+//
+// Việc so khớp chỉ thay đổi:
+// Cấp trước còn lại <-> Thu nhập đã đối ứng,
+// không làm mất đi sức mua/khả dụng của tháng.
+const remain =
+    configuredLimitCredit +
+    budgetIncome -
+    totalUsed;
 
         /*
          * Tổng sức chứa thật của thanh ngân sách:
