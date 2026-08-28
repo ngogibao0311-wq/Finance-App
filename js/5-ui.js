@@ -487,11 +487,25 @@ app.ui = {
         const projectedDebtBar = projectedDebtBudget;
 
         // Hạn mức cấp trước và thu nhập thực tế thông thường.
+        // Hạn mức GỐC đã cài trong cấu hình tháng.
+        // Chỉ dùng cho thanh tiến độ và đánh giá trạng thái.
+        const configuredLimitCredit =
+            app.logic.getMonthlyLimitCreditAmount(
+                currentMonth
+            );
+
+        // Cấp trước THỰC TẾ còn lại sau khi so khớp.
+        // Dùng cho Khả dụng và phần hiển thị "Cấp trước".
         const limitCredit =
             app.logic.getMonthlyLimitRemainingCredit(
                 currentMonth
             );
-        const budgetIncome = app.logic.getBudgetIncomeTotal(currentMonth);
+
+        // Thu nhập thực tế
+        const budgetIncome =
+            app.logic.getBudgetIncomeTotal(
+                currentMonth
+            );
 
         // [MỚI] Kiểm tra trạng thái giao dịch hạn mức
         const limitTx = app.logic.getMonthlyLimitCreditTransaction(currentMonth);
@@ -530,10 +544,19 @@ app.ui = {
          * Giữ nguyên thanh ngân sách theo cách cũ,
          * chỉ dựa trên Giới hạn chi tiêu tháng.
          */
+        /*
+ * Thanh tiến độ KHÔNG được co lại khi
+ * người dùng so khớp Thu nhập với Cấp trước.
+ *
+ * Vì việc so khớp chỉ thay đổi cách phân loại:
+ * Cấp trước -> Thu nhập thực tế.
+ *
+ * Do đó thanh luôn dùng Hạn mức GỐC.
+ */
         const progressCapacity = usesMonthlyLimitCredit
             ? Math.max(
                 0,
-                limitCredit + budgetIncome
+                configuredLimitCredit + budgetIncome
             )
             : Math.max(
                 0,
