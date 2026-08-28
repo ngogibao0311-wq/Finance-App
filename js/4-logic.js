@@ -1269,13 +1269,77 @@ app.logic = {
     },
 
     isCreditSource(source = '') {
-        const s = String(source || '').toLowerCase();
-        return (s.includes('zalo') && (s.includes('trả sau') || s.includes('priority') || s.includes('paylater'))) ||
-            (s.includes('momo') && (s.includes('trả sau') || s.includes('ví trả sau') || s.includes('credit'))) ||
-            s.includes('shopee') || s.includes('spay') || s.includes('airpay') ||
-            s.includes('tiktok') ||
-            s.includes('tín dụng') || s.includes('thẻ') || s.includes('credit') ||
-            s.includes('trả sau') || s.includes('paylater');
+        const s = String(source || '')
+            .toLowerCase()
+            .trim();
+
+        if (!s) return false;
+
+        // Zalo chỉ là tín dụng khi thật sự là Trả sau / Priority
+        const isZaloCredit =
+            (s.includes('zalo') || s.includes('zalopay')) &&
+            (
+                s.includes('trả sau') ||
+                s.includes('tra sau') ||
+                s.includes('priority') ||
+                s.includes('paylater')
+            );
+
+        // MoMo chỉ là tín dụng khi là Ví Trả Sau / Credit
+        const isMomoCredit =
+            s.includes('momo') &&
+            (
+                s.includes('trả sau') ||
+                s.includes('tra sau') ||
+                s.includes('ví trả sau') ||
+                s.includes('vi tra sau') ||
+                s.includes('credit') ||
+                s.includes('paylater')
+            );
+
+        // Shopee chỉ là tín dụng nếu SPayLater
+        const isShopeeCredit =
+            s.includes('spaylater') ||
+            s.includes('spay later') ||
+            (
+                (s.includes('shopee') || s.includes('spay')) &&
+                (
+                    s.includes('trả sau') ||
+                    s.includes('tra sau') ||
+                    s.includes('paylater')
+                )
+            );
+
+        // TikTok chỉ là tín dụng nếu PayLater / Trả sau
+        const isTikTokCredit =
+            s.includes('tiktok') &&
+            (
+                s.includes('paylater') ||
+                s.includes('pay later') ||
+                s.includes('trả sau') ||
+                s.includes('tra sau')
+            );
+
+        // Tín dụng thông thường
+        const isOtherCredit =
+            s.includes('thẻ tín dụng') ||
+            s.includes('the tin dung') ||
+            s.includes('tín dụng') ||
+            s.includes('tin dung') ||
+            s.includes('credit card') ||
+            s.includes('credit') ||
+            s.includes('trả sau') ||
+            s.includes('tra sau') ||
+            s.includes('paylater') ||
+            s.includes('pay later');
+
+        return (
+            isZaloCredit ||
+            isMomoCredit ||
+            isShopeeCredit ||
+            isTikTokCredit ||
+            isOtherCredit
+        );
     },
 
     getFilteredTxs() {

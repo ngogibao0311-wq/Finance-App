@@ -519,14 +519,14 @@ app.ui = {
             totalExpense + projectedDebtBudget;
 
         // Khả dụng luôn dựa trên HẠN MỨC GỐC.
-//
-// Việc so khớp chỉ thay đổi:
-// Cấp trước còn lại <-> Thu nhập đã đối ứng,
-// không làm mất đi sức mua/khả dụng của tháng.
-const remain =
-    configuredLimitCredit +
-    budgetIncome -
-    totalUsed;
+        //
+        // Việc so khớp chỉ thay đổi:
+        // Cấp trước còn lại <-> Thu nhập đã đối ứng,
+        // không làm mất đi sức mua/khả dụng của tháng.
+        const remain =
+            configuredLimitCredit +
+            budgetIncome -
+            totalUsed;
 
         /*
          * Tổng sức chứa thật của thanh ngân sách:
@@ -3311,15 +3311,7 @@ ${payAllHTML}
         );
 
         // --- FIX: Định nghĩa chặt chẽ thế nào là Nguồn Tín Dụng ---
-        const isCreditSource = s => {
-            const lower = s.toLowerCase();
-            const isZaloCredit = lower.includes('zalo') && (lower.includes('trả sau') || lower.includes('priority') || lower.includes('paylater'));
-            const isMomoCredit = lower.includes('momo') && (lower.includes('trả sau') || lower.includes('ví trả sau') || lower.includes('credit'));
-            const isShopeeCredit = lower.includes('shopee') || lower.includes('spay') || lower.includes('airpay');
-            const isTikTokCredit = lower.includes('tiktok');
-            const isOtherCredit = lower.includes('tín dụng') || lower.includes('thẻ') || lower.includes('credit');
-            return isZaloCredit || isMomoCredit || isOtherCredit || isShopeeCredit || isTikTokCredit;
-        };
+        const isCreditSource = s => app.logic.isCreditSource(s);
         // ----------------------------------------------------------
 
         // Chỉ tính vào Tổng Nợ nếu là nguồn tín dụng thực sự (bỏ qua tiền mặt/ví thường pending)
