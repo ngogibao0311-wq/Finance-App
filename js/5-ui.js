@@ -1605,16 +1605,28 @@ app.ui = {
 
     // --- THÊM MỚI: Hàm bật/tắt loại trừ khỏi ngân sách ---
     toggleBudgetExclusion(id) {
-        const tx = app.data.transactions.find(t => t.id === id);
-        if (tx) {
-            // Đảo ngược trạng thái (true -> false, false -> true)
-            tx.excludeFromBudget = !tx.excludeFromBudget;
-            app.storage.save();
+        const tx = app.data.transactions.find(
+            t => String(t.id) === String(id)
+        );
 
-            // Render lại cả màn hình chính và modal
-            app.ui.renderAll();
-            app.ui.modals.budget.open(); // Vẽ lại list trong modal để thấy thay đổi ngay
+        if (!tx) {
+            console.warn(
+                '[Budget] Không tìm thấy giao dịch để loại trừ:',
+                id
+            );
+            return;
         }
+
+        tx.excludeFromBudget =
+            tx.excludeFromBudget !== true;
+
+        app.storage.save();
+
+        // Tính lại toàn bộ thanh ngân sách
+        app.ui.renderAll();
+
+        // Vẽ lại Chi Tiết Ngân Sách
+        app.ui.modals.budget.open();
     },
 
     showUpcomingCreditGroupDetails(encodedGroupKey) {
@@ -8321,14 +8333,16 @@ ${t.tempExtraFeeReason
                 const listEl = document.getElementById('budget-history-list');
                 const month = app.data.filter.month;
 
-                const allExpenseCandidates = app.data.transactions.filter(t =>
-                    app.logic.isTransactionInMonth(t, month) &&
-                    t.type === 'Chi tiêu' &&
-                    t.status === 'paid' &&
-                    !t.tags?.includes('#du_no_chuyen_tiep')
-                );
+                // FIX: Chi Tiết Ngân Sách phải dùng cùng logic với thanh Ngân sách
+                const allExpenseCandidates =
+                    app.logic.getBudgetTransactions({
+                        month,
+                        respectExclusion: false
+                    });
 
-                allExpenseCandidates.sort((a, b) => app.logic.compareTransactions(a, b));
+                allExpenseCandidates.sort(
+                    (a, b) => app.logic.compareTransactions(a, b)
+                );
 
                 if (allExpenseCandidates.length === 0) {
                     listEl.innerHTML = '<div style="text-align:center; padding:2rem; color:var(--text-muted)">Chưa có chi tiêu thực tế nào trong tháng.</div>';
@@ -8526,7 +8540,9 @@ ${t.tempExtraFeeReason
 
             openSingle(id) {
                 if (event) event.stopPropagation();
-                const tx = app.data.transactions.find(t => t.id === id);
+                const tx = app.data.transactions.find(
+                    t => String(t.id) === String(id)
+                );
                 if (!tx) return;
 
                 let titleStamp = "";

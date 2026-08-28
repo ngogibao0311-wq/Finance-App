@@ -1260,10 +1260,12 @@ app.logic = {
 
     isDebtPaymentTransaction(transaction = {}) {
         const tags = this.getTransactionTags(transaction);
+
+        // #tra_gop chỉ thể hiện khoản đã chuyển sang cơ chế trả góp.
+        // Nó KHÔNG đồng nghĩa với việc tiền đã thực sự được trả.
         return tags.includes('#thanh_toan_no') ||
             tags.includes('#thanh_toan_phi') ||
             tags.includes('#nop_phat') ||
-            tags.includes('#tra_gop') ||
             tags.includes('#tat_toan_vay') ||
             tags.includes('#tra_no_vay');
     },
@@ -1382,21 +1384,25 @@ app.logic = {
             const tags = this.getTransactionTags(t);
             const s = String(t.source || '').toLowerCase();
 
-            // 2. [QUAN TRỌNG - TÍNH VÀO NGÂN SÁCH] Các khoản THANH TOÁN NỢ
-            // Bao gồm: Trả gốc (#thanh_toan_no), Phí (#thanh_toan_phi), Phạt (#nop_phat), Trả góp (#tra_gop), Tất toán vay (#tat_toan_vay)
+            // Trả góp ≠ trả nợ
+            if (
+                tags.includes('#tra_gop') &&
+                !tags.includes('#thanh_toan_no')
+            ) {
+                return false;
+            }
+
+            // Chỉ các khoản thực sự thanh toán nợ mới tính
             const isDebtPayment = this.isDebtPaymentTransaction(t);
 
             if (isDebtPayment) return true;
 
-            // 3. [QUAN TRỌNG - KHÔNG TÍNH] Các khoản CHI TIÊU TÍN DỤNG GỐC
-            // (Vì chúng ta đã tính tiền lúc trả nợ ở Bước 2 rồi, nếu tính thêm ở đây sẽ bị trùng lặp)
+            // Chi tiêu tín dụng gốc không phải thực trả
             if (this.isCreditSource(s)) return false;
 
-            // 4. Loại trừ các khoản trung gian/nội bộ
             if (tags.includes('#da_chuyen_tra_gop')) return false;
             if (tags.includes('#du_no_chuyen_tiep')) return false;
 
-            // 5. Còn lại (Tiền mặt, Bank thường...) -> TÍNH VÀO NGÂN SÁCH
             return true;
         }).map(t => {
             const budgetAmount =
@@ -4116,6 +4122,12 @@ app.logic = {
             if (t.status !== 'paid') return false;
 
             const tags = this.getTransactionTags(t);
+            if (
+                tags.includes('#tra_gop') &&
+                !tags.includes('#thanh_toan_no')
+            ) {
+                return false;
+            }
             if (tags.includes('#du_no_chuyen_tiep') || tags.includes('#da_chuyen_tra_gop')) return false;
 
             if (this.isDebtPaymentTransaction(t)) return true;
