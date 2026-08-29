@@ -2197,7 +2197,7 @@ app.logic = {
                         keyPrefix: 'shopee',
                         name: 'ShopeePay SPayLater',
                         source: 'Ví Trả Sau ShopeePay',
-                        dueDay: 1
+                        dueDay: 3
                     };
                 }
 
@@ -3741,7 +3741,7 @@ app.logic = {
             const statementCutoffDay = 13;
 
             // Hạn thanh toán ngày 1 của tháng tiếp theo.
-            const dueDay = 1;
+            const dueDay = 3;
 
             let sMonth = txDate.getMonth();
             let sYear = txDate.getFullYear();

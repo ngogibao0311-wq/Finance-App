@@ -4282,7 +4282,7 @@ ${payAllHTML}
                 plan.isShopee ||
                 plan.source.toLowerCase().includes('shopee')
             ) {
-                targetDate = 1;
+                targetDate = 3;
             } else if (sLower.includes('tiktok')) {
                 targetDate = 10;
             }
