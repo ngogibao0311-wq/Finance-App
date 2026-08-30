@@ -171,96 +171,23 @@ app.logic = {
     },
 
     syncMonthlyLimitCredit(month = app.data.filter.month, options = {}) {
-        if (!this.isMonthlyLimitCreditEnabled(month)) {
-            return { changed: false, transaction: null };
-        }
-
-        const limit = this.getMonthlyLimitCreditAmount(month);
-        const matches = app.data.transactions.filter(t =>
-            this.isMonthlyLimitCreditTransaction(t) &&
-            this.getMonthlyLimitCreditMonth(t) === month
-        );
-
         let changed = false;
-
-        // Xóa giới hạn thì giao dịch hệ thống của tháng đó cũng được xóa.
-        if (limit <= 0) {
-            if (matches.length > 0) {
-                const matchedIds = new Set(matches.map(t => t.id));
-                app.data.transactions = app.data.transactions.filter(
-                    t => !matchedIds.has(t.id)
-                );
-                changed = true;
-            }
-
-            if (changed && options.save !== false) app.storage.save();
-            return { changed, transaction: null };
-        }
-
-        let tx = matches[0] || null;
-
-        if (!tx) {
-            const [year, monthNumber] = month.split('-').map(Number);
-            tx = {
-                id: Date.now() + Math.random(),
-                type: 'Thu nhập',
-                status: 'pending',
-                amount: limit,
-                discountAmount: 0,
-                discountValue: null,
-                place: `Hạn mức chi tiêu tháng ${String(monthNumber).padStart(2, '0')}/${year}`,
-                brand: '',
-                source: 'Giới hạn chi tiêu (Tháng)',
-                destination: '',
-                date: `${month}-01T12:00:00`,
-                tags: '#gioi_han_chi_tieu_tu_dong',
-                note: 'Khoản tiền được cấp trước để chi tiêu; chỉ tính là thu nhập thực tế khi chuyển sang Đã xong.',
-                isMonthlyLimitCredit: true,
-                monthlyLimitMonth: month,
-                isCashback: false
-            };
-            app.data.transactions.push(tx);
+        // Xóa sạch các giao dịch "Hạn mức ảo" đã từng tạo để trả lại số dư thật
+        const fakeTxs = app.data.transactions.filter(t => t.isMonthlyLimitCredit === true);
+        if (fakeTxs.length > 0) {
+            const fakeIds = new Set(fakeTxs.map(t => t.id));
+            app.data.transactions = app.data.transactions.filter(t => !fakeIds.has(t.id));
             changed = true;
         }
-
-        // Chỉ giữ một giao dịch hệ thống cho mỗi tháng.
-        if (matches.length > 1) {
-            const duplicateIds = new Set(matches.slice(1).map(t => t.id));
-            app.data.transactions = app.data.transactions.filter(
-                t => !duplicateIds.has(t.id)
-            );
-            changed = true;
-        }
-
-        const tags = String(tx.tags || '')
-            .split(/\s+/)
-            .filter(Boolean);
-        if (!tags.includes('#gioi_han_chi_tieu_tu_dong')) {
-            tags.push('#gioi_han_chi_tieu_tu_dong');
-        }
-
-        const normalizedStatus = tx.status === 'paid' ? 'paid' : 'pending';
-        const requiredValues = {
-            type: 'Thu nhập',
-            status: normalizedStatus,
-            amount: limit,
-            discountAmount: 0,
-            discountValue: null,
-            isCashback: false,
-            isMonthlyLimitCredit: true,
-            monthlyLimitMonth: month,
-            tags: tags.join(' ')
-        };
-
-        Object.entries(requiredValues).forEach(([key, value]) => {
-            if (tx[key] !== value) {
-                tx[key] = value;
+        // Gỡ bỏ sự phụ thuộc vào "So khớp"
+        app.data.transactions.forEach(t => {
+            if (t.assignedToMonthlyLimit) {
+                delete t.assignedToMonthlyLimit;
                 changed = true;
             }
         });
-
         if (changed && options.save !== false) app.storage.save();
-        return { changed, transaction: tx };
+        return { changed, transaction: null };
     },
 
     syncAllMonthlyLimitCredits(options = {}) {
@@ -1441,14 +1368,10 @@ app.logic = {
         return app.data.transactions
             .filter(t => {
                 if (!this.isTransactionInMonth(t, month)) return false;
-                
-                // Bỏ qua giao dịch Hạn mức ảo
-                if (this.isMonthlyLimitCreditTransaction(t)) return false;
-                
+                if (this.isMonthlyLimitCreditTransaction(t)) return false; // Bỏ qua rác
                 if (t.type !== 'Thu nhập') return false;
                 if (t.status !== 'paid') return false;
                 if (t.excludeFromBudget === true) return false;
-                
                 return true;
             })
             .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
@@ -1464,27 +1387,12 @@ app.logic = {
     // Nhờ vậy mỗi khoản tiền chỉ xuất hiện một lần trong Tổng Thu nhập.
     getActualIncomeTotal(month = app.data.filter.month, options = {}) {
         const respectDashboardExclusion = options.respectDashboardExclusion === true;
-
         return app.data.transactions
             .filter(t => {
-                if (!this.isTransactionInMonth(t, month)) {
-                    return false;
-                }
-
-                // [ĐÃ SỬA] KHÔNG ĐƯỢC TÍNH GIAO DỊCH HẠN MỨC VÀO THU NHẬP THỰC TẾ
-                // Dù nó là 'paid' hay 'pending', nó chỉ là "Ngân sách", không phải "Tiền mặt".
-                if (this.isMonthlyLimitCreditTransaction(t)) {
-                    return false; 
-                }
-
-                if (t.type !== 'Thu nhập' || t.status !== 'paid') {
-                    return false;
-                }
-
-                if (respectDashboardExclusion && t.excludeFromDashboard) {
-                    return false;
-                }
-
+                if (!this.isTransactionInMonth(t, month)) return false;
+                if (this.isMonthlyLimitCreditTransaction(t)) return false; // Bỏ qua rác
+                if (t.type !== 'Thu nhập' || t.status !== 'paid') return false;
+                if (respectDashboardExclusion && t.excludeFromDashboard) return false;
                 return true;
             })
             .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
@@ -4101,32 +4009,21 @@ app.logic = {
         const daysInMonth = new Date(y, m, 0).getDate();
         const currentDay = now.getDate();
 
-        // Số ngày còn lại trong tháng (tính cả hôm nay)
         const daysLeft = Math.max(1, daysInMonth - currentDay + 1);
-
         const budgetIncome = this.getBudgetIncomeTotal(currentMonth);
-        const limitCredit = this.getMonthlyLimitCreditAmount(currentMonth);
 
-        // Tính tổng đã tiêu trong tháng (không bao gồm hôm nay để tính ngân sách đầu ngày)
         const budgetTxs = this.getBudgetTransactions();
         const totalSpentMonthBeforeToday = budgetTxs.reduce((sum, t) => {
             if (this.getLocalDateKey(t.date) === todayStr) return sum;
             return sum + (Number(t.amount) || 0);
         }, 0);
 
-        const upcoming = this.getUpcomingDebts();
+        // [FIX] Khả dụng để chia cho số ngày = Tổng sức mua - Số đã tiêu (BỎ việc trừ khoản nợ của tương lai)
+        const capacity = Math.max(limit, budgetIncome);
+        const availableForRemainingDays = capacity - totalSpentMonthBeforeToday;
 
-        // TỔNG TIỀN KHẢ DỤNG THỰC TẾ ĐỂ TIÊU
-        const availableForRemainingDays =
-            limitCredit +
-            budgetIncome -
-            totalSpentMonthBeforeToday -
-            (Number(upcoming.budgetTotal) || 0);
-
-        // NGÂN SÁCH NGÀY ĐỘNG (Bao gồm cả tiền dư từ hôm qua và thu nhập mới)
         const dailyCap = availableForRemainingDays > 0 ? availableForRemainingDays / daysLeft : 0;
 
-        // Chi tiêu hôm nay
         const todayTxs = budgetTxs.filter(t => this.getLocalDateKey(t.date) === todayStr);
         const countedTodayTxs = todayTxs.filter(t => t.excludeFromBudget !== true && t.excludeFromDailyBudget !== true);
 
@@ -4138,7 +4035,7 @@ app.logic = {
 
         return {
             limit,
-            limitCredit,
+            limitCredit: 0,
             budgetIncome,
             dailyCap: Math.round(dailyCap),
             todaySpent,
@@ -4149,6 +4046,99 @@ app.logic = {
             todayTxs,
             countedTodayTxs
         };
+    },
+
+    renderBudget(totalExpense) {
+        const currentMonth = app.data.filter.month;
+        const limit = Number(app.data.configs.monthlyLimits?.[currentMonth]) || 0;
+        const box = document.getElementById('budget-box');
+
+        if (limit <= 0 || app.data.configs.guestMode) {
+            if (box) box.style.display = 'none';
+            return;
+        }
+
+        box.style.display = 'block';
+
+        const upcomingData = app.logic.getUpcomingDebts();
+        const projectedDebtBudget = Number(upcomingData.budgetTotal) || 0;
+        const budgetIncome = app.logic.getBudgetIncomeTotal(currentMonth);
+
+        // Sức chứa của thanh tiến độ: Lấy Hạn mức làm chuẩn. Nếu thu nhập thật vượt hạn mức, thanh tự giãn ra.
+        const progressCapacity = Math.max(limit, budgetIncome);
+        const totalUsed = totalExpense + projectedDebtBudget;
+        const remain = progressCapacity - totalUsed;
+
+        const actualPercent = progressCapacity > 0 ? Math.min(100, (totalExpense / progressCapacity) * 100) : 0;
+        let projectedPercent = progressCapacity > 0 ? (projectedDebtBudget / progressCapacity) * 100 : 0;
+        if (actualPercent + projectedPercent > 100) projectedPercent = Math.max(0, 100 - actualPercent);
+
+        const track = document.querySelector('.budget-track');
+        track.innerHTML = '';
+
+        const barActual = document.createElement('div');
+        barActual.className = 'budget-bar';
+        barActual.style.width = `${actualPercent}%`;
+        barActual.style.height = '100%';
+        barActual.style.float = 'left';
+        barActual.style.transition = 'width 0.5s ease';
+
+        const barProjected = document.createElement('div');
+        barProjected.style.width = `${projectedPercent}%`;
+        barProjected.style.height = '100%';
+        barProjected.style.float = 'left';
+        barProjected.style.backgroundImage = 'repeating-linear-gradient(45deg, rgba(255,255,255,0.3) 0, rgba(255,255,255,0.3) 10px, rgba(0,0,0,0.1) 10px, rgba(0,0,0,0.1) 20px)';
+        barProjected.style.borderLeft = '1px solid rgba(255,255,255,0.5)';
+
+        track.appendChild(barActual);
+        track.appendChild(barProjected);
+
+        const statusEl = document.getElementById('budget-status');
+        const remainEl = document.getElementById('budget-remain');
+
+        barProjected.style.backgroundColor = '#cbd5e1';
+
+        if (remain < 0) {
+            barActual.classList.add('budget-overload');
+            barActual.style.backgroundColor = '#ef4444';
+            barProjected.style.backgroundColor = '#fca5a5';
+            statusEl.innerHTML = `<span style="color:var(--danger); font-weight:800"><i class="fa-solid fa-bomb"></i> VỠ KẾ HOẠCH!</span>`;
+            remainEl.innerHTML = `Thâm hụt: <b style="color:var(--danger)">${app.logic.formatCurrency(Math.abs(remain))}</b>`;
+        } else if (remain < 100000) {
+            barActual.classList.add('danger');
+            barProjected.style.backgroundColor = '#fdba74';
+            statusEl.innerHTML = `<span style="color:var(--danger); font-weight:700">SẮP CẠN VÍ!</span>`;
+            remainEl.innerHTML = `Khả dụng: <b style="color:var(--danger)">${app.logic.formatCurrency(remain)}</b>`;
+        } else if (progressCapacity > 0 && (totalUsed / progressCapacity) > 0.8) {
+            barActual.classList.add('warning');
+            barProjected.style.backgroundColor = '#fde047';
+            statusEl.innerHTML = `<span style="color:var(--warning); font-weight:700">Cẩn thận!</span>`;
+            remainEl.innerHTML = `Khả dụng: <b style="color:var(--warning)">${app.logic.formatCurrency(remain)}</b>`;
+        } else {
+            barProjected.style.backgroundColor = '#86efac';
+            statusEl.innerHTML = `<span style="color:var(--success); font-weight:700">Ổn định</span>`;
+            remainEl.innerHTML = `Khả dụng: <b style="color:var(--success)">${app.logic.formatCurrency(remain)}</b>`;
+        }
+
+        // Giao diện tinh gọn, không còn bảng so khớp
+        let incomeHtml = `
+            <div>Hạn mức tháng: <b style="color:var(--primary)">${app.logic.formatCurrency(limit)}</b></div>
+            ${budgetIncome > limit ? `
+            <div>
+                Thu nhập vượt hạn mức: <b style="color:var(--success)">+${app.logic.formatCurrency(budgetIncome - limit)}</b>
+            </div>` : (budgetIncome > 0 ? `
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">
+                Đã thu: ${app.logic.formatCurrency(budgetIncome)} / ${app.logic.formatCurrency(limit)}
+            </div>` : '')}
+        `;
+
+        document.getElementById('budget-used').innerHTML = `
+            ${incomeHtml}
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-top: 6px;">
+                Đã tiêu: <b>−${app.logic.formatCurrency(totalExpense)}</b>
+                ${projectedDebtBudget > 0 ? `<span> | Sắp đến hạn: ${app.logic.formatCurrency(projectedDebtBudget)} </span>` : ''}
+            </div>
+        `;
     },
 
     calculateScore() {
