@@ -388,8 +388,11 @@ app.logic = {
             };
         }
 
+        // Số dư ngân sách phải dùng Hạn mức GỐC.
+        // Phần "còn thiếu để so khớp" chỉ là thông tin đối ứng,
+        // không được làm giảm sức mua thực tế của tháng.
         const limitCredit =
-            this.getMonthlyLimitRemainingCredit(monthKey);
+            this.getMonthlyLimitCreditAmount(monthKey);
 
         const income =
             this.getBudgetIncomeTotal(monthKey);
@@ -1426,8 +1429,14 @@ app.logic = {
         });
     },
 
-    // Thu nhập thực tế thông thường đã nhận, KHÔNG gồm giao dịch hạn mức.
-    // Hạn mức được cộng riêng để không bị tính hai lần khi chuyển sang Đã xong.
+    // Thu nhập làm TĂNG THÊM ngân sách tháng.
+    //
+    // Giao dịch Thu nhập đã được chọn trong "So khớp Thu nhập"
+    // chỉ dùng để đối ứng cho giao dịch Hạn mức, vì vậy KHÔNG được
+    // cộng thêm lần nữa vào thanh ngân sách.
+    //
+    // Giao dịch Hạn mức cũng không nằm trong hàm này vì phần Hạn mức
+    // được cộng riêng bằng getMonthlyLimitCreditAmount().
     getBudgetIncomeTotal(month = app.data.filter.month) {
         return app.data.transactions
             .filter(t => {
@@ -1435,11 +1444,13 @@ app.logic = {
                 if (this.isMonthlyLimitCreditTransaction(t)) return false;
                 if (t.type !== 'Thu nhập') return false;
                 if (t.status !== 'paid') return false;
-                // [MỚI] Loại bỏ thu nhập đã dùng để so khớp đắp vào Cấp trước
-                if (
-                    t.excludeFromBudget === true &&
-                    !t.assignedToMonthlyLimit
-                ) return false;
+
+                // Thu nhập đã dùng để so khớp Hạn mức không làm tăng
+                // thêm sức mua của tháng, tránh cộng trùng:
+                // Hạn mức + chính khoản Thu nhập dùng để đối ứng Hạn mức.
+                if (t.assignedToMonthlyLimit) return false;
+
+                if (t.excludeFromBudget === true) return false;
                 return true;
             })
             .reduce(
@@ -1448,15 +1459,14 @@ app.logic = {
             );
     },
 
-    // Tổng THU NHẬP THỰC TẾ chính thức để hiển thị/báo cáo.
+    // Tổng THU NHẬP CHÍNH THỨC để hiển thị/báo cáo.
     //
-    // QUAN TRỌNG:
-    // Giao dịch "Hạn mức chi tiêu tháng" chỉ là tiền CẤP TRƯỚC,
-    // không phải một khoản thu nhập thật.
+    // Khi giao dịch Hạn mức đã chuyển sang "Đã xong":
+    // - TÍNH giao dịch Hạn mức vào Thu nhập.
+    // - KHÔNG tính lại các giao dịch Thu nhập đã được chọn để so khớp
+    //   với chính Hạn mức đó.
     //
-    // Khi chuyển Hạn mức sang "Đã xong", tuyệt đối không cộng
-    // toàn bộ Hạn mức vào Tổng Thu nhập.
-    // Chỉ các giao dịch Thu nhập thật mới được tính.
+    // Nhờ vậy mỗi khoản tiền chỉ xuất hiện một lần trong Tổng Thu nhập.
     getActualIncomeTotal(month = app.data.filter.month, options = {}) {
         const respectDashboardExclusion =
             options.respectDashboardExclusion === true;
@@ -1467,16 +1477,31 @@ app.logic = {
                     return false;
                 }
 
-                // Không bao giờ tính giao dịch Hạn mức
-                // thành Thu nhập thực tế.
+                // Giao dịch Hạn mức được ghi nhận là Thu nhập chính thức
+                // khi người dùng chuyển nó sang trạng thái Đã xong.
                 if (this.isMonthlyLimitCreditTransaction(t)) {
-                    return false;
+                    if (t.status !== 'paid') return false;
+
+                    if (
+                        respectDashboardExclusion &&
+                        t.excludeFromDashboard
+                    ) {
+                        return false;
+                    }
+
+                    return true;
                 }
 
                 if (
                     t.type !== 'Thu nhập' ||
                     t.status !== 'paid'
                 ) {
+                    return false;
+                }
+
+                // Khoản Thu nhập đã dùng để so khớp Hạn mức chỉ là
+                // nguồn đối ứng cho Hạn mức, không được tính thêm lần nữa.
+                if (t.assignedToMonthlyLimit) {
                     return false;
                 }
 
@@ -1497,7 +1522,10 @@ app.logic = {
     },
 
     getBudgetAvailableBase(month = app.data.filter.month) {
-        return this.getMonthlyLimitRemainingCredit(month) +
+        // Khả dụng phải luôn dựa trên HẠN MỨC GỐC.
+        // Thu nhập đã so khớp đã bị loại khỏi getBudgetIncomeTotal(),
+        // nên không bị cộng trùng vào thanh ngân sách.
+        return this.getMonthlyLimitCreditAmount(month) +
             this.getBudgetIncomeTotal(month);
     },
 
@@ -4103,10 +4131,12 @@ app.logic = {
         const [y, m] = currentMonth.split('-').map(Number);
         const daysInMonth = new Date(y, m, 0).getDate();
 
-        // Thu nhập thực tế thông thường và khoản hạn mức được cấp trước.
+        // Thu nhập làm tăng thêm ngân sách và Hạn mức GỐC.
+        // Thu nhập đã so khớp Hạn mức đã bị loại khỏi budgetIncome,
+        // vì vậy không bị cộng trùng vào khả dụng/ngân sách ngày.
         const budgetIncome = this.getBudgetIncomeTotal(currentMonth);
         const limitCredit =
-            this.getMonthlyLimitRemainingCredit(currentMonth);
+            this.getMonthlyLimitCreditAmount(currentMonth);
 
         // Tổng nguồn tiền được phép sử dụng
         // Giới hạn ngày vẫn dựa trên Giới hạn chi tiêu tháng

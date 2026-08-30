@@ -952,8 +952,13 @@ app.events = {
                      * QUAN TRỌNG:
                      * Không chặn lưu khi chưa đủ.
                      *
-                     * Thu nhập được chọn trở thành
-                     * Thu nhập thực tế.
+                     * Khoản Thu nhập được chọn chỉ dùng để SO KHỚP
+                     * cho giao dịch Hạn mức. Từ thời điểm này:
+                     * - Không tính riêng khoản Thu nhập được chọn nữa.
+                     * - Giao dịch Hạn mức "Đã xong" là khoản Thu nhập đại diện.
+                     *
+                     * Không tự ý thay đổi các cờ loại trừ thủ công của người dùng.
+                     * Logic tổng hợp sẽ nhận biết bằng assignedToMonthlyLimit.
                      */
                     app.data.transactions.forEach(t => {
                         if (
@@ -963,11 +968,6 @@ app.events = {
                         ) {
                             t.assignedToMonthlyLimit =
                                 data.id;
-
-                            // Đây là tiền thật nên PHẢI
-                            // được tính vào ngân sách
-                            t.excludeFromBudget = false;
-                            t.excludeFromDashboard = false;
                         }
                     });
 
@@ -995,10 +995,10 @@ app.events = {
                                 t.assignedToMonthlyLimit ?? ''
                             ) === String(data.id)
                         ) {
+                            // Chỉ gỡ liên kết so khớp.
+                            // Giữ nguyên lựa chọn loại trừ thủ công
+                            // mà người dùng đã thiết lập cho giao dịch.
                             delete t.assignedToMonthlyLimit;
-
-                            t.excludeFromBudget = false;
-                            t.excludeFromDashboard = false;
                         }
                     });
 

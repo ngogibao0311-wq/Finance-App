@@ -510,8 +510,14 @@ app.ui = {
         // [MỚI] Kiểm tra trạng thái giao dịch hạn mức
         const limitTx = app.logic.getMonthlyLimitCreditTransaction(currentMonth);
         const isLimitPaid = limitTx && limitTx.status === 'paid';
+        const matchedIncomeTotal =
+            app.logic.getMonthlyLimitMatchedIncomeTotal(currentMonth);
 
         let displayLimit = limitCredit;
+
+        // Chỉ hiển thị phần Thu nhập THỰC SỰ làm tăng thêm ngân sách.
+        // Các khoản đã chọn trong "So khớp Thu nhập" không nằm ở đây,
+        // vì chúng đã được đại diện bởi chính giao dịch Hạn mức.
         let displayIncome = budgetIncome;
 
         // Khả dụng chỉ trừ nợ thuộc đúng tháng thanh toán
@@ -670,34 +676,58 @@ app.ui = {
         let incomeHtml = '';
         if (app.logic.isMonthlyLimitCreditEnabled(currentMonth)) {
 
-            // Đã xong nhưng vẫn còn phần Cấp trước chưa được
-            // Thu nhập thực tế bù đủ.
-            if (isLimitPaid && displayLimit > 0) {
+            if (isLimitPaid) {
+                /*
+                 * Khi Hạn mức đã "Đã xong":
+                 * - Giao dịch Hạn mức là khoản Thu nhập đại diện.
+                 * - Các Thu nhập đã chọn để so khớp KHÔNG cộng thêm.
+                 * - Chỉ Thu nhập chưa dùng để so khớp mới là "Thu nhập cộng thêm".
+                 */
                 incomeHtml = `
         <div>
-            Cấp trước:
-            <b style="color:var(--primary)">
-                +${app.logic.formatCurrency(displayLimit)}
+            Hạn mức đã ghi nhận Thu nhập:
+            <b style="color:var(--success)">
+                +${app.logic.formatCurrency(configuredLimitCredit)}
             </b>
 
             <span style="
                 margin-left:6px;
-                color:var(--danger);
+                color:${displayLimit > 0 ? 'var(--warning)' : 'var(--success)'};
                 font-size:.72rem;
                 font-weight:800;
             ">
-                <i class="fa-solid fa-circle-exclamation"></i>
-                Đang thiếu
+                <i class="fa-solid ${displayLimit > 0 ? 'fa-circle-exclamation' : 'fa-circle-check'}"></i>
+                ${displayLimit > 0 ? 'Đang so khớp' : 'Đã khớp đủ'}
             </span>
         </div>
 
+        ${displayIncome > 0
+                        ? `
         <div>
-            Thu nhập thực tế:
+            Thu nhập cộng thêm:
             <b style="color:var(--success)">
                 +${app.logic.formatCurrency(displayIncome)}
             </b>
-        </div>
+        </div>`
+                        : ''
+                    }
 
+        ${matchedIncomeTotal > 0
+                        ? `
+        <div style="
+            font-size:.72rem;
+            color:var(--text-muted);
+            margin-top:2px;
+        ">
+            Đã dùng để so khớp:
+            <b>${app.logic.formatCurrency(matchedIncomeTotal)}</b>
+            — không cộng thêm vào ngân sách.
+        </div>`
+                        : ''
+                    }
+
+        ${displayLimit > 0
+                        ? `
         <div style="
             font-size:.72rem;
             color:var(--danger);
@@ -706,31 +736,11 @@ app.ui = {
             Còn thiếu
             <b>${app.logic.formatCurrency(displayLimit)}</b>
             để khớp đủ hạn mức.
-        </div>`;
-
-            } else if (isLimitPaid) {
-
-                // Đã có đủ Thu nhập thực tế để thay toàn bộ Cấp trước
-                incomeHtml = `
-        <div>
-            Thu nhập thực tế:
-            <b style="color:var(--success)">
-                +${app.logic.formatCurrency(displayIncome)}
-            </b>
-
-            <span style="
-                margin-left:6px;
-                color:var(--success);
-                font-size:.72rem;
-                font-weight:800;
-            ">
-                <i class="fa-solid fa-circle-check"></i>
-                Đã khớp đủ
-            </span>
-        </div>`;
+        </div>`
+                        : ''
+                    }`;
 
             } else {
-
                 // Hạn mức chưa chuyển sang Đã xong
                 incomeHtml = `
         <div>
@@ -740,12 +750,16 @@ app.ui = {
             </b>
         </div>
 
+        ${displayIncome > 0
+                        ? `
         <div>
-            Thu nhập thực tế:
+            Thu nhập cộng thêm:
             <b style="color:var(--success)">
                 +${app.logic.formatCurrency(displayIncome)}
             </b>
-        </div>`;
+        </div>`
+                        : ''
+                    }`;
             }
         } else {
             // Không bật tính năng Giới hạn tháng
@@ -3898,13 +3912,23 @@ ${payAllHTML}
         const monthlyTxs = app.logic.getFilteredTxs().filter(t => t.status !== 'cancelled');
 
         if (type === 'income') {
-            txs = monthlyTxs.filter(t =>
-                t.status === 'paid' &&
-                (
-                    app.logic.isMonthlyLimitCreditTransaction(t) ||
-                    t.type === 'Thu nhập'
-                )
-            );
+            txs = monthlyTxs.filter(t => {
+                if (t.status !== 'paid') return false;
+
+                // Giao dịch Hạn mức "Đã xong" là giao dịch Thu nhập
+                // đại diện cho các khoản đã chọn trong So khớp Thu nhập.
+                if (app.logic.isMonthlyLimitCreditTransaction(t)) {
+                    return true;
+                }
+
+                if (t.type !== 'Thu nhập') return false;
+
+                // Không hiện/tính lại các giao dịch Thu nhập đã được
+                // dùng để so khớp với Hạn mức.
+                if (t.assignedToMonthlyLimit) return false;
+
+                return true;
+            });
             title = "CHI TIẾT THU NHẬP"; themeColor = "#10b981";
         } else if (type === 'expense') {
             txs = app.logic
