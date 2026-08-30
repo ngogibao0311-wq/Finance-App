@@ -1441,22 +1441,17 @@ app.logic = {
         return app.data.transactions
             .filter(t => {
                 if (!this.isTransactionInMonth(t, month)) return false;
+                
+                // Bỏ qua giao dịch Hạn mức ảo
                 if (this.isMonthlyLimitCreditTransaction(t)) return false;
+                
                 if (t.type !== 'Thu nhập') return false;
                 if (t.status !== 'paid') return false;
-
-                // Thu nhập đã dùng để so khớp Hạn mức không làm tăng
-                // thêm sức mua của tháng, tránh cộng trùng:
-                // Hạn mức + chính khoản Thu nhập dùng để đối ứng Hạn mức.
-                if (t.assignedToMonthlyLimit) return false;
-
                 if (t.excludeFromBudget === true) return false;
+                
                 return true;
             })
-            .reduce(
-                (sum, t) => sum + (Number(t.amount) || 0),
-                0
-            );
+            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
     },
 
     // Tổng THU NHẬP CHÍNH THỨC để hiển thị/báo cáo.
@@ -1468,8 +1463,7 @@ app.logic = {
     //
     // Nhờ vậy mỗi khoản tiền chỉ xuất hiện một lần trong Tổng Thu nhập.
     getActualIncomeTotal(month = app.data.filter.month, options = {}) {
-        const respectDashboardExclusion =
-            options.respectDashboardExclusion === true;
+        const respectDashboardExclusion = options.respectDashboardExclusion === true;
 
         return app.data.transactions
             .filter(t => {
@@ -1477,48 +1471,23 @@ app.logic = {
                     return false;
                 }
 
-                // Giao dịch Hạn mức được ghi nhận là Thu nhập chính thức
-                // khi người dùng chuyển nó sang trạng thái Đã xong.
+                // [ĐÃ SỬA] KHÔNG ĐƯỢC TÍNH GIAO DỊCH HẠN MỨC VÀO THU NHẬP THỰC TẾ
+                // Dù nó là 'paid' hay 'pending', nó chỉ là "Ngân sách", không phải "Tiền mặt".
                 if (this.isMonthlyLimitCreditTransaction(t)) {
-                    if (t.status !== 'paid') return false;
-
-                    if (
-                        respectDashboardExclusion &&
-                        t.excludeFromDashboard
-                    ) {
-                        return false;
-                    }
-
-                    return true;
+                    return false; 
                 }
 
-                if (
-                    t.type !== 'Thu nhập' ||
-                    t.status !== 'paid'
-                ) {
+                if (t.type !== 'Thu nhập' || t.status !== 'paid') {
                     return false;
                 }
 
-                // Khoản Thu nhập đã dùng để so khớp Hạn mức chỉ là
-                // nguồn đối ứng cho Hạn mức, không được tính thêm lần nữa.
-                if (t.assignedToMonthlyLimit) {
-                    return false;
-                }
-
-                if (
-                    respectDashboardExclusion &&
-                    t.excludeFromDashboard
-                ) {
+                if (respectDashboardExclusion && t.excludeFromDashboard) {
                     return false;
                 }
 
                 return true;
             })
-            .reduce(
-                (sum, t) =>
-                    sum + (Number(t.amount) || 0),
-                0
-            );
+            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
     },
 
     getBudgetAvailableBase(month = app.data.filter.month) {
@@ -4130,78 +4099,53 @@ app.logic = {
         const todayStr = this.getLocalDateKey(now);
         const [y, m] = currentMonth.split('-').map(Number);
         const daysInMonth = new Date(y, m, 0).getDate();
+        const currentDay = now.getDate();
 
-        // Thu nhập làm tăng thêm ngân sách và Hạn mức GỐC.
-        // Thu nhập đã so khớp Hạn mức đã bị loại khỏi budgetIncome,
-        // vì vậy không bị cộng trùng vào khả dụng/ngân sách ngày.
+        // Số ngày còn lại trong tháng (tính cả hôm nay)
+        const daysLeft = Math.max(1, daysInMonth - currentDay + 1);
+
         const budgetIncome = this.getBudgetIncomeTotal(currentMonth);
-        const limitCredit =
-            this.getMonthlyLimitCreditAmount(currentMonth);
+        const limitCredit = this.getMonthlyLimitCreditAmount(currentMonth);
 
-        // Tổng nguồn tiền được phép sử dụng
-        // Giới hạn ngày vẫn dựa trên Giới hạn chi tiêu tháng
-        const dailyCap = daysInMonth > 0
-            ? limit / daysInMonth
-            : 0;
-
-        // Kế hoạch ngày chỉ phản ánh tiền thực sự đã chi.
-        // Giữ cả giao dịch bị loại trừ trong danh sách để người dùng có thể bật lại.
-        const todayTxs = app.data.transactions.filter(t => {
-            if (this.getLocalDateKey(t.date) !== todayStr) return false;
-            if (t.type !== 'Chi tiêu' || t.type === 'Chuyển tiền') return false;
-            if (t.status !== 'paid') return false;
-
-            const tags = this.getTransactionTags(t);
-            if (
-                tags.includes('#tra_gop') &&
-                !tags.includes('#thanh_toan_no')
-            ) {
-                return false;
-            }
-            if (tags.includes('#du_no_chuyen_tiep') || tags.includes('#da_chuyen_tra_gop')) return false;
-
-            if (this.isDebtPaymentTransaction(t)) return true;
-            if (this.isCreditSource(t.source)) return false;
-
-            return true;
-        });
-
-        const countedTodayTxs = todayTxs.filter(t =>
-            t.excludeFromBudget !== true &&
-            t.excludeFromDailyBudget !== true
-        );
-
-        const todaySpent = countedTodayTxs.reduce(
-            (sum, t) =>
-                sum +
-                this.getTransactionBudgetAmount(t),
-            0
-        );
-
+        // Tính tổng đã tiêu trong tháng (không bao gồm hôm nay để tính ngân sách đầu ngày)
         const budgetTxs = this.getBudgetTransactions();
-        const totalSpentMonth = budgetTxs.reduce(
-            (sum, t) => sum + (Number(t.amount) || 0),
-            0
-        );
+        const totalSpentMonthBeforeToday = budgetTxs.reduce((sum, t) => {
+            if (this.getLocalDateKey(t.date) === todayStr) return sum;
+            return sum + (Number(t.amount) || 0);
+        }, 0);
 
         const upcoming = this.getUpcomingDebts();
-        const available =
+
+        // TỔNG TIỀN KHẢ DỤNG THỰC TẾ ĐỂ TIÊU
+        const availableForRemainingDays =
             limitCredit +
             budgetIncome -
-            totalSpentMonth -
+            totalSpentMonthBeforeToday -
             (Number(upcoming.budgetTotal) || 0);
-        const daysFunded = dailyCap > 0 ? Math.floor(available / dailyCap) : 0;
+
+        // NGÂN SÁCH NGÀY ĐỘNG (Bao gồm cả tiền dư từ hôm qua và thu nhập mới)
+        const dailyCap = availableForRemainingDays > 0 ? availableForRemainingDays / daysLeft : 0;
+
+        // Chi tiêu hôm nay
+        const todayTxs = budgetTxs.filter(t => this.getLocalDateKey(t.date) === todayStr);
+        const countedTodayTxs = todayTxs.filter(t => t.excludeFromBudget !== true && t.excludeFromDailyBudget !== true);
+
+        const todaySpent = countedTodayTxs.reduce(
+            (sum, t) => sum + this.getTransactionBudgetAmount(t), 0
+        );
+
+        const availableNow = availableForRemainingDays - todaySpent;
 
         return {
             limit,
             limitCredit,
             budgetIncome,
-            dailyCap,
+            dailyCap: Math.round(dailyCap),
             todaySpent,
-            surplus: dailyCap - todaySpent,
-            available,
-            daysFunded: Math.max(0, daysFunded),
-            status: available < 0 ? 'broke' : 'ok',
+            surplus: Math.round(dailyCap - todaySpent),
+            available: availableNow,
+            daysFunded: Math.max(0, Math.floor(availableNow / (limit / daysInMonth || 1))),
+            status: availableNow < 0 ? 'broke' : 'ok',
             todayTxs,
             countedTodayTxs
         };

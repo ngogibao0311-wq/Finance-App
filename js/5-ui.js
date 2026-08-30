@@ -547,32 +547,14 @@ app.ui = {
             app.logic.isMonthlyLimitCreditEnabled(currentMonth);
 
         /*
-         * Từ 08/2026 trở đi:
-         * Hạn mức cấp trước + thu nhập thực tế
-         * làm tăng sức chứa của thanh.
-         *
-         * Các tháng trước 08/2026:
-         * Giữ nguyên thanh ngân sách theo cách cũ,
-         * chỉ dựa trên Giới hạn chi tiêu tháng.
+         * Thanh tiến độ lấy Hạn mức làm chuẩn.
+         * Nếu Thu nhập thực tế trong tháng vượt quá Hạn mức ban đầu, 
+         * thanh ngân sách mới tự động giãn ra thêm.
          */
-        /*
- * Thanh tiến độ KHÔNG được co lại khi
- * người dùng so khớp Thu nhập với Cấp trước.
- *
- * Vì việc so khớp chỉ thay đổi cách phân loại:
- * Cấp trước -> Thu nhập thực tế.
- *
- * Do đó thanh luôn dùng Hạn mức GỐC.
- */
-        const progressCapacity = usesMonthlyLimitCredit
-            ? Math.max(
-                0,
-                configuredLimitCredit + budgetIncome
-            )
-            : Math.max(
-                0,
-                limit
-            );
+        const progressCapacity = Math.max(
+            configuredLimitCredit, 
+            budgetIncome
+        );
 
         /*
          * Phần đã tiêu tính trên toàn bộ nguồn tiền khả dụng.
