@@ -679,49 +679,74 @@ app.ui = {
             if (isLimitPaid) {
                 /*
                  * Khi Hạn mức đã "Đã xong":
-                 * - Giao dịch Hạn mức là khoản Thu nhập đại diện.
-                 * - Các Thu nhập đã chọn để so khớp KHÔNG cộng thêm.
-                 * - Chỉ Thu nhập chưa dùng để so khớp mới là "Thu nhập cộng thêm".
+                 * Hạn mức này ĐÃ nằm trong Ngân sách tháng từ trước.
+                 * So khớp Thu nhập chỉ đổi nguồn của chính phần tiền đó
+                 * từ "Cấp trước" -> "Thu nhập", TUYỆT ĐỐI không cộng
+                 * thêm configuredLimitCredit vào sức chứa ngân sách.
+                 *
+                 * Vì vậy phần hiển thị bên dưới cũng KHÔNG dùng dấu "+"
+                 * cho Hạn mức, tránh tạo cảm giác hệ thống vừa cộng thêm tiền.
                  */
+                const matchedForLimit = Math.min(
+                    configuredLimitCredit,
+                    matchedIncomeTotal
+                );
+                const isFullyMatched =
+                    configuredLimitCredit > 0 &&
+                    matchedForLimit >= configuredLimitCredit;
+
                 incomeHtml = `
         <div>
-            Hạn mức đã ghi nhận Thu nhập:
-            <b style="color:var(--success)">
-                +${app.logic.formatCurrency(configuredLimitCredit)}
+            Hạn mức tháng:
+            <b style="color:${isFullyMatched ? 'var(--success)' : 'var(--warning)'}">
+                ${app.logic.formatCurrency(configuredLimitCredit)}
             </b>
 
             <span style="
                 margin-left:6px;
-                color:${displayLimit > 0 ? 'var(--warning)' : 'var(--success)'};
+                color:${isFullyMatched ? 'var(--success)' : 'var(--warning)'};
                 font-size:.72rem;
                 font-weight:800;
             ">
-                <i class="fa-solid ${displayLimit > 0 ? 'fa-circle-exclamation' : 'fa-circle-check'}"></i>
-                ${displayLimit > 0 ? 'Đang so khớp' : 'Đã khớp đủ'}
+                <i class="fa-solid ${isFullyMatched ? 'fa-circle-check' : 'fa-arrows-rotate'}"></i>
+                ${isFullyMatched ? 'Đã đổi sang Thu nhập' : 'Đang đổi sang Thu nhập'}
             </span>
         </div>
 
-        ${displayIncome > 0
-                        ? `
-        <div>
-            Thu nhập cộng thêm:
-            <b style="color:var(--success)">
-                +${app.logic.formatCurrency(displayIncome)}
-            </b>
-        </div>`
-                        : ''
-                    }
-
-        ${matchedIncomeTotal > 0
+        ${matchedForLimit > 0 && !isFullyMatched
                         ? `
         <div style="
             font-size:.72rem;
             color:var(--text-muted);
             margin-top:2px;
         ">
-            Đã dùng để so khớp:
-            <b>${app.logic.formatCurrency(matchedIncomeTotal)}</b>
-            — không cộng thêm vào ngân sách.
+            Đã đổi màu/đối ứng:
+            <b style="color:var(--success)">${app.logic.formatCurrency(matchedForLimit)}</b>
+            / ${app.logic.formatCurrency(configuredLimitCredit)}.
+            Phần này không làm tăng Ngân sách tháng.
+        </div>`
+                        : ''
+                    }
+
+        ${isFullyMatched
+                        ? `
+        <div style="
+            font-size:.72rem;
+            color:var(--text-muted);
+            margin-top:2px;
+        ">
+            Hạn mức đã có sẵn trong ngân sách — khi so khớp đủ chỉ đổi trạng thái/màu, không cộng thêm lần nữa.
+        </div>`
+                        : ''
+                    }
+
+        ${displayIncome > 0
+                        ? `
+        <div>
+            Thu nhập ngoài hạn mức:
+            <b style="color:var(--success)">
+                +${app.logic.formatCurrency(displayIncome)}
+            </b>
         </div>`
                         : ''
                     }
@@ -733,9 +758,8 @@ app.ui = {
             color:var(--danger);
             margin-top:2px;
         ">
-            Còn thiếu
-            <b>${app.logic.formatCurrency(displayLimit)}</b>
-            để khớp đủ hạn mức.
+            Còn ${app.logic.formatCurrency(displayLimit)} chưa được đối ứng Thu nhập;
+            phần Hạn mức này vẫn giữ nguyên trong ngân sách.
         </div>`
                         : ''
                     }`;
