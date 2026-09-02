@@ -1398,36 +1398,210 @@ app.logic = {
             .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
     },
 
-    getBudgetAvailableBase(month = app.data.filter.month) {
-        const limit =
-            this.getMonthlyLimitCreditAmount(month);
+    // =====================================================
+    // THU NHẬP BÙ CHI
+    // Chỉ nhận khi:
+    // - Cùng tháng
+    // - Cùng ngày
+    // - Cùng số tiền
+    // - Nội dung tương ứng
+    //
+    // Ví dụ:
+    // Thu: "Tiền trọ" 1.750.000
+    // Chi: "Trả tiền trọ" 1.750.000
+    // =====================================================
+    getBudgetOffsetIncomeTotal(
+        month = app.data.filter.month
+    ) {
+        const incomes =
+            app.data.transactions.filter(t => {
+                if (!this.isTransactionInMonth(t, month)) {
+                    return false;
+                }
 
-        const totalIncome =
-            this.getBudgetIncomeTotal(month);
+                // Không đụng giao dịch hạn mức
+                if (
+                    this.isMonthlyLimitCreditTransaction(t)
+                ) {
+                    return false;
+                }
 
-        // Phần dư ngân sách được chuyển từ tháng trước
-        const carryoverIncome =
-            app.data.transactions
-                .filter(t => {
-                    if (!this.isTransactionInMonth(t, month)) {
-                        return false;
-                    }
+                // Dư tháng trước có cơ chế riêng
+                if (
+                    this.isMonthlyBudgetCarryoverTransaction(t)
+                ) {
+                    return false;
+                }
+
+                if (t.type !== 'Thu nhập') {
+                    return false;
+                }
+
+                if (t.status !== 'paid') {
+                    return false;
+                }
+
+                if (t.excludeFromBudget === true) {
+                    return false;
+                }
+
+                return true;
+            });
+
+        // Chỉ lấy những khoản chi thực sự được
+        // ngân sách tính.
+        const expenses =
+            this.getBudgetTransactions({
+                month
+            });
+
+        const usedExpenseIds = new Set();
+
+        const getTexts = transaction => [
+            transaction.place,
+            transaction.brand,
+            transaction.source,
+            transaction.destination
+        ].filter(Boolean);
+
+        const isTextMatched = (
+            income,
+            expense
+        ) => {
+            const incomeTexts = getTexts(income);
+            const expenseTexts = getTexts(expense);
+
+            return incomeTexts.some(incomeText =>
+                expenseTexts.some(expenseText =>
+                    this.transactionMatchTextEquals(
+                        incomeText,
+                        expenseText
+                    )
+                )
+            );
+        };
+
+        let total = 0;
+
+        incomes.forEach(income => {
+            const incomeAmount =
+                Math.round(
+                    Number(income.amount) || 0
+                );
+
+            if (incomeAmount <= 0) return;
+
+            const incomeDay =
+                this.getLocalDateKey(income.date);
+
+            const matchedExpense =
+                expenses.find(expense => {
+                    const expenseKey =
+                        String(expense.id ?? '');
 
                     if (
-                        !this.isMonthlyBudgetCarryoverTransaction(t)
+                        usedExpenseIds.has(expenseKey)
                     ) {
                         return false;
                     }
 
-                    if (t.type !== 'Thu nhập') {
+                    // Phải cùng ngày
+                    if (
+                        this.getLocalDateKey(
+                            expense.date
+                        ) !== incomeDay
+                    ) {
                         return false;
                     }
 
-                    if (t.status !== 'paid') {
+                    // Phải cùng số tiền được tính
+                    // vào ngân sách
+                    const expenseAmount =
+                        Math.round(
+                            Number(expense.amount) || 0
+                        );
+
+                    if (
+                        expenseAmount !== incomeAmount
+                    ) {
                         return false;
                     }
 
-                    if (t.excludeFromBudget === true) {
+                    // Nội dung phải liên quan
+                    if (
+                        !isTextMatched(
+                            income,
+                            expense
+                        )
+                    ) {
+                        return false;
+                    }
+
+                    return true;
+                });
+
+            if (!matchedExpense) return;
+
+            usedExpenseIds.add(
+                String(matchedExpense.id ?? '')
+            );
+
+            total += incomeAmount;
+        });
+
+        return total;
+    },
+
+    getBudgetAvailableBase(
+        month = app.data.filter.month
+    ) {
+        const limit =
+            this.getMonthlyLimitCreditAmount(
+                month
+            );
+
+        const totalIncome =
+            this.getBudgetIncomeTotal(month);
+
+        // ==========================================
+        // DƯ NGÂN SÁCH THÁNG TRƯỚC
+        // ==========================================
+        const carryoverIncome =
+            app.data.transactions
+                .filter(t => {
+                    if (
+                        !this.isTransactionInMonth(
+                            t,
+                            month
+                        )
+                    ) {
+                        return false;
+                    }
+
+                    if (
+                        !this
+                            .isMonthlyBudgetCarryoverTransaction(
+                                t
+                            )
+                    ) {
+                        return false;
+                    }
+
+                    if (
+                        t.type !== 'Thu nhập'
+                    ) {
+                        return false;
+                    }
+
+                    if (
+                        t.status !== 'paid'
+                    ) {
+                        return false;
+                    }
+
+                    if (
+                        t.excludeFromBudget === true
+                    ) {
                         return false;
                     }
 
@@ -1435,28 +1609,65 @@ app.logic = {
                 })
                 .reduce(
                     (sum, t) =>
-                        sum + (Number(t.amount) || 0),
+                        sum +
+                        (Number(t.amount) || 0),
                     0
                 );
 
-        // Thu nhập bình thường, không bao gồm tiền dư tháng trước
-        const regularIncome = Math.max(
-            0,
-            totalIncome - carryoverIncome
-        );
+        // ==========================================
+        // THU NHẬP THƯỜNG
+        // Không bao gồm dư tháng trước
+        // ==========================================
+        const regularIncome =
+            Math.max(
+                0,
+                totalIncome - carryoverIncome
+            );
+
+        // ==========================================
+        // THU NHẬP DÙNG ĐỂ BÙ CHI
+        //
+        // Ví dụ:
+        // +1.750.000 Tiền trọ
+        // -1.750.000 Trả tiền trọ
+        //
+        // Khoản này phải được cộng riêng,
+        // sau đó khoản chi sẽ trừ lại.
+        // ==========================================
+        const offsetIncome =
+            Math.min(
+                regularIncome,
+                this.getBudgetOffsetIncomeTotal(
+                    month
+                )
+            );
+
+        // Thu nhập còn lại vẫn giữ nguyên
+        // cơ chế hạn mức cũ.
+        const normalIncome =
+            Math.max(
+                0,
+                regularIncome - offsetIncome
+            );
 
         /*
-         * CƠ CHẾ:
+         * CÔNG THỨC:
          *
-         * - Hạn mức và thu nhập bình thường:
-         *   lấy số lớn hơn.
+         * max(
+         *     Hạn mức,
+         *     Thu nhập bình thường
+         * )
          *
-         * - Dư ngân sách tháng trước:
-         *   cộng thêm hoàn toàn.
+         * + Dư tháng trước
+         * + Thu nhập bù chi
          */
         return (
-            Math.max(limit, regularIncome) +
-            carryoverIncome
+            Math.max(
+                limit,
+                normalIncome
+            ) +
+            carryoverIncome +
+            offsetIncome
         );
     },
 
@@ -4073,7 +4284,10 @@ app.logic = {
         }, 0);
 
         // [FIX] Khả dụng để chia cho số ngày = Tổng sức mua - Số đã tiêu (BỎ việc trừ khoản nợ của tương lai)
-        const capacity = Math.max(limit, budgetIncome);
+        const capacity =
+            this.getBudgetAvailableBase(
+                currentMonth
+            );
         const availableForRemainingDays = capacity - totalSpentMonthBeforeToday;
 
         const dailyCap = availableForRemainingDays > 0 ? availableForRemainingDays / daysLeft : 0;
