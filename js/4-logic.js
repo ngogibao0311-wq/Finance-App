@@ -339,10 +339,8 @@ app.logic = {
             Number(upcomingDebtData.budgetTotal) || 0;
 
         // Cùng công thức với thanh "Khả dụng" trên giao diện
-        const availableBase = Math.max(
-            limitCredit,
-            income
-        );
+        const availableBase =
+            this.getBudgetAvailableBase(monthKey);
 
         return {
             month: monthKey,
@@ -1401,11 +1399,65 @@ app.logic = {
     },
 
     getBudgetAvailableBase(month = app.data.filter.month) {
-        // Khả dụng phải luôn dựa trên HẠN MỨC GỐC.
-        // Thu nhập đã so khớp đã bị loại khỏi getBudgetIncomeTotal(),
-        // nên không bị cộng trùng vào thanh ngân sách.
-        return this.getMonthlyLimitCreditAmount(month) +
+        const limit =
+            this.getMonthlyLimitCreditAmount(month);
+
+        const totalIncome =
             this.getBudgetIncomeTotal(month);
+
+        // Phần dư ngân sách được chuyển từ tháng trước
+        const carryoverIncome =
+            app.data.transactions
+                .filter(t => {
+                    if (!this.isTransactionInMonth(t, month)) {
+                        return false;
+                    }
+
+                    if (
+                        !this.isMonthlyBudgetCarryoverTransaction(t)
+                    ) {
+                        return false;
+                    }
+
+                    if (t.type !== 'Thu nhập') {
+                        return false;
+                    }
+
+                    if (t.status !== 'paid') {
+                        return false;
+                    }
+
+                    if (t.excludeFromBudget === true) {
+                        return false;
+                    }
+
+                    return true;
+                })
+                .reduce(
+                    (sum, t) =>
+                        sum + (Number(t.amount) || 0),
+                    0
+                );
+
+        // Thu nhập bình thường, không bao gồm tiền dư tháng trước
+        const regularIncome = Math.max(
+            0,
+            totalIncome - carryoverIncome
+        );
+
+        /*
+         * CƠ CHẾ:
+         *
+         * - Hạn mức và thu nhập bình thường:
+         *   lấy số lớn hơn.
+         *
+         * - Dư ngân sách tháng trước:
+         *   cộng thêm hoàn toàn.
+         */
+        return (
+            Math.max(limit, regularIncome) +
+            carryoverIncome
+        );
     },
 
     getUpcomingDebts(month = app.data.filter.month) {

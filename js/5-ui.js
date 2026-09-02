@@ -472,10 +472,11 @@ app.ui = {
         const budgetIncome = app.logic.getBudgetIncomeTotal(currentMonth);
 
         // Sức chứa của thanh tiến độ: Lấy Hạn mức làm chuẩn. Nếu thu nhập thật vượt hạn mức, thanh tự giãn ra.
-        const progressCapacity = Math.max(limit, budgetIncome);
-        
+        const progressCapacity =
+            app.logic.getBudgetAvailableBase(currentMonth);
+
         // [FIX QUAN TRỌNG] Không trừ nợ sắp đến hạn vào ngân sách tháng hiện tại
-        const totalUsed = totalExpense; 
+        const totalUsed = totalExpense;
         const remain = progressCapacity - totalUsed;
 
         const actualPercent = progressCapacity > 0 ? Math.min(100, (totalUsed / progressCapacity) * 100) : 0;
