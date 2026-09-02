@@ -315,9 +315,6 @@ app.logic = {
             };
         }
 
-        // Số dư ngân sách phải dùng Hạn mức GỐC.
-        // Phần "còn thiếu để so khớp" chỉ là thông tin đối ứng,
-        // không được làm giảm sức mua thực tế của tháng.
         const limitCredit =
             this.getMonthlyLimitCreditAmount(monthKey);
 
@@ -339,8 +336,13 @@ app.logic = {
             this.getUpcomingDebts(monthKey);
 
         const debt =
-            Number(upcomingDebtData.budgetTotal) ||
-            0;
+            Number(upcomingDebtData.budgetTotal) || 0;
+
+        // Cùng công thức với thanh "Khả dụng" trên giao diện
+        const availableBase = Math.max(
+            limitCredit,
+            income
+        );
 
         return {
             month: monthKey,
@@ -349,11 +351,11 @@ app.logic = {
             expense,
             debt,
 
+            // Nợ dự phòng chỉ để hiển thị,
+            // không trừ vào số dư chuyển tháng sau
             balance:
-                limitCredit +
-                income -
-                expense -
-                debt
+                availableBase -
+                expense
         };
     },
 
