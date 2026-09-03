@@ -81,6 +81,64 @@ app.ui = {
             this.el.classList.add('active');
         },
 
+
+        // Chọn nguồn ngân sách cho giao dịch mới.
+        // Hai nút được dùng như hai lựa chọn: Tiền thực / Hạn mức tháng.
+        selectBudgetFunding(options = {}) {
+            return new Promise(resolve => {
+                const amount = Number(options.amount) || 0;
+                const realBalance = Number(options.realBalance) || 0;
+                const limitRemaining = Number(options.limitRemaining) || 0;
+                const source = String(options.source || 'Không rõ nguồn');
+                const recommendLimit = options.recommendLimit === true;
+
+                this.setupUI(recommendLimit ? 'warning' : 'info');
+                this.icon.className = recommendLimit
+                    ? 'fa-solid fa-triangle-exclamation'
+                    : 'fa-solid fa-wallet';
+                this.title.textContent = recommendLimit
+                    ? 'Tiền thực đang thấp — chọn nguồn chi'
+                    : 'Khoản chi này dùng nguồn nào?';
+                this.input.style.display = 'none';
+
+                this.renderMessage(`
+                    <div style="font-size:.9rem; line-height:1.65;">
+                        <div style="margin-bottom:8px;">
+                            Khoản chi: <b>${app.logic.formatCurrency(amount)}</b><br>
+                            Nguồn thanh toán: <b>${source || 'Không rõ'}</b>
+                        </div>
+                        <div style="padding:10px; border-radius:10px; background:#f8fafc; border:1px solid #e2e8f0;">
+                            💵 Tiền thực hiện có: <b>${app.logic.formatCurrency(realBalance)}</b><br>
+                            🎯 Hạn mức tháng còn: <b>${app.logic.formatCurrency(limitRemaining)}</b>
+                        </div>
+                        <div style="margin-top:8px; color:var(--text-muted); font-size:.78rem;">
+                            ${recommendLimit
+                                ? 'Tiền thực đã hết/thấp. Hệ thống khuyên dùng hạn mức nếu đây là khoản chi trong kế hoạch tháng.'
+                                : 'Tiền thực làm giảm số dư tiền thật. Hạn mức tháng làm giảm phần ngân sách được phép dùng.'}
+                        </div>
+                    </div>
+                `);
+
+                this.btnCancel.style.display = 'block';
+                this.btnCancel.textContent = '💵 Tiền thực';
+                this.btnConfirm.textContent = recommendLimit
+                    ? '🎯 Dùng hạn mức (khuyên dùng)'
+                    : '🎯 Dùng hạn mức';
+
+                this.btnCancel.onclick = () => {
+                    this.close();
+                    resolve('real');
+                };
+                this.btnConfirm.onclick = () => {
+                    this.close();
+                    resolve('limit');
+                };
+
+                this.el.style.zIndex = '9999999';
+                this.el.classList.add('active');
+            });
+        },
+
         selectTransferMatch(matches = [], expense = {}) {
             return new Promise(resolve => {
                 if (
@@ -455,9 +513,10 @@ app.ui = {
     `;
     },
 
-    renderBudget(totalExpense) {
+    renderBudget() {
         const currentMonth = app.data.filter.month;
-        const limit = Number(app.data.configs.monthlyLimits?.[currentMonth]) || 0;
+        const limitState = app.logic.getMonthlyLimitState(currentMonth);
+        const limit = limitState.configured;
         const box = document.getElementById('budget-box');
 
         if (limit <= 0 || app.data.configs.guestMode) {
@@ -467,83 +526,80 @@ app.ui = {
 
         box.style.display = 'block';
 
-        const upcomingData = app.logic.getUpcomingDebts();
+        const realBalance = app.logic.getRealCashBalance(currentMonth);
+        const upcomingData = app.logic.getUpcomingDebts(currentMonth);
         const projectedDebtBudget = Number(upcomingData.budgetTotal) || 0;
-        const budgetIncome = app.logic.getBudgetIncomeTotal(currentMonth);
 
-        // Sức chứa của thanh tiến độ: Lấy Hạn mức làm chuẩn. Nếu thu nhập thật vượt hạn mức, thanh tự giãn ra.
-        const progressCapacity =
-            app.logic.getBudgetAvailableBase(currentMonth);
-
-        // [FIX QUAN TRỌNG] Không trừ nợ sắp đến hạn vào ngân sách tháng hiện tại
-        const totalUsed = totalExpense;
-        const remain = progressCapacity - totalUsed;
-
-        const actualPercent = progressCapacity > 0 ? Math.min(100, (totalUsed / progressCapacity) * 100) : 0;
-        let projectedPercent = progressCapacity > 0 ? (projectedDebtBudget / progressCapacity) * 100 : 0;
-        if (actualPercent + projectedPercent > 100) projectedPercent = Math.max(0, 100 - actualPercent);
+        const actualPercent = limit > 0
+            ? Math.min(100, (limitState.used / limit) * 100)
+            : 0;
 
         const track = document.querySelector('.budget-track');
-        track.innerHTML = '';
+        if (track) {
+            track.innerHTML = '';
 
-        const barActual = document.createElement('div');
-        barActual.className = 'budget-bar';
-        barActual.style.width = `${actualPercent}%`;
-        barActual.style.height = '100%';
-        barActual.style.float = 'left';
-        barActual.style.transition = 'width 0.5s ease';
+            const barActual = document.createElement('div');
+            barActual.className = 'budget-bar';
+            barActual.style.width = `${actualPercent}%`;
+            barActual.style.height = '100%';
+            barActual.style.transition = 'width 0.5s ease';
 
-        const barProjected = document.createElement('div');
-        barProjected.style.width = `${projectedPercent}%`;
-        barProjected.style.height = '100%';
-        barProjected.style.float = 'left';
-        barProjected.style.backgroundImage = 'repeating-linear-gradient(45deg, rgba(255,255,255,0.3) 0, rgba(255,255,255,0.3) 10px, rgba(0,0,0,0.1) 10px, rgba(0,0,0,0.1) 20px)';
-        barProjected.style.borderLeft = '1px solid rgba(255,255,255,0.5)';
+            if (limitState.over > 0) {
+                barActual.classList.add('budget-overload');
+                barActual.style.backgroundColor = '#ef4444';
+            } else if (limitState.remaining < 100000) {
+                barActual.classList.add('danger');
+            } else if (limitState.percent > 80) {
+                barActual.classList.add('warning');
+            }
 
-        track.appendChild(barActual);
-        track.appendChild(barProjected);
+            track.appendChild(barActual);
+        }
 
         const statusEl = document.getElementById('budget-status');
         const remainEl = document.getElementById('budget-remain');
+        const usedEl = document.getElementById('budget-used');
 
-        barProjected.style.backgroundColor = '#cbd5e1';
+        // Đổi nhãn ngay trên giao diện mà không cần sửa HTML.
+        const usedLabel = document.querySelector('#budget-box .b-item.used .label');
+        const remainLabel = document.querySelector('#budget-box .b-item.remain .label');
+        if (usedLabel) usedLabel.textContent = 'HẠN MỨC';
+        if (remainLabel) remainLabel.textContent = 'KHẢ DỤNG';
 
-        if (remain < 0) {
-            barActual.classList.add('budget-overload');
-            barActual.style.backgroundColor = '#ef4444';
-            barProjected.style.backgroundColor = '#fca5a5';
-            statusEl.innerHTML = `<span style="color:var(--danger); font-weight:800"><i class="fa-solid fa-bomb"></i> VỠ KẾ HOẠCH!</span>`;
-            remainEl.innerHTML = `Thâm hụt: <b style="color:var(--danger)">${app.logic.formatCurrency(Math.abs(remain))}</b>`;
-        } else if (remain < 100000) {
-            barActual.classList.add('danger');
-            barProjected.style.backgroundColor = '#fdba74';
-            statusEl.innerHTML = `<span style="color:var(--danger); font-weight:700">SẮP CẠN VÍ!</span>`;
-            remainEl.innerHTML = `Khả dụng: <b style="color:var(--danger)">${app.logic.formatCurrency(remain)}</b>`;
-        } else if (progressCapacity > 0 && (totalUsed / progressCapacity) > 0.8) {
-            barActual.classList.add('warning');
-            barProjected.style.backgroundColor = '#fde047';
-            statusEl.innerHTML = `<span style="color:var(--warning); font-weight:700">Cẩn thận!</span>`;
-            remainEl.innerHTML = `Khả dụng: <b style="color:var(--warning)">${app.logic.formatCurrency(remain)}</b>`;
-        } else {
-            barProjected.style.backgroundColor = '#86efac';
-            statusEl.innerHTML = `<span style="color:var(--success); font-weight:700">Ổn định</span>`;
-            remainEl.innerHTML = `Khả dụng: <b style="color:var(--success)">${app.logic.formatCurrency(remain)}</b>`;
+        if (statusEl) {
+            if (limitState.over > 0) {
+                statusEl.innerHTML = `<span style="color:var(--danger); font-weight:800"><i class="fa-solid fa-bomb"></i> Vượt hạn mức</span>`;
+            } else if (limitState.remaining < 100000) {
+                statusEl.innerHTML = `<span style="color:var(--danger); font-weight:700">Sắp hết hạn mức!</span>`;
+            } else if (limitState.percent > 80) {
+                statusEl.innerHTML = `<span style="color:var(--warning); font-weight:700">Cẩn thận!</span>`;
+            } else {
+                statusEl.innerHTML = `<span style="color:var(--success); font-weight:700">Ổn định</span>`;
+            }
         }
 
-        let incomeHtml = `
-            <div>Hạn mức thiết lập: <b style="color:var(--primary)">${app.logic.formatCurrency(limit)}</b></div>
-            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">
-                Tổng thu nhập thực tế: <b style="color:var(--success)">+${app.logic.formatCurrency(budgetIncome)}</b>
-            </div>
-        `;
+        if (usedEl) {
+            usedEl.innerHTML = `
+                <span>Hạn mức thiết lập: <b style="color:var(--primary)">${app.logic.formatCurrency(limit)}</b></span><br>
+                <span style="font-size:.75rem; color:var(--text-muted)">
+                    Đã dùng hạn mức: <b style="color:${limitState.over > 0 ? 'var(--danger)' : 'var(--text-main)'}">−${app.logic.formatCurrency(limitState.used)}</b>
+                </span>
+                ${projectedDebtBudget > 0 ? `<br><span style="font-size:.72rem; color:var(--warning)"><i class="fa-solid fa-clock"></i> Nợ dự phòng: ${app.logic.formatCurrency(projectedDebtBudget)} (không trừ hạn mức)</span>` : ''}
+            `;
+        }
 
-        document.getElementById('budget-used').innerHTML = `
-            ${incomeHtml}
-            <div style="font-size:0.75rem; color:var(--text-muted); margin-top: 6px;">
-                Đã tiêu thực tế: <b>−${app.logic.formatCurrency(totalExpense)}</b>
-                ${projectedDebtBudget > 0 ? `<br><span style="color:var(--warning)"><i class="fa-solid fa-clock"></i> Nợ dự phòng tháng sau: ${app.logic.formatCurrency(projectedDebtBudget)} (Đã tách riêng)</span>` : ''}
-            </div>
-        `;
+        if (remainEl) {
+            const limitLine = limitState.over > 0
+                ? `Vượt: <b style="color:var(--danger)">${app.logic.formatCurrency(limitState.over)}</b>`
+                : `Hạn mức còn: <b style="color:${limitState.remaining < 100000 ? 'var(--danger)' : 'var(--warning)'}">${app.logic.formatCurrency(limitState.remaining)}</b>`;
+
+            remainEl.innerHTML = `
+                <span>${limitLine}</span><br>
+                <span style="font-size:.75rem; color:var(--text-muted)">
+                    Tiền thực: <b style="color:${realBalance < 0 ? 'var(--danger)' : 'var(--success)'}">${app.logic.formatCurrency(realBalance)}</b>
+                </span>
+            `;
+        }
     },
 
     init() {
@@ -8114,9 +8170,10 @@ ${t.tempExtraFeeReason
                 const listEl = document.getElementById('budget-history-list');
                 const month = app.data.filter.month;
 
-                // FIX: Chi Tiết Ngân Sách phải dùng cùng logic với thanh Ngân sách
+                // Chi Tiết Ngân Sách chỉ liệt kê các khoản thực sự dùng HẠN MỨC THÁNG.
+                // Tiền thực và các khoản trả nợ không còn làm giảm hạn mức ở đây.
                 const allExpenseCandidates =
-                    app.logic.getBudgetTransactions({
+                    app.logic.getMonthlyLimitUsageTransactions({
                         month,
                         respectExclusion: false
                     });
@@ -8126,7 +8183,7 @@ ${t.tempExtraFeeReason
                 );
 
                 if (allExpenseCandidates.length === 0) {
-                    listEl.innerHTML = '<div style="text-align:center; padding:2rem; color:var(--text-muted)">Chưa có chi tiêu thực tế nào trong tháng.</div>';
+                    listEl.innerHTML = '<div style="text-align:center; padding:2rem; color:var(--text-muted)">Chưa có giao dịch nào sử dụng hạn mức tháng.</div>';
                 } else {
                     listEl.innerHTML = allExpenseCandidates.map(t => {
                         const isExcluded = t.excludeFromBudget === true;

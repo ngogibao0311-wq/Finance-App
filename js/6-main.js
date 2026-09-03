@@ -862,6 +862,63 @@ app.events = {
                 isCashback: isCashback
             };
 
+
+            // ==================================================
+            // CHỌN NGUỒN NGÂN SÁCH: TIỀN THỰC / HẠN MỨC THÁNG
+            // ==================================================
+            if (!isMonthlyLimitCreditTx) {
+                const isExpense = data.type === 'Chi tiêu';
+                const isDebtPayment =
+                    data.type === 'Trả nợ' ||
+                    app.logic.isDebtPaymentTransaction(data);
+
+                if (!isExpense || isDebtPayment) {
+                    data.budgetFunding = 'none';
+                } else {
+                    const creditText = [data.source, data.destination]
+                        .filter(Boolean)
+                        .join(' ');
+                    const isCreditPurchase = app.logic.isCreditSource(creditText);
+
+                    if (isCreditPurchase) {
+                        // Ví trả sau / PayLater / thẻ tín dụng:
+                        // tự động lấy từ hạn mức ngay lúc phát sinh khoản mua.
+                        data.budgetFunding = 'limit';
+                    } else if (id && originalTxForSubmit) {
+                        // Khi sửa giao dịch cũ, giữ nguyên lựa chọn trước đó
+                        // để không hỏi lại và không tự đổi nguồn ngân sách.
+                        data.budgetFunding =
+                            app.logic.getTransactionBudgetFunding(
+                                originalTxForSubmit
+                            );
+                    } else {
+                        const fundingMonth = app.logic.getLocalMonthKey(data.date);
+                        const limitStateBefore = app.logic.getMonthlyLimitState(
+                            fundingMonth,
+                            { excludeTransactionId: data.id }
+                        );
+
+                        if (limitStateBefore.configured > 0) {
+                            const realBalanceBefore = app.logic.getRealCashBalance(
+                                fundingMonth,
+                                { excludeTransactionId: data.id }
+                            );
+
+                            data.budgetFunding = await app.ui.popup.selectBudgetFunding({
+                                amount: data.amount,
+                                source: data.source,
+                                realBalance: realBalanceBefore,
+                                limitRemaining: limitStateBefore.remaining,
+                                recommendLimit: realBalanceBefore <= 0
+                            });
+                        } else {
+                            // Chưa cấu hình hạn mức cho tháng này => mặc định tiền thực.
+                            data.budgetFunding = 'real';
+                        }
+                    }
+                }
+            }
+
             // Giữ liên kết cũ khi người dùng sửa giao dịch.
             if (
                 originalTxForSubmit?.linkedTransferId !==
@@ -1100,78 +1157,60 @@ app.events = {
                 // (Tùy chọn) Nếu bạn muốn có thông báo cho các giao dịch bình thường không giảm/hoàn
                 // app.ui.popup.show("✅ Đã lưu giao dịch thành công!", "success");
             }
-            const currentMonthLimit = app.data.filter.month;
-            const limit = Number(app.data.configs.monthlyLimits?.[currentMonthLimit]) || 0;
-            const currentMonth = app.data.filter.month;
-
+            // ==================================================
+            // CẢNH BÁO THEO HẠN MỨC MỚI
+            // Chỉ giao dịch budgetFunding = limit mới làm giảm hạn mức.
+            // Nợ/thu nhập/chi bằng tiền thực không làm giảm hạn mức tháng.
+            // ==================================================
             if (
                 data.type === 'Chi tiêu' &&
-                limit > 0 &&
-                data.status !== 'cancelled' &&
-                app.logic.isTransactionInMonth(data, currentMonth)
+                data.budgetFunding === 'limit' &&
+                !['planned', 'cancelled'].includes(data.status)
             ) {
-                // Tính thử bằng đúng logic thật, thay vì luôn cộng data.amount.
-                // Cách cũ làm giao dịch trả sau/sửa giao dịch bị cộng trùng với nợ dự kiến.
-                const originalTransactions = app.data.transactions;
-                let previewSpent = 0;
-                let previewDebt = 0;
-                let previewIncome = 0;
-                let previewLimitCredit = 0;
+                const fundingMonth = app.logic.getLocalMonthKey(data.date);
+                const stateBefore = app.logic.getMonthlyLimitState(
+                    fundingMonth,
+                    { excludeTransactionId: data.id }
+                );
 
-                try {
-                    const previewTransactions = originalTransactions
-                        .filter(t => t.id != data.id)
-                        .concat({ ...data });
+                if (stateBefore.configured > 0) {
+                    const amountForLimit =
+                        app.logic.getTransactionBudgetAmount(data);
+                    const usedAfter =
+                        stateBefore.used + (Number(amountForLimit) || 0);
+                    const remainingAfter =
+                        stateBefore.configured - usedAfter;
 
-                    app.data.transactions = previewTransactions;
+                    if (remainingAfter < 0) {
+                        const over = Math.abs(remainingAfter);
+                        const confirmOver = window.confirm(
+                            `🚨 VƯỢT HẠN MỨC THÁNG!
 
-                    previewSpent = app.logic
-                        .getBudgetTransactions()
-                        .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+` +
+                            `Hạn mức thiết lập: ${app.logic.formatCurrency(stateBefore.configured)}
+` +
+                            `Đã dùng trước giao dịch này: ${app.logic.formatCurrency(stateBefore.used)}
+` +
+                            `Giao dịch mới: ${app.logic.formatCurrency(amountForLimit)}
+` +
+                            `---------------------------
+` +
+                            `VƯỢT HẠN MỨC: ${app.logic.formatCurrency(over)}
 
-                    previewIncome =
-                        app.logic.getBudgetIncomeTotal(currentMonth);
-                    previewLimitCredit =
-                        app.logic.getMonthlyLimitCreditAmount(currentMonth);
+` +
+                            `Bạn vẫn muốn lưu giao dịch này?`
+                        );
+                        if (!confirmOver) return;
+                    } else if (remainingAfter < 100000) {
+                        window.alert(
+                            `⚠️ HẠN MỨC SẮP HẾT!
 
-                    previewDebt =
-                        Number(
-                            app.logic.getUpcomingDebts().budgetTotal
-                        ) || 0;
-                } finally {
-                    app.data.transactions = originalTransactions;
-                }
-
-                const newTotalUsed =
-                    previewSpent + previewDebt;
-
-                const remainingAfter =
-                    previewLimitCredit +
-                    previewIncome -
-                    newTotalUsed;
-
-                if (remainingAfter < 0) {
-                    const over = Math.abs(remainingAfter);
-                    const confirmOver = confirm(
-                        `🚨 CẢNH BÁO CHÁY TÚI! 🚨\n\n` +
-                        `${previewLimitCredit > 0 ? `Hạn mức cấp trước: +${app.logic.formatCurrency(previewLimitCredit)}\n` : ''}` +
-                        `Thu nhập thực tế: +${app.logic.formatCurrency(previewIncome)}\n` +
-                        `Chi thực trả + Nợ: -${app.logic.formatCurrency(newTotalUsed)}\n` +
-                        `---------------------------\n` +
-                        `THÂM HỤT: ${app.logic.formatCurrency(over)}\n\n` +
-                        `Bạn có chắc chắn muốn tiếp tục không?`
-                    );
-                    if (!confirmOver) return;
-                } else if (remainingAfter < 100000) {
-                    alert(
-                        `⚠️ CẨN THẬN! Ví sắp cạn.\n\n` +
-                        `Hạn mức: ${app.logic.formatCurrency(limit)}\n` +
-                        `${previewLimitCredit > 0 ? `Cấp trước: +${app.logic.formatCurrency(previewLimitCredit)}\n` : ''}` +
-                        `Thu nhập thực tế: +${app.logic.formatCurrency(previewIncome)}\n` +
-                        `Sau khi trừ chi tiêu và nợ,\n` +
-                        `bạn còn khả dụng: ${app.logic.formatCurrency(remainingAfter)}\n\n` +
-                        `Hãy cân nhắc kỹ!`
-                    );
+` +
+                            `Sau giao dịch này bạn còn: ${app.logic.formatCurrency(remainingAfter)}
+` +
+                            `trong hạn mức tháng ${fundingMonth}.`
+                        );
+                    }
                 }
             }
 
@@ -3567,45 +3606,41 @@ document.getElementById('btn-ask-gemini').addEventListener('click', async () => 
     const txs = app.logic.getFilteredTxs();
 
     const income = app.logic.getActualIncomeTotal(currentMonth);
-    const regularBudgetIncome = app.logic.getBudgetIncomeTotal(currentMonth);
-    const limitCredit = app.logic.getMonthlyLimitCreditAmount(currentMonth);
-    const expenses = app.logic.getBudgetTransactions({ respectExclusion: false });
-    const totalExpense = expenses.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
-    const cashBalance = income - totalExpense;
+    const realExpenses = app.logic.getRealCashExpenseTransactions({
+        month: currentMonth
+    });
+    const totalExpense = realExpenses.reduce(
+        (sum, t) => sum + (Number(t.amount) || 0),
+        0
+    );
+    const realCashBalance = app.logic.getRealCashBalance(currentMonth);
+    const limitState = app.logic.getMonthlyLimitState(currentMonth);
 
-    const upcomingData =
-        app.logic.getUpcomingDebts();
-
-    const upcomingDebt =
-        Number(upcomingData.budgetTotal) || 0;
-    const availableAfterDebt =
-        limitCredit + regularBudgetIncome - totalExpense - upcomingDebt;
+    const upcomingData = app.logic.getUpcomingDebts(currentMonth);
+    const upcomingDebt = Number(upcomingData.budgetTotal) || 0;
+    const cashAfterDebtReserve = realCashBalance - upcomingDebt;
     const debtItems = upcomingData.items
         .map(i => `${i.name} (${app.logic.formatCurrency((Number(i.amount) || 0) + (Number(i.penalty) || 0))})`)
         .join(', ');
 
-    // Lấy hạn mức (nếu có): tiền thực trả + khoản nợ phải giữ lại.
-    const limit = Number(app.data.configs.monthlyLimits?.[currentMonth]) || 0;
-    const totalBudgetUsed = totalExpense + upcomingDebt;
-    const remainingBudget = limit > 0 ? limit - totalBudgetUsed : null;
+    const limit = limitState.configured;
+    const remainingBudget = limitState.remaining;
     const burnRate = limit > 0
-        ? Math.round((totalBudgetUsed / limit) * 100)
+        ? Math.round(limitState.percent)
         : (income > 0 ? Math.round((totalExpense / income) * 100) : 0);
 
     // Mở rộng Top 5 khoản tiêu thực trả kèm Tag để AI phân tích thói quen
-    const topSpending = expenses.slice().sort((a, b) => b.amount - a.amount).slice(0, 5)
+    const topSpending = realExpenses.slice().sort((a, b) => b.amount - a.amount).slice(0, 5)
         .map(t => `- ${t.place} (${t.tags || 'Khác'}): ${app.logic.formatCurrency(t.amount)}`).join('\n');
 
     // Dữ liệu bối cảnh gửi cho AI
     const financialContext = `
     [DỮ LIỆU TÀI CHÍNH THÁNG ${currentMonth}]
     - Tổng Thu Nhập chính thức: ${app.logic.formatCurrency(income)}
-    - Hạn mức cấp trước đang tính vào Khả dụng: ${app.logic.formatCurrency(limitCredit)}
-    - Thu nhập thực tế thông thường: ${app.logic.formatCurrency(regularBudgetIncome)}
-    - Tổng Chi Tiêu: ${app.logic.formatCurrency(totalExpense)}
-    - Dòng tiền sau chi thực trả: ${app.logic.formatCurrency(cashBalance)}
-    - Khả dụng sau khi giữ tiền trả nợ: ${app.logic.formatCurrency(availableAfterDebt)}
-    ${limit > 0 ? `- Hạn Mức Cài Đặt: ${app.logic.formatCurrency(limit)} (Đã dùng/dự phòng ${burnRate}% hạn mức. Còn lại: ${app.logic.formatCurrency(remainingBudget)})` : `- Tỷ lệ chi tiêu so với thu nhập: ${burnRate}%`}
+    - Tổng Chi Tiêu làm giảm tiền thực: ${app.logic.formatCurrency(totalExpense)}
+    - Tiền thực còn lại: ${app.logic.formatCurrency(realCashBalance)}
+    - Tiền thực sau khi dự phòng nợ: ${app.logic.formatCurrency(cashAfterDebtReserve)}
+    ${limit > 0 ? `- Hạn mức tháng: ${app.logic.formatCurrency(limit)} | Đã dùng: ${app.logic.formatCurrency(limitState.used)} (${burnRate}%) | Còn: ${app.logic.formatCurrency(remainingBudget)}${limitState.over > 0 ? ` | Vượt: ${app.logic.formatCurrency(limitState.over)}` : ''}` : `- Chưa thiết lập hạn mức tháng.`}
     - Nợ Sắp Phải Trả: ${app.logic.formatCurrency(upcomingDebt)} (${debtItems || 'Không có khoản nợ nào'})
     
     [TOP 5 KHOẢN CHI LỚN NHẤT THÁNG NÀY]
