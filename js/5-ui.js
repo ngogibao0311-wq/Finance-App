@@ -139,6 +139,154 @@ app.ui = {
             });
         },
 
+        // Chọn tối đa 5 khoản Thu nhập làm nguồn bảo chứng cho Hạn mức 09/2026.
+        selectMonthlyLimitIncomeSources(options = {}) {
+            return new Promise(resolve => {
+                const month = String(options.month || '');
+                const configured = Math.max(0, Number(options.configured) || 0);
+                const candidates = Array.isArray(options.candidates) ? options.candidates : [];
+                const initialIds = new Set(
+                    (Array.isArray(options.selectedIds) ? options.selectedIds : [])
+                        .map(String)
+                );
+
+                const escapeHtml = value =>
+                    String(value ?? '')
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;')
+                        .replace(/'/g, '&#039;');
+
+                this.setupUI('info');
+                this.icon.className = 'fa-solid fa-hand-holding-dollar';
+                this.title.textContent = 'Nguồn thu bảo chứng hạn mức';
+                this.input.style.display = 'none';
+
+                if (candidates.length === 0) {
+                    this.renderMessage(`
+                        <div style="font-size:.88rem; line-height:1.6;">
+                            Chưa có giao dịch <b>Thu nhập</b> phù hợp trong tháng ${escapeHtml(month)}.<br>
+                            Hãy tạo khoản thu trước, sau đó quay lại chọn nguồn cho hạn mức.
+                        </div>
+                    `);
+                    this.btnCancel.style.display = 'none';
+                    this.btnConfirm.textContent = 'Đã hiểu';
+                    this.btnConfirm.onclick = () => {
+                        this.close();
+                        resolve(null);
+                    };
+                    this.el.style.zIndex = '9999999';
+                    this.el.classList.add('active');
+                    return;
+                }
+
+                const statusMeta = status => {
+                    if (status === 'paid') return ['🟢', 'Đã nhận'];
+                    if (status === 'pending') return ['🟡', 'Sắp nhận'];
+                    if (status === 'planned') return ['🔵', 'Dự kiến'];
+                    return ['⚪', String(status || 'Không rõ')];
+                };
+
+                const rows = candidates.map(tx => {
+                    const [icon, statusText] = statusMeta(tx.status);
+                    const date = new Date(tx.date);
+                    const dateText = Number.isNaN(date.getTime())
+                        ? 'Không rõ ngày'
+                        : date.toLocaleDateString('vi-VN');
+                    const checked = initialIds.has(String(tx.id)) ? 'checked' : '';
+                    const name = tx.place || tx.brand || tx.source || 'Khoản thu';
+                    const source = [tx.source, tx.destination].filter(Boolean).join(' → ');
+
+                    return `
+                        <label style="display:block; margin:8px 0; cursor:pointer;">
+                            <div style="display:flex; gap:10px; align-items:flex-start; padding:10px; border:1px solid #dbeafe; border-radius:10px; background:#f8fafc;">
+                                <input class="limit-future-income-chk" type="checkbox" value="${escapeHtml(tx.id)}" data-amount="${Number(tx.amount) || 0}" data-paid="${tx.status === 'paid' ? '1' : '0'}" ${checked} style="margin-top:4px;">
+                                <div style="flex:1; min-width:0;">
+                                    <div style="display:flex; justify-content:space-between; gap:8px;">
+                                        <b style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(name)}</b>
+                                        <b style="white-space:nowrap; color:var(--success);">+${app.logic.formatCurrency(Number(tx.amount) || 0)}</b>
+                                    </div>
+                                    <div style="font-size:.75rem; color:var(--text-muted); margin-top:3px;">
+                                        ${icon} ${escapeHtml(statusText)} • ${escapeHtml(dateText)}${source ? ` • ${escapeHtml(source)}` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        </label>
+                    `;
+                }).join('');
+
+                this.renderMessage(`
+                    <div style="font-size:.86rem; line-height:1.55;">
+                        <div style="padding:10px; border-radius:10px; background:#eef2ff; border:1px solid #c7d2fe; margin-bottom:10px;">
+                            Hạn mức tháng: <b>${app.logic.formatCurrency(configured)}</b><br>
+                            Chọn tối đa <b>5 giao dịch Thu nhập</b> làm nguồn bảo chứng.<br>
+                            <span style="font-size:.75rem; color:var(--text-muted);">Chỉ khoản <b>Đã nhận</b> mới tăng “Hạn mức đã thu”. Khoản Sắp nhận/Dự kiến chỉ được ghi nhớ làm nguồn chờ.</span>
+                        </div>
+                        <div id="limit-income-selection-summary" style="font-size:.78rem; font-weight:700; margin-bottom:8px;"></div>
+                        <div id="limit-income-selection-error" style="display:none; color:var(--danger); font-size:.76rem; margin-bottom:6px;">Chỉ được chọn tối đa 5 giao dịch.</div>
+                        <div style="max-height:330px; overflow:auto; padding-right:2px;">${rows}</div>
+                    </div>
+                `);
+
+                const checks = Array.from(this.msg.querySelectorAll('.limit-future-income-chk'));
+                const summary = this.msg.querySelector('#limit-income-selection-summary');
+                const error = this.msg.querySelector('#limit-income-selection-error');
+
+                const refreshSummary = () => {
+                    const selected = checks.filter(chk => chk.checked);
+                    const selectedTotal = selected.reduce(
+                        (sum, chk) => sum + (Number(chk.dataset.amount) || 0),
+                        0
+                    );
+                    const receivedRaw = selected
+                        .filter(chk => chk.dataset.paid === '1')
+                        .reduce((sum, chk) => sum + (Number(chk.dataset.amount) || 0), 0);
+                    const received = Math.min(configured, receivedRaw);
+                    if (summary) {
+                        summary.innerHTML = `Đã chọn: <b>${selected.length}/5</b> • Tổng nguồn: <b>${app.logic.formatCurrency(selectedTotal)}</b> • Đã thu tính vào hạn mức: <b style="color:var(--success)">${app.logic.formatCurrency(received)}</b>`;
+                    }
+                };
+
+                checks.forEach(chk => {
+                    chk.onchange = () => {
+                        const selected = checks.filter(item => item.checked);
+                        if (selected.length > 5) {
+                            chk.checked = false;
+                            if (error) {
+                                error.style.display = 'block';
+                                setTimeout(() => {
+                                    if (error) error.style.display = 'none';
+                                }, 1800);
+                            }
+                        }
+                        refreshSummary();
+                    };
+                });
+                refreshSummary();
+
+                this.btnCancel.style.display = 'block';
+                this.btnCancel.textContent = 'Hủy';
+                this.btnConfirm.textContent = 'Lưu nguồn thu';
+
+                this.btnCancel.onclick = () => {
+                    this.close();
+                    resolve(null);
+                };
+                this.btnConfirm.onclick = () => {
+                    const selectedIds = checks
+                        .filter(chk => chk.checked)
+                        .slice(0, 5)
+                        .map(chk => chk.value);
+                    this.close();
+                    resolve(selectedIds);
+                };
+
+                this.el.style.zIndex = '9999999';
+                this.el.classList.add('active');
+            });
+        },
+
         selectTransferMatch(matches = [], expense = {}) {
             return new Promise(resolve => {
                 if (
@@ -513,11 +661,40 @@ app.ui = {
     `;
     },
 
+    async openMonthlyLimitIncomePicker(month = app.data.filter.month) {
+        if (!app.logic.isMonthlyLimitFutureIncomeEnabled(month)) return;
+
+        const state = app.logic.getMonthlyLimitState(month);
+        const candidates = app.logic.getMonthlyLimitIncomeCandidates(month);
+        const selectedIds = app.logic.getMonthlyLimitLinkedIncomeIds(month);
+
+        const result = await app.ui.popup.selectMonthlyLimitIncomeSources({
+            month,
+            configured: state.configured,
+            candidates,
+            selectedIds
+        });
+
+        if (result === null) return;
+
+        app.logic.setMonthlyLimitLinkedIncomeIds(month, result, { save: false });
+        app.storage.save();
+        app.ui.renderAll();
+
+        const updated = app.logic.getMonthlyLimitState(month);
+        app.ui.popup.show(
+            `Đã lưu <b>${updated.linkedIncomeCount || 0}/5</b> nguồn thu cho Hạn mức ${month}.<br>` +
+            `Hạn mức đã thu: <b>${app.logic.formatCurrency(updated.received || 0)}</b> / ${app.logic.formatCurrency(updated.configured || 0)}`,
+            'success'
+        );
+    },
+
     renderBudget() {
         const currentMonth = app.data.filter.month;
         const limitState = app.logic.getMonthlyLimitState(currentMonth);
         const limit = limitState.configured;
         const box = document.getElementById('budget-box');
+        const futureIncomeMode = app.logic.isMonthlyLimitFutureIncomeEnabled(currentMonth);
 
         if (limit <= 0 || app.data.configs.guestMode) {
             if (box) box.style.display = 'none';
@@ -569,6 +746,12 @@ app.ui = {
         if (statusEl) {
             if (limitState.over > 0) {
                 statusEl.innerHTML = `<span style="color:var(--danger); font-weight:800"><i class="fa-solid fa-bomb"></i> Vượt hạn mức</span>`;
+            } else if (futureIncomeMode && limitState.advanced > 0) {
+                statusEl.innerHTML = `<span style="color:var(--warning); font-weight:800"><i class="fa-solid fa-hourglass-half"></i> Đang ứng trước thu nhập</span>`;
+            } else if (futureIncomeMode && limitState.received >= limit && limit > 0) {
+                statusEl.innerHTML = `<span style="color:var(--success); font-weight:800"><i class="fa-solid fa-circle-check"></i> Đã bảo chứng đủ</span>`;
+            } else if (futureIncomeMode && limitState.linkedIncomeCount > 0) {
+                statusEl.innerHTML = `<span style="color:var(--warning); font-weight:700"><i class="fa-solid fa-clock"></i> Đang chờ thu nhập</span>`;
             } else if (limitState.remaining < 100000) {
                 statusEl.innerHTML = `<span style="color:var(--danger); font-weight:700">Sắp hết hạn mức!</span>`;
             } else if (limitState.percent > 80) {
@@ -579,13 +762,35 @@ app.ui = {
         }
 
         if (usedEl) {
+            const limitHeader = futureIncomeMode
+                ? `<span id="budget-limit-income-trigger" title="Nhấn để chọn tối đa 5 khoản Thu nhập bảo chứng cho hạn mức" style="cursor:pointer; text-decoration:underline; text-decoration-style:dotted; text-underline-offset:3px;">Hạn mức thiết lập: <b style="color:var(--primary)">${app.logic.formatCurrency(limit)}</b> <i class="fa-solid fa-chevron-right" style="font-size:.65rem; opacity:.7;"></i></span>`
+                : `<span>Hạn mức thiết lập: <b style="color:var(--primary)">${app.logic.formatCurrency(limit)}</b></span>`;
+
+            const futureDetails = futureIncomeMode
+                ? `
+                    <br><span style="font-size:.75rem; color:var(--text-muted)">Đã thu hạn mức: <b style="color:var(--success)">${app.logic.formatCurrency(limitState.received || 0)}</b> / ${app.logic.formatCurrency(limit)}</span>
+                    <br><span style="font-size:.72rem; color:var(--text-muted)">Chưa thu: <b>${app.logic.formatCurrency(limitState.unreceived || 0)}</b> • Nguồn đã chọn: <b>${limitState.linkedIncomeCount || 0}/5</b></span>
+                    ${(limitState.advanced || 0) > 0 ? `<br><span style="font-size:.72rem; color:var(--warning); font-weight:800;"><i class="fa-solid fa-arrow-trend-up"></i> Đang ứng trước: ${app.logic.formatCurrency(limitState.advanced)}</span>` : ''}
+                    ${(limitState.reservedForDebt || 0) > 0 ? `<br><span style="font-size:.72rem; color:var(--danger); font-weight:800;"><i class="fa-solid fa-lock"></i> Nên giữ trả ví trả sau: ${app.logic.formatCurrency(limitState.reservedForDebt)}</span>` : ''}
+                    ${(limitState.sourceUncovered || 0) > 0 ? `<br><span style="font-size:.70rem; color:var(--text-muted);"><i class="fa-solid fa-circle-info"></i> Chưa gắn nguồn thu cho ${app.logic.formatCurrency(limitState.sourceUncovered)}</span>` : ''}
+                `
+                : '';
+
             usedEl.innerHTML = `
-                <span>Hạn mức thiết lập: <b style="color:var(--primary)">${app.logic.formatCurrency(limit)}</b></span><br>
+                ${limitHeader}<br>
                 <span style="font-size:.75rem; color:var(--text-muted)">
                     Đã dùng hạn mức: <b style="color:${limitState.over > 0 ? 'var(--danger)' : 'var(--text-main)'}">−${app.logic.formatCurrency(limitState.used)}</b>
                 </span>
+                ${futureDetails}
                 ${projectedDebtBudget > 0 ? `<br><span style="font-size:.72rem; color:var(--warning)"><i class="fa-solid fa-clock"></i> Nợ dự phòng: ${app.logic.formatCurrency(projectedDebtBudget)} (không trừ hạn mức)</span>` : ''}
             `;
+
+            if (futureIncomeMode) {
+                const trigger = document.getElementById('budget-limit-income-trigger');
+                if (trigger) {
+                    trigger.onclick = () => app.ui.openMonthlyLimitIncomePicker(currentMonth);
+                }
+            }
         }
 
         if (remainEl) {
@@ -598,6 +803,7 @@ app.ui = {
                 <span style="font-size:.75rem; color:var(--text-muted)">
                     Tiền thực: <b style="color:${realBalance < 0 ? 'var(--danger)' : 'var(--success)'}">${app.logic.formatCurrency(realBalance)}</b>
                 </span>
+                ${futureIncomeMode && (limitState.reservedForDebt || 0) > 0 ? `<br><span style="font-size:.70rem; color:var(--text-muted)">Khoản “giữ trả nợ” chỉ là cảnh báo, không tự trừ Tiền thực.</span>` : ''}
             `;
         }
     },

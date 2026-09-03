@@ -1249,7 +1249,20 @@ app.events = {
             if (id) {
                 const originalTx = app.data.transactions.find(t => t.id == id);
                 if (originalTx && originalTx.status === 'planned' && data.status !== 'planned') {
+                    const previousIdForLimitIncome = data.id;
                     data.id = Date.now();
+
+                    // 09/2026: nếu khoản Thu nhập Dự kiến đã được chọn làm nguồn
+                    // bảo chứng Hạn mức, giữ liên kết khi hệ thống đổi ID lúc chuyển trạng thái.
+                    if (data.type === 'Thu nhập' && app.logic.replaceMonthlyLimitLinkedIncomeId) {
+                        app.logic.replaceMonthlyLimitLinkedIncomeId(
+                            previousIdForLimitIncome,
+                            data.id,
+                            app.logic.getLocalMonthKey(data.date),
+                            { save: false }
+                        );
+                    }
+
                     if (data.type === 'Thu nhập' && data.status === 'pending') {
                         app.ui.popup.show("Đã chuyển trạng thái: <b>Sắp nhận tiền</b><br>(Đang chờ về ví)", "success");
                     } else {

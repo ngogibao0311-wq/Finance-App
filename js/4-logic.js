@@ -1344,6 +1344,168 @@ app.logic = {
         );
     },
 
+    // =====================================================
+    // NGUỒN THU BẢO CHỨNG HẠN MỨC — CHỈ THÁNG 09/2026
+    //
+    // Hạn mức = thu nhập dự kiến trong tháng được phép dùng trước.
+    // Người dùng có thể gắn tối đa 5 giao dịch Thu nhập của 09/2026.
+    // Chỉ giao dịch đã "paid" mới làm tăng "Đã thu".
+    // Từ 10/2026 trở đi giữ NGUYÊN cơ chế cũ, không đọc/cập nhật dữ liệu này.
+    // =====================================================
+    isMonthlyLimitFutureIncomeEnabled(month = app.data.filter.month) {
+        return String(month || '') === '2026-09';
+    },
+
+    getMonthlyLimitIncomeCandidates(month = app.data.filter.month) {
+        if (!this.isMonthlyLimitFutureIncomeEnabled(month)) return [];
+
+        return app.data.transactions
+            .filter(t => {
+                if (!this.isTransactionInMonth(t, month)) return false;
+                if (this.isMonthlyLimitCreditTransaction(t)) return false;
+                if (this.isMonthlyBudgetCarryoverTransaction(t)) return false;
+                if (t.type !== 'Thu nhập') return false;
+                if (t.status === 'cancelled') return false;
+                return true;
+            })
+            .slice()
+            .sort((a, b) => this.compareTransactions(a, b));
+    },
+
+    getMonthlyLimitLinkedIncomeIds(month = app.data.filter.month) {
+        if (!this.isMonthlyLimitFutureIncomeEnabled(month)) return [];
+
+        const raw = app.data.configs?.monthlyLimitIncomeLinks?.[month];
+        const ids = Array.isArray(raw) ? raw : [];
+        const validIds = new Set(
+            this.getMonthlyLimitIncomeCandidates(month)
+                .map(t => String(t.id))
+        );
+
+        const result = [];
+        ids.forEach(id => {
+            const key = String(id);
+            if (!validIds.has(key)) return;
+            if (result.some(existing => String(existing) === key)) return;
+            result.push(id);
+        });
+
+        return result.slice(0, 5);
+    },
+
+    setMonthlyLimitLinkedIncomeIds(month, ids = [], options = {}) {
+        if (!this.isMonthlyLimitFutureIncomeEnabled(month)) return [];
+
+        const validIds = new Set(
+            this.getMonthlyLimitIncomeCandidates(month)
+                .map(t => String(t.id))
+        );
+        const selected = [];
+
+        (Array.isArray(ids) ? ids : []).forEach(id => {
+            const key = String(id);
+            if (!validIds.has(key)) return;
+            if (selected.some(existing => String(existing) === key)) return;
+            if (selected.length >= 5) return;
+            selected.push(id);
+        });
+
+        if (!app.data.configs.monthlyLimitIncomeLinks) {
+            app.data.configs.monthlyLimitIncomeLinks = {};
+        }
+        app.data.configs.monthlyLimitIncomeLinks[month] = selected;
+
+        if (options.save !== false) app.storage.save();
+        return selected;
+    },
+
+    replaceMonthlyLimitLinkedIncomeId(oldId, newId, newMonth, options = {}) {
+        const month = '2026-09';
+        const links = app.data.configs?.monthlyLimitIncomeLinks?.[month];
+        if (!Array.isArray(links) || links.length === 0) return false;
+
+        const oldKey = String(oldId);
+        const index = links.findIndex(id => String(id) === oldKey);
+        if (index === -1) return false;
+
+        if (String(newMonth || '') === month) {
+            links[index] = newId;
+        } else {
+            links.splice(index, 1);
+        }
+
+        app.data.configs.monthlyLimitIncomeLinks[month] = links.slice(0, 5);
+        if (options.save !== false) app.storage.save();
+        return true;
+    },
+
+    getMonthlyLimitFutureIncomeState(month = app.data.filter.month, options = {}) {
+        if (!this.isMonthlyLimitFutureIncomeEnabled(month)) return null;
+
+        const configured = Math.max(
+            0,
+            Number(app.data.configs.monthlyLimits?.[month]) || 0
+        );
+        const linkedIds = this.getMonthlyLimitLinkedIncomeIds(month);
+        const linkedSet = new Set(linkedIds.map(String));
+        const linkedTransactions = this.getMonthlyLimitIncomeCandidates(month)
+            .filter(t => linkedSet.has(String(t.id)));
+
+        const linkedTotal = linkedTransactions.reduce(
+            (sum, t) => sum + (Number(t.amount) || 0),
+            0
+        );
+        const receivedRaw = linkedTransactions
+            .filter(t => t.status === 'paid')
+            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+        // "Đã thu" của hạn mức không thể lớn hơn hạn mức đã thiết lập.
+        const received = Math.min(configured, Math.max(0, receivedRaw));
+        const sourceCoverage = Math.min(configured, Math.max(0, linkedTotal));
+        const unreceived = Math.max(0, configured - received);
+        const sourceUncovered = Math.max(0, configured - sourceCoverage);
+
+        const used = this.getMonthlyLimitUsageTotal(month, options);
+        const advanced = Math.max(0, used - received);
+        const securedUsed = Math.min(used, received);
+
+        // Chỉ xem khoản mua trả sau còn pending là nợ đang treo.
+        // Không thay đổi cơ chế nợ hiện có; con số này chỉ dùng để cảnh báo/giữ tiền.
+        const outstandingCreditDebt = this.getMonthlyLimitUsageTransactions({
+            ...options,
+            month
+        })
+            .filter(t => {
+                if (t.status !== 'pending') return false;
+                const creditText = [t.source, t.destination]
+                    .filter(Boolean)
+                    .join(' ');
+                return this.isCreditSource(creditText);
+            })
+            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+        const reservedForDebt = Math.min(received, outstandingCreditDebt);
+
+        return {
+            month,
+            configured,
+            linkedIds,
+            linkedTransactions,
+            linkedCount: linkedTransactions.length,
+            linkedTotal,
+            received,
+            receivedRaw,
+            unreceived,
+            sourceCoverage,
+            sourceUncovered,
+            used,
+            advanced,
+            securedUsed,
+            outstandingCreditDebt,
+            reservedForDebt
+        };
+    },
+
     getMonthlyLimitState(month = app.data.filter.month, options = {}) {
         const configured = Math.max(
             0,
@@ -1352,7 +1514,7 @@ app.logic = {
         const used = this.getMonthlyLimitUsageTotal(month, options);
         const remainingRaw = configured - used;
 
-        return {
+        const baseState = {
             month,
             configured,
             used,
@@ -1360,6 +1522,28 @@ app.logic = {
             over: Math.max(0, -remainingRaw),
             remainingRaw,
             percent: configured > 0 ? (used / configured) * 100 : 0
+        };
+
+        // Chỉ bổ sung trạng thái Thu nhập tương lai cho 09/2026.
+        // Các tháng sau 09/2026 nhận đúng object/công thức cũ phía trên.
+        if (!this.isMonthlyLimitFutureIncomeEnabled(month)) {
+            return baseState;
+        }
+
+        const futureIncome = this.getMonthlyLimitFutureIncomeState(month, options);
+        return {
+            ...baseState,
+            futureIncomeEnabled: true,
+            linkedIncomeIds: futureIncome?.linkedIds || [],
+            linkedIncomeCount: futureIncome?.linkedCount || 0,
+            linkedIncomeTotal: futureIncome?.linkedTotal || 0,
+            received: futureIncome?.received || 0,
+            unreceived: futureIncome?.unreceived ?? configured,
+            sourceUncovered: futureIncome?.sourceUncovered ?? configured,
+            advanced: futureIncome?.advanced || 0,
+            securedUsed: futureIncome?.securedUsed || 0,
+            outstandingCreditDebt: futureIncome?.outstandingCreditDebt || 0,
+            reservedForDebt: futureIncome?.reservedForDebt || 0
         };
     },
 
