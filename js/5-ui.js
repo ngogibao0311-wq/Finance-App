@@ -8376,10 +8376,12 @@ ${t.tempExtraFeeReason
                 const listEl = document.getElementById('budget-history-list');
                 const month = app.data.filter.month;
 
-                // Chi Tiết Ngân Sách chỉ liệt kê các khoản thực sự dùng HẠN MỨC THÁNG.
-                // Tiền thực và các khoản trả nợ không còn làm giảm hạn mức ở đây.
+                // FIX: Chi Tiết Ngân Sách là lịch sử chi tiêu của tháng.
+                // Chỉ phần tính HẠN MỨC mới dùng getMonthlyLimitUsageTransactions();
+                // modal này phải giữ cách liệt kê cũ để không bị trống khi các khoản
+                // trong tháng được thanh toán bằng tiền thực / trả nợ.
                 const allExpenseCandidates =
-                    app.logic.getMonthlyLimitUsageTransactions({
+                    app.logic.getBudgetTransactions({
                         month,
                         respectExclusion: false
                     });
@@ -8389,7 +8391,7 @@ ${t.tempExtraFeeReason
                 );
 
                 if (allExpenseCandidates.length === 0) {
-                    listEl.innerHTML = '<div style="text-align:center; padding:2rem; color:var(--text-muted)">Chưa có giao dịch nào sử dụng hạn mức tháng.</div>';
+                    listEl.innerHTML = '<div style="text-align:center; padding:2rem; color:var(--text-muted)">Chưa có chi tiêu thực tế nào trong tháng.</div>';
                 } else {
                     listEl.innerHTML = allExpenseCandidates.map(t => {
                         const isExcluded = t.excludeFromBudget === true;
