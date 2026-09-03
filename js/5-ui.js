@@ -717,7 +717,8 @@ app.ui = {
 
             const barActual = document.createElement('div');
             barActual.className = 'budget-bar';
-            barActual.style.width = `${actualPercent}%`;
+            // Bắt đầu từ 0 để mỗi lần render thanh tiến độ chạy rõ ràng.
+            barActual.style.width = '0%';
             barActual.style.height = '100%';
             barActual.style.transition = 'width 0.5s ease';
 
@@ -731,6 +732,13 @@ app.ui = {
             }
 
             track.appendChild(barActual);
+
+            // Đợi trình duyệt vẽ trạng thái 0% rồi mới chạy tới % đã dùng.
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    barActual.style.width = `${actualPercent}%`;
+                });
+            });
         }
 
         const statusEl = document.getElementById('budget-status');

@@ -878,21 +878,77 @@ app.events = {
                     const creditText = [data.source, data.destination]
                         .filter(Boolean)
                         .join(' ');
-                    const isCreditPurchase = app.logic.isCreditSource(creditText);
 
-                    if (isCreditPurchase) {
-                        // Ví trả sau / PayLater / thẻ tín dụng:
-                        // tự động lấy từ hạn mức ngay lúc phát sinh khoản mua.
-                        data.budgetFunding = 'limit';
-                    } else if (id && originalTxForSubmit) {
+                    const fundingMonth = app.logic.getLocalMonthKey(data.date);
+                    const isSep2026FutureIncomeMode =
+                        app.logic.isMonthlyLimitFutureIncomeEnabled &&
+                        app.logic.isMonthlyLimitFutureIncomeEnabled(fundingMonth);
+
+                    // 09/2026: ZaloPay/Zalo Priority thường KHÔNG đồng nghĩa với Ví Trả Sau.
+                    // Chỉ tự động dùng Hạn mức khi tên nguồn thể hiện rõ đây là tín dụng/trả sau.
+                    // Ngoài 09/2026 giữ nguyên nhận diện cũ để không ảnh hưởng logic tháng khác.
+                    const explicitCreditText = String(creditText || '').toLowerCase();
+                    const isExplicitPayLater =
+                        explicitCreditText.includes('trả sau') ||
+                        explicitCreditText.includes('tra sau') ||
+                        explicitCreditText.includes('paylater') ||
+                        explicitCreditText.includes('pay later') ||
+                        explicitCreditText.includes('spaylater') ||
+                        explicitCreditText.includes('spay later') ||
+                        explicitCreditText.includes('thẻ tín dụng') ||
+                        explicitCreditText.includes('the tin dung') ||
+                        explicitCreditText.includes('credit card');
+
+                    const isCreditPurchase = isSep2026FutureIncomeMode
+                        ? isExplicitPayLater
+                        : app.logic.isCreditSource(creditText);
+
+                    if (id && originalTxForSubmit) {
                         // Khi sửa giao dịch cũ, giữ nguyên lựa chọn trước đó
                         // để không hỏi lại và không tự đổi nguồn ngân sách.
                         data.budgetFunding =
                             app.logic.getTransactionBudgetFunding(
                                 originalTxForSubmit
                             );
+                    } else if (isSep2026FutureIncomeMode) {
+                        // 09/2026 — CƠ CHẾ ĐƠN GIẢN:
+                        // Chỉ hỏi Tiền thực / Hạn mức khi:
+                        // 1) giao dịch đang Ghi nợ / Chưa trả (status = pending), HOẶC
+                        // 2) nguồn là Trả sau / PayLater / SPayLater / thẻ tín dụng.
+                        // Các giao dịch chi tiêu đã trả thông thường mặc định là Tiền thực.
+                        const isUnpaidDebt = data.status === 'pending';
+                        const shouldAskBudgetFunding =
+                            isUnpaidDebt || isExplicitPayLater;
+
+                        const limitStateBefore = app.logic.getMonthlyLimitState(
+                            fundingMonth,
+                            { excludeTransactionId: data.id }
+                        );
+
+                        if (
+                            shouldAskBudgetFunding &&
+                            limitStateBefore.configured > 0
+                        ) {
+                            const realBalanceBefore = app.logic.getRealCashBalance(
+                                fundingMonth,
+                                { excludeTransactionId: data.id }
+                            );
+
+                            data.budgetFunding = await app.ui.popup.selectBudgetFunding({
+                                amount: data.amount,
+                                source: data.source,
+                                realBalance: realBalanceBefore,
+                                limitRemaining: limitStateBefore.remaining,
+                                recommendLimit: isUnpaidDebt || realBalanceBefore <= 0
+                            });
+                        } else {
+                            data.budgetFunding = 'real';
+                        }
+                    } else if (isCreditPurchase) {
+                        // Các tháng khác giữ nguyên logic cũ:
+                        // nguồn tín dụng/trả sau tự động dùng hạn mức.
+                        data.budgetFunding = 'limit';
                     } else {
-                        const fundingMonth = app.logic.getLocalMonthKey(data.date);
                         const limitStateBefore = app.logic.getMonthlyLimitState(
                             fundingMonth,
                             { excludeTransactionId: data.id }
