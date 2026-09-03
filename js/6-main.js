@@ -1224,12 +1224,23 @@ app.events = {
                 !['planned', 'cancelled'].includes(data.status)
             ) {
                 const fundingMonth = app.logic.getLocalMonthKey(data.date);
+
+                // 08-09/2026: giao dịch Trả sau/PayLater không đốt Hạn mức
+                // ngay tại ngày mua. Nó sẽ được trừ khi đi vào Nợ dự phòng
+                // của tháng chuẩn bị thanh toán. Vì vậy không cộng trực tiếp
+                // amount lần nữa ở bước cảnh báo này.
+                const deferredToDebtReserve =
+                    app.logic.isMonthlyLimitDebtReserveMode &&
+                    app.logic.isMonthlyLimitDebtReserveMode(fundingMonth) &&
+                    app.logic.isDeferredCreditForMonthlyLimit &&
+                    app.logic.isDeferredCreditForMonthlyLimit(data);
+
                 const stateBefore = app.logic.getMonthlyLimitState(
                     fundingMonth,
                     { excludeTransactionId: data.id }
                 );
 
-                if (stateBefore.configured > 0) {
+                if (stateBefore.configured > 0 && !deferredToDebtReserve) {
                     const amountForLimit =
                         app.logic.getTransactionBudgetAmount(data);
                     const usedAfter =

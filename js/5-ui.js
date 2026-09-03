@@ -790,7 +790,7 @@ app.ui = {
                     Đã dùng hạn mức: <b style="color:${limitState.over > 0 ? 'var(--danger)' : 'var(--text-main)'}">−${app.logic.formatCurrency(limitState.used)}</b>
                 </span>
                 ${futureDetails}
-                ${projectedDebtBudget > 0 ? `<br><span style="font-size:.72rem; color:var(--warning)"><i class="fa-solid fa-clock"></i> Nợ dự phòng: ${app.logic.formatCurrency(projectedDebtBudget)} (không trừ hạn mức)</span>` : ''}
+                ${projectedDebtBudget > 0 ? `<br><span style="font-size:.72rem; color:var(--warning)"><i class="fa-solid fa-clock"></i> Trong đó nợ dự phòng: ${app.logic.formatCurrency(projectedDebtBudget)} (đã trừ hạn mức)</span>` : ''}
             `;
 
             if (futureIncomeMode) {

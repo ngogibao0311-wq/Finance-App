@@ -1305,10 +1305,40 @@ app.logic = {
         return 'real';
     },
 
+    // Cơ chế dự phòng nợ theo Hạn mức chỉ áp dụng cho 08-09/2026.
+    // Từ 10/2026 trở đi giữ nguyên logic cũ để không ảnh hưởng dữ liệu sau 09/2026.
+    isMonthlyLimitDebtReserveMode(month = app.data.filter.month) {
+        const key = String(month || '');
+        return key === '2026-08' || key === '2026-09';
+    },
+
+    // Nhận diện đúng các nguồn tín dụng thực sự.
+    // Không coi "Zalo Priority" thường là trả sau nếu không có dấu hiệu tín dụng.
+    isDeferredCreditForMonthlyLimit(transaction = {}) {
+        const text = [
+            transaction.source,
+            transaction.destination
+        ].filter(Boolean).join(' ').toLowerCase();
+
+        return (
+            text.includes('trả sau') ||
+            text.includes('tra sau') ||
+            text.includes('paylater') ||
+            text.includes('pay later') ||
+            text.includes('spaylater') ||
+            text.includes('spay later') ||
+            text.includes('thẻ tín dụng') ||
+            text.includes('the tin dung') ||
+            text.includes('credit card') ||
+            text.includes(' credit')
+        );
+    },
+
     getMonthlyLimitUsageTransactions(options = {}) {
         const month = options.month || app.data.filter.month;
         const respectExclusion = options.respectExclusion !== false;
         const excludeTransactionId = options.excludeTransactionId;
+        const debtReserveMode = this.isMonthlyLimitDebtReserveMode(month);
 
         return app.data.transactions
             .filter(t => {
@@ -1324,6 +1354,23 @@ app.logic = {
                 if (!['paid', 'pending'].includes(String(t.status || 'paid'))) return false;
                 if (respectExclusion && t.excludeFromBudget === true) return false;
                 if (this.getTransactionBudgetFunding(t) !== 'limit') return false;
+
+                /*
+                 * 08-09/2026: khoản mua Trả sau/PayLater KHÔNG đốt Hạn mức
+                 * tại ngày mua. Hạn mức chỉ bị giữ ở tháng chuẩn bị trả nợ,
+                 * thông qua getUpcomingDebts(month).budgetTotal.
+                 *
+                 * Ví dụ: mua SPayLater 22/08, hạn 03/10:
+                 * - tháng 08: không chạy thanh tiến độ;
+                 * - tháng 09: khoản nợ dự phòng cho 03/10 sẽ trừ Hạn mức.
+                 */
+                if (
+                    debtReserveMode &&
+                    this.isDeferredCreditForMonthlyLimit(t)
+                ) {
+                    return false;
+                }
+
                 return true;
             })
             .map(t => {
@@ -1334,14 +1381,29 @@ app.logic = {
             });
     },
 
+    getMonthlyLimitDebtReserveTotal(month = app.data.filter.month) {
+        if (!this.isMonthlyLimitDebtReserveMode(month)) return 0;
+
+        const upcoming = this.getUpcomingDebts(month);
+        return Math.max(0, Number(upcoming?.budgetTotal) || 0);
+    },
+
     getMonthlyLimitUsageTotal(month = app.data.filter.month, options = {}) {
-        return this.getMonthlyLimitUsageTransactions({
+        const directUsage = this.getMonthlyLimitUsageTransactions({
             ...options,
             month
         }).reduce(
             (sum, t) => sum + (Number(t.amount) || 0),
             0
         );
+
+        // 08-09/2026: Nợ dự phòng thuộc kỳ ngân sách được giữ trực tiếp
+        // trong Hạn mức. Sau 09/2026 trả về đúng công thức cũ.
+        if (!this.isMonthlyLimitDebtReserveMode(month)) {
+            return directUsage;
+        }
+
+        return directUsage + this.getMonthlyLimitDebtReserveTotal(month);
     },
 
     // =====================================================
@@ -1469,20 +1531,23 @@ app.logic = {
         const advanced = Math.max(0, used - received);
         const securedUsed = Math.min(used, received);
 
-        // Chỉ xem khoản mua trả sau còn pending là nợ đang treo.
-        // Không thay đổi cơ chế nợ hiện có; con số này chỉ dùng để cảnh báo/giữ tiền.
-        const outstandingCreditDebt = this.getMonthlyLimitUsageTransactions({
-            ...options,
-            month
-        })
-            .filter(t => {
-                if (t.status !== 'pending') return false;
-                const creditText = [t.source, t.destination]
-                    .filter(Boolean)
-                    .join(' ');
-                return this.isCreditSource(creditText);
+        // 09/2026: khoản cần giữ để trả nợ lấy theo đúng phần Nợ dự phòng
+        // đang trừ Hạn mức. Nhờ vậy khoản mua trả sau không bị tính 2 lần
+        // (một lần lúc mua + một lần lúc tới kỳ chuẩn bị trả).
+        const outstandingCreditDebt = this.isMonthlyLimitDebtReserveMode(month)
+            ? this.getMonthlyLimitDebtReserveTotal(month)
+            : this.getMonthlyLimitUsageTransactions({
+                ...options,
+                month
             })
-            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+                .filter(t => {
+                    if (t.status !== 'pending') return false;
+                    const creditText = [t.source, t.destination]
+                        .filter(Boolean)
+                        .join(' ');
+                    return this.isCreditSource(creditText);
+                })
+                .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
         const reservedForDebt = Math.min(received, outstandingCreditDebt);
 
@@ -4634,7 +4699,15 @@ app.logic = {
             return sum + (Number(t.amount) || 0);
         }, 0);
 
-        const availableBeforeToday = limit - totalSpentMonthBeforeToday;
+        // Nếu tháng đang dùng cơ chế dự phòng nợ, phần nợ đã giữ Hạn mức
+        // cũng phải làm giảm ngân sách ngày; nếu không thanh tháng và ngân sách
+        // ngày sẽ cho hai kết quả khác nhau.
+        const debtReserve = this.getMonthlyLimitDebtReserveTotal
+            ? this.getMonthlyLimitDebtReserveTotal(currentMonth)
+            : 0;
+
+        const availableBeforeToday =
+            limit - debtReserve - totalSpentMonthBeforeToday;
         const dailyCap = availableBeforeToday > 0
             ? availableBeforeToday / daysLeft
             : 0;
