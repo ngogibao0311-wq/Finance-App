@@ -4475,6 +4475,7 @@ app.logic = {
                 app.logic.isTransactionInMonth(t, month) &&
                 isCreditMomo(String(t.source || '')) &&
                 t.status !== 'cancelled' &&
+                t.status !== 'planned' &&
                 !tags.includes('#phi_dich_vu') &&
                 !tags.includes('#thanh_toan_no') &&
                 !tags.includes('#tra_gop') &&
@@ -4529,14 +4530,21 @@ app.logic = {
 
         const newTx = {
             ...originalTx,
-            id: Date.now(),
+            id: app.rules.newTransactionId(),
+            createdAt: now.toISOString(),
             date: localISOTime,
             status: newStatus,
             place: 'Khôi phục ' + originalTx.place
         };
         delete newTx.forceStatementKey;
+        delete newTx.linkedTransferId;
+        delete newTx.linkedExpenseId;
+        delete newTx.assignedToMonthlyLimit;
+        delete newTx.cashbackForId;
+        delete newTx.loanId;
 
         app.data.transactions.push(newTx);
+        app.rules.syncCashback(newTx);
         app.storage.save();
         app.ui.renderAll();
         alert("Đã tạo giao dịch mới thành công vào Lịch sử giao dịch!");
@@ -4866,66 +4874,11 @@ app.logic = {
     // ... (các hàm bên trên giữ nguyên)
 
     calculateBankBalance(account) {
-        // 1. Lấy số dư khởi tạo
-        let currentBalance = account.initialBalance || 0;
-
-        // 2. Cấu hình ngày chốt sổ
-        const CUTOFF_DATE_STR = "2026-01-28T00:00:00";
-        const cutoffTime = new Date(CUTOFF_DATE_STR).getTime();
-
-        // 3. Duyệt qua giao dịch
-        app.data.transactions.forEach(t => {
-            if (t.status !== 'paid') return;
-
-            const txTime = new Date(t.date).getTime();
-            if (txTime < cutoffTime) return;
-
-            // --- [FIX LỖI] THÊM ( || "" ) ĐỂ TRÁNH CRASH NẾU DỮ LIỆU BỊ THIẾU ---
-            const bankName = (account.bankName || "").toLowerCase().trim();
-            const source = (t.source || "").toLowerCase().trim();
-            const dest = (t.destination || "").toLowerCase().trim();
-
-            // Trừ tiền
-            if (source === bankName) {
-                currentBalance -= t.amount;
-            }
-
-            // Cộng tiền
-            if (dest === bankName) {
-                currentBalance += t.amount;
-            }
-        });
-
-        return currentBalance;
+        return app.rules.balance(account, 'bank');
     },
 
     calculateWalletBalance(wallet) {
-        // Nếu là ví trả sau có hạn mức, bắt đầu từ hạn mức + số dư ban đầu
-        let currentBalance = (wallet.initialBalance || 0) + (wallet.creditLimit || 0);
-        const CUTOFF_DATE = new Date("2026-01-28T00:00:00").getTime();
-
-        app.data.transactions.forEach(t => {
-            if (t.status !== 'paid') return;
-
-            const txTime = new Date(t.date).getTime();
-            if (txTime < CUTOFF_DATE) return;
-
-            const wName = (wallet.walletName || "").toLowerCase().trim();
-            const source = (t.source || "").toLowerCase().trim();
-            const dest = (t.destination || "").toLowerCase().trim();
-
-            // Chi tiêu từ ví này -> Trừ vào hạn mức/số dư
-            if (source === wName) {
-                currentBalance -= t.amount;
-            }
-
-            // Hoàn tiền hoặc Thu nhập vào ví này -> Cộng lại vào hạn mức/số dư
-            if (dest === wName) {
-                currentBalance += t.amount;
-            }
-        });
-
-        return currentBalance;
+        return app.rules.balance(wallet, 'wallet');
     },
 
     purgeOldData() {

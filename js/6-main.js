@@ -1,7 +1,8 @@
 // Gắn các hàm root level
 app.startSession = async function () {
     console.log("🔓 Access Granted: Loading Data...");
-    await this.storage.load();
+    try { await this.storage.load(); }
+    catch { return; }
 
     // Sắp xếp lại toàn bộ dữ liệu giao dịch cũ
     if (this.data && this.data.transactions) {
@@ -172,18 +173,8 @@ app.init = async function () {  // <-- Thêm async
         const isRefDetectedInit = bankWalletKeywords.some(k => currentSourceVal.includes(k));
         const isOrderDetectedInit = ecomKeywords.some(k => currentDestBrandVal.includes(k));
 
-        let is3DaysOld = false;
-        let txData = null;
-        if (id) {
-            txData = app.data.transactions.find(t => t.id === id);
-            if (txData && txData.id) {
-                // Xác định số ngày khóa: Hoàn tiền là 1 ngày, bình thường là 3 ngày
-                const isCashback = txData.tags && txData.tags.includes('#hoan_tien');
-                const lockDays = isCashback ? 1 : 3;
-
-                if ((Date.now() - txData.id) / (1000 * 3600 * 24) > lockDays) is3DaysOld = true;
-            }
-        }
+        const txData = id ? app.data.transactions.find(t => t.id == id) : null;
+        const is3DaysOld = txData ? app.rules.isLocked(txData) : false;
 
         if (id && txData && txData.type === 'Chuyển tiền') {
             const txTypeEl = document.getElementById('tx-type');
@@ -225,7 +216,7 @@ app.init = async function () {  // <-- Thêm async
                 const isCashback = txData.tags && txData.tags.includes('#hoan_tien');
                 const lockDays = isCashback ? 1 : 3;
 
-                const timeSinceCreation = Date.now() - txData.id;
+                const timeSinceCreation = Date.now() - app.rules.createdTime(txData);
                 const lockDurationMs = lockDays * 24 * 60 * 60 * 1000;
                 const hideDurationMs = (lockDays + 2) * 24 * 60 * 60 * 1000;
 
@@ -241,7 +232,7 @@ app.init = async function () {  // <-- Thêm async
                             return;
                         }
 
-                        const timeLeft = hideDurationMs - (Date.now() - txData.id);
+                        const timeLeft = hideDurationMs - (Date.now() - app.rules.createdTime(txData));
                         if (timeLeft <= 0) {
                             unknownWrapper.style.display = 'none';
                             clearInterval(app.ui.unknownTimeInterval);
@@ -717,10 +708,17 @@ app.events = {
 
         document.getElementById('form-tx').addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (app.events.savingTransaction) return;
+            app.events.savingTransaction = true;
+            try {
             const id = document.getElementById('tx-id').value;
             const originalTxForSubmit = id
                 ? app.data.transactions.find(t => t.id == id)
                 : null;
+            if (!app.storage.ready) return app.ui.popup.show('Dữ liệu chưa sẵn sàng để lưu.', 'error');
+            if (id && !originalTxForSubmit) return app.ui.popup.show('Giao dịch không còn tồn tại. Hãy mở lại danh sách.', 'error');
+            try { app.rules.checkCashbackEdit(originalTxForSubmit); }
+            catch (error) { return app.ui.popup.show(error.message, 'error'); }
             const isMonthlyLimitCreditTx =
                 app.logic.isMonthlyLimitCreditTransaction(originalTxForSubmit || {});
 
@@ -799,6 +797,12 @@ app.events = {
                 }
             }
 
+            try {
+                app.rules.money(originalAmount);
+                app.rules.money(discountMoney, 'Tiền giảm/hoàn');
+                if (discountMoney > originalAmount) throw new Error('Tiền giảm/hoàn không được vượt giá gốc.');
+            } catch (error) { return app.ui.popup.show(error.message, 'error'); }
+
             const isUnknownTime = document.getElementById('tx-is-unknown-time') ? document.getElementById('tx-is-unknown-time').checked : false;
             let finalDateStr = document.getElementById('tx-date').value;
 
@@ -812,7 +816,7 @@ app.events = {
             try {
                 // Đóng gói lại thành chuẩn quốc tế (UTC) để lưu
                 finalDateISO = new Date(finalDateStr).toISOString();
-            } catch (e) { }
+            } catch (e) { return app.ui.popup.show('Ngày giao dịch không hợp lệ.', 'error'); }
 
             // Nếu đang sửa và người dùng không đổi giờ phút, thì GIỮ NGUYÊN chuỗi gốc để không mất số giây
             if (id) {
@@ -832,7 +836,9 @@ app.events = {
             }
 
             const data = {
-                id: id ? Number(id) : Date.now(),
+                ...(originalTxForSubmit || {}),
+                id: id ? Number(id) : app.rules.newTransactionId(),
+                createdAt: originalTxForSubmit ? new Date(app.rules.createdTime(originalTxForSubmit)).toISOString() : new Date().toISOString(),
                 type: document.getElementById('tx-type').value,
                 status: document.getElementById('tx-status').value,
 
@@ -862,6 +868,13 @@ app.events = {
                 isCashback: isCashback
             };
 
+
+            try { app.rules.validateTransaction(data); }
+            catch (error) { return app.ui.popup.show(error.message, 'error'); }
+            if (data.type !== 'Thu nhập' || data.status !== 'paid' ||
+                (originalTxForSubmit && app.logic.getLocalMonthKey(data.date) !== app.logic.getLocalMonthKey(originalTxForSubmit.date))) {
+                delete data.assignedToMonthlyLimit;
+            }
 
             // ==================================================
             // CHỌN NGUỒN NGÂN SÁCH: TIỀN THỰC / HẠN MỨC THÁNG
@@ -1200,19 +1213,6 @@ app.events = {
                 }
             }
 
-            // Hiển thị thông báo nhỏ nếu có giảm giá hoặc hoàn tiền để người dùng biết
-            if (discountMoney > 0) {
-                if (isCashback) {
-                    // Popup riêng biệt dành cho Hoàn tiền
-                    app.ui.popup.show(`🎉 Đã lưu giao dịch!<br>💸 Hệ thống tự động ghi nhận khoản hoàn tiền: <b>+${new Intl.NumberFormat('vi-VN').format(discountMoney)} đ</b>`, "success");
-                } else {
-                    // Popup mặc định của Giảm giá
-                    app.ui.popup.show(`Đã lưu: <b>${app.logic.formatCurrency(finalAmount)}</b><br>(Gốc: ${app.logic.formatCurrency(originalAmount)} - Giảm: ${app.logic.formatCurrency(discountMoney)})`, "success");
-                }
-            } else {
-                // (Tùy chọn) Nếu bạn muốn có thông báo cho các giao dịch bình thường không giảm/hoàn
-                // app.ui.popup.show("✅ Đã lưu giao dịch thành công!", "success");
-            }
             // ==================================================
             // CẢNH BÁO THEO HẠN MỨC MỚI
             // Chỉ giao dịch budgetFunding = limit mới làm giảm hạn mức.
@@ -1317,7 +1317,8 @@ app.events = {
                 const originalTx = app.data.transactions.find(t => t.id == id);
                 if (originalTx && originalTx.status === 'planned' && data.status !== 'planned') {
                     const previousIdForLimitIncome = data.id;
-                    data.id = Date.now();
+                    data.id = app.rules.newTransactionId();
+                    data.createdAt = new Date().toISOString();
 
                     // 09/2026: nếu khoản Thu nhập Dự kiến đã được chọn làm nguồn
                     // bảo chứng Hạn mức, giữ liên kết khi hệ thống đổi ID lúc chuyển trạng thái.
@@ -1355,7 +1356,7 @@ app.events = {
                             data.isSourceFixed = true;
                         } else {
                             const lockDuration = (originalTx.tags && originalTx.tags.includes('#hoan_tien') ? 1 : 3) * 24 * 60 * 60 * 1000;
-                            const isLockedTime = (Date.now() - originalTx.id) > lockDuration;
+                            const isLockedTime = app.rules.isLocked(originalTx);
                             // Kiểm tra xem có phải giao dịch nợ không
                             const isDebtPayment = originalTx.tags && (
                                 originalTx.tags.includes('#thanh_toan_no') ||
@@ -1377,7 +1378,7 @@ app.events = {
                             data.isBrandFixed = true;
                         } else {
                             const lockDuration = (originalTx.tags && originalTx.tags.includes('#hoan_tien') ? 1 : 3) * 24 * 60 * 60 * 1000;
-                            const isLockedTime = (Date.now() - originalTx.id) > lockDuration;
+                            const isLockedTime = app.rules.isLocked(originalTx);
                             if (isLockedTime && originalTx.brand !== data.brand) {
                                 data.isBrandFixed = true;
                             }
@@ -1398,7 +1399,7 @@ app.events = {
                             data.isSourceFixed = true;
                         } else {
                             const lockDuration = (originalTx.tags && originalTx.tags.includes('#hoan_tien') ? 1 : 3) * 24 * 60 * 60 * 1000;
-                            const isLockedTime = (Date.now() - originalTx.id) > lockDuration;
+                            const isLockedTime = app.rules.isLocked(originalTx);
 
                             // Nếu đã khóa, là nợ, và bị đổi source -> Khóa vĩnh viễn source
                             if (isLockedTime && isDebtPayment && originalTx.source !== data.source) {
@@ -1411,7 +1412,7 @@ app.events = {
                             data.isDateFixed = true;
                         } else {
                             const lockDuration = (originalTx.tags && originalTx.tags.includes('#hoan_tien') ? 1 : 3) * 24 * 60 * 60 * 1000;
-                            const isLockedTime = (Date.now() - originalTx.id) > lockDuration;
+                            const isLockedTime = app.rules.isLocked(originalTx);
 
                             // Nếu đã khóa, là nợ, và bị đổi thời gian -> Khóa vĩnh viễn thời gian
                             if (isLockedTime && isDebtPayment && originalTx.date !== data.date) {
@@ -1426,34 +1427,7 @@ app.events = {
                 app.data.transactions.push(data);
             }
 
-            if (isCashback && discountMoney > 0) {
-                const refIdStr = document.getElementById('tx-ref') ? document.getElementById('tx-ref').value.trim() : '';
-                const placeContent = "Tiền hoàn giao dịch " + (refIdStr ? refIdStr : new Date(finalDateISO).toLocaleString('vi-VN'));
-
-                const cashbackData = {
-                    id: Date.now() + Math.floor(Math.random() * 1000) + 1,
-                    type: 'Thu nhập',
-                    status: 'paid',
-                    amount: discountMoney,
-                    discountAmount: 0,
-                    discountValue: null,
-                    place: placeContent,
-                    brand: '',
-                    source: `Ngân hàng ${data.source}`, // Nguồn tiền là Ngân hàng + Nguồn tiền giao dịch gốc
-                    destination: '',
-                    refId: '',
-                    isRefFullyLocked: false,
-                    orderCode: '',
-                    isOrderCodeFullyLocked: false,
-                    date: finalDateISO,
-                    isUnknownTime: isUnknownTime,
-                    tags: '#hoan_tien',
-                    isTet: false,
-                    is83: false,
-                    is304: false
-                };
-                app.data.transactions.push(cashbackData);
-            }
+            app.rules.syncCashback(data, originalTxForSubmit);
 
             // Đồng bộ liên kết hai chiều sau khi giao dịch
             // đã được thêm hoặc cập nhật trong CSDL.
@@ -1490,19 +1464,19 @@ app.events = {
 
             if (data.tags && data.tags.includes('#di_vay')) {
                 const lenderName = data.place.replace('Vay tiền từ ', '').trim();
-                const loan = app.data.loans.find(l =>
+                const loanCandidates = app.data.loans.filter(l =>
+                    data.loanId != null ? String(l.id) === String(data.loanId) :
                     l.originalAmount === data.amount &&
-                    l.lender.toLowerCase() === lenderName.toLowerCase() &&
-                    l.status === 'active'
-                );
+                    l.lender.toLowerCase() === lenderName.toLowerCase() && l.status === 'active');
+                const loan = loanCandidates.length === 1 ? loanCandidates[0] : null;
 
                 if (loan) {
+                    data.loanId = loan.id;
                     loan.date = new Date(data.date).toISOString();
                     if (loan.schedule && loan.schedule.length > 0) {
                         const newStartDate = new Date(data.date);
                         loan.schedule.forEach(p => {
-                            const nextDate = new Date(newStartDate.getFullYear(), newStartDate.getMonth() + p.period, 7);
-                            p.dueDate = nextDate.toLocaleDateString('vi-VN');
+                            p.dueDate = app.rules.loanDueDate(newStartDate, Number(p.period));
                         });
                     }
                     alert(`🔄 Đã đồng bộ ngày vay sang ${new Date(data.date).toLocaleDateString('vi-VN')}\n📅 Lịch trả nợ (Ngày 7) đã được cập nhật lại!`);
@@ -1518,8 +1492,14 @@ app.events = {
                 notify: true
             });
 
-            app.storage.save();
+            // Nếu ghi thất bại, lần thử lại cập nhật cùng giao dịch thay vì thêm trùng.
+            document.getElementById('tx-id').value = data.id;
             app.logic.updateFees();
+            if (!await app.storage.save()) return;
+            if (discountMoney > 0) app.ui.popup.show(
+                isCashback ? 'Đã lưu giao dịch và cập nhật khoản hoàn tiền.' : 'Đã lưu giao dịch sau giảm giá.',
+                'success'
+            );
             app.ui.renderAll();
             app.ui.init();
             document.getElementById('modal-tx').classList.remove('active');
@@ -1527,6 +1507,9 @@ app.events = {
             if (app.ui.transactionModalInterval) {
                 clearInterval(app.ui.transactionModalInterval);
                 app.ui.transactionModalInterval = null;
+            }
+            } finally {
+                app.events.savingTransaction = false;
             }
         });
 
@@ -1626,17 +1609,11 @@ app.events = {
         document.getElementById('btn-reset-data').onclick = () => {
             app.ui.popup.confirm(
                 "CẢNH BÁO: KHÔI PHỤC CÀI ĐẶT GỐC!\n\nToàn bộ dữ liệu (Giao dịch, Ngân hàng, Ví, Nợ, Mật khẩu...) sẽ bị xóa sạch vĩnh viễn.\nBạn có chắc chắn muốn làm điều này?",
-                () => {
-                    // 1. TỰ ĐỘNG XÓA SẠCH BỘ NHỚ (Cả LocalStorage và IndexedDB): 
-                    const keys = Object.keys(localStorage);
-                    for (let key of keys) {
-                        if (key.startsWith('fm_')) {
-                            localStorage.removeItem(key);
-                        }
-                    }
-                    // Thêm lệnh xóa Database của IndexedDB
-                    if (window.indexedDB) {
-                        indexedDB.deleteDatabase('FinanceAppDB');
+                async () => {
+                    try { await app.storage.reset(); }
+                    catch (error) {
+                        app.storage.ready = true;
+                        return app.ui.popup.show('Không thể reset: ' + error.message, 'error');
                     }
 
                     // 2. Reset trạng thái bảo mật trong phiên làm việc hiện tại
@@ -2229,6 +2206,7 @@ app.dataTools = {
 
             const cashWallets =
                 app.data.cashWallets || [];
+            const wallets = app.data.wallets || [];
 
             /*
              * Loại API key khỏi file Excel.
@@ -2421,8 +2399,11 @@ app.dataTools = {
                 createdStatements,
                 loans,
                 accounts,
-                cashWallets
+                cashWallets,
+                wallets
             };
+
+            appendSheet('Vi_dien_tu', wallets);
 
             const backupJSON =
                 JSON.stringify(completeBackup);
@@ -2511,7 +2492,12 @@ app.dataTools = {
 
         const reader = new FileReader();
 
-        reader.onload = event => {
+        reader.onload = async event => {
+            if (!app.storage.ready) { input.value = ''; return app.ui.popup.show('Dữ liệu chưa sẵn sàng để nhập.', 'error'); }
+            const previousData = app.data;
+            let committed = false;
+            app.data = JSON.parse(JSON.stringify(previousData));
+            app.storage.ready = false;
             try {
                 const workbook = XLSX.read(
                     event.target.result,
@@ -2585,7 +2571,8 @@ app.dataTools = {
 
                 const parseNumber = value => {
                     if (typeof value === 'number') {
-                        return Number.isFinite(value) ? value : 0;
+                        if (!Number.isFinite(value)) throw new Error('Số trong Excel không hợp lệ.');
+                        return value;
                     }
 
                     const cleaned = String(value ?? '')
@@ -2593,7 +2580,8 @@ app.dataTools = {
 
                     const number = Number(cleaned);
 
-                    return Number.isFinite(number) ? number : 0;
+                    if (!cleaned || !Number.isFinite(number)) throw new Error('Số trong Excel không hợp lệ: ' + String(value));
+                    return number;
                 };
 
                 const parseBoolean = value => {
@@ -2627,7 +2615,7 @@ app.dataTools = {
                                 excelDate.y,
                                 excelDate.m - 1,
                                 excelDate.d,
-                                excelDate.H || 12,
+                                excelDate.H ?? 0,
                                 excelDate.M || 0,
                                 excelDate.S || 0
                             ).toISOString();
@@ -2640,7 +2628,7 @@ app.dataTools = {
                         return date.toISOString();
                     }
 
-                    return new Date().toISOString();
+                    throw new Error('Ngày trong Excel không hợp lệ: ' + String(value));
                 };
 
                 const parseRow = row => {
@@ -2650,7 +2638,7 @@ app.dataTools = {
                         ([rawKey, rawValue]) => {
                             const key = String(rawKey).trim();
 
-                            if (!key) return;
+                            if (!key || ['__proto__', 'constructor', 'prototype'].includes(key)) return;
 
                             result[key] =
                                 parsePossibleJSON(rawValue);
@@ -2698,6 +2686,7 @@ app.dataTools = {
 
                         Object.entries(importedValue).forEach(
                             ([key, value]) => {
+                                if (['__proto__', 'constructor', 'prototype'].includes(key)) return;
                                 if (isEmptyImportedValue(value)) {
                                     return;
                                 }
@@ -2956,6 +2945,10 @@ app.dataTools = {
                     index = 0
                 ) => {
                     const transaction = parseRow(rawRow);
+                    Object.keys(transaction).forEach(key => {
+                        if (isEmptyImportedValue(transaction[key])) delete transaction[key];
+                    });
+                    const existing = app.data.transactions.find(t => String(t.id) === String(transaction.id));
 
                     const numberFields = [
                         'id',
@@ -3002,6 +2995,12 @@ app.dataTools = {
                         }
                     });
 
+                    if (existing) {
+                        if (transaction.date !== undefined) transaction.date = parseDate(transaction.date);
+                        app.rules.validateTransaction({ ...existing, ...transaction });
+                        return transaction;
+                    }
+
                     if (!transaction.id) {
                         transaction.id =
                             Date.now() + index;
@@ -3033,6 +3032,7 @@ app.dataTools = {
                             new Date().toISOString();
                     }
 
+                    app.rules.validateTransaction(transaction);
                     return transaction;
                 };
 
@@ -3295,6 +3295,8 @@ app.dataTools = {
                  * Hỗ trợ file Excel cũ chỉ có một sheet.
                  * Sheet đầu tiên sẽ được hiểu là Transactions.
                  */
+                if (hasSheet('Vi_dien_tu')) importedData.wallets = readSheet('Vi_dien_tu').map(parseRow);
+
                 const recognizedSheets = [
                     'Transactions',
                     'Quan_ly_no',
@@ -3303,6 +3305,7 @@ app.dataTools = {
                     'Khoan_vay',
                     'Ngan_hang',
                     'Vi_tien_mat',
+                    'Vi_dien_tu',
                     'Du_bao',
                     'Cau_hinh',
                     'Dieu_chinh_no',
@@ -3339,6 +3342,10 @@ app.dataTools = {
                     throw new Error(
                         'File Excel không có dữ liệu FinDash hợp lệ.'
                     );
+                }
+
+                if (Array.isArray(importedData.transactions)) {
+                    importedData.transactions = importedData.transactions.map(normalizeTransaction);
                 }
 
                 // Không cho file Excel thay thế Gemini API Key
@@ -3486,6 +3493,15 @@ app.dataTools = {
                 }
 
                 // ==========================================
+                // CẬP NHẬT VÍ ĐIỆN TỬ
+                if (Array.isArray(importedData.wallets)) {
+                    const result = mergeArray(app.data.wallets || [], importedData.wallets, wallet => wallet.id ?? wallet.walletName);
+                    app.data.wallets = result.data;
+                    totalAdded += result.added;
+                    totalUpdated += result.updated;
+                    totalSkipped += result.skipped;
+                }
+
                 // CẬP NHẬT TRẢ GÓP
                 // ==========================================
                 const importedInstallments =
@@ -3597,8 +3613,10 @@ app.dataTools = {
                         notify: true
                     });
 
-                app.storage.save();
                 app.logic.updateFees();
+                app.storage.ready = true;
+                if (!await app.storage.save()) throw new Error('Không thể lưu bản nhập. Dữ liệu trước khi nhập được giữ lại.');
+                committed = true;
 
                 // Cập nhật giao diện
                 app.ui.init();
@@ -3615,6 +3633,7 @@ app.dataTools = {
                     'success'
                 );
             } catch (error) {
+                if (!committed) app.data = previousData;
                 console.error(
                     'Lỗi nhập toàn bộ Excel:',
                     error
@@ -3625,6 +3644,7 @@ app.dataTools = {
                     'error'
                 );
             } finally {
+                app.storage.ready = true;
                 // Cho phép chọn lại cùng một file
                 input.value = '';
             }
@@ -3881,18 +3901,9 @@ const handleEditLimit = (e, originalId, errorId, lockFlagId, typeName) => {
     const lockFlagEl = document.getElementById(lockFlagId);
     const txSubmitBtn = document.querySelector('#form-tx button[type="submit"]');
 
-    let is3DaysOld = false;
-    const txIdStr = document.getElementById('tx-id') ? document.getElementById('tx-id').value : '';
-    if (txIdStr) {
-        const tx = app.data.transactions.find(t => t.id == txIdStr);
-        if (tx && tx.date) {
-            const isCashback = tx.tags && tx.tags.includes('#hoan_tien');
-            const lockDays = isCashback ? 1 : 3;
-
-            const diffDays = (new Date().getTime() - new Date(tx.date).getTime()) / (1000 * 3600 * 24);
-            if (diffDays > lockDays) is3DaysOld = true;
-        }
-    }
+    const txIdStr = document.getElementById('tx-id')?.value;
+    const tx = app.data.transactions.find(t => t.id == txIdStr);
+    const is3DaysOld = tx ? app.rules.isLocked(tx) : false;
 
     if (origVal) {
         const diff = getEditDistance(origVal, currentVal);

@@ -146,15 +146,15 @@ app.security = {
             );
         } else {
             app.ui.popup.prompt(
-                "Thiết lập mã PIN (4 số):",
+                "Thiết lập PIN khóa giao diện (4 số). Dữ liệu lưu không được mã hóa:",
                 (newPin) => {
-                    if (newPin && newPin.length === 4 && !isNaN(newPin)) {
+                    if (/^\d{4}$/.test(newPin || '')) {
                         this.isEnabled = true;
                         this.masterKey = newPin;
                         localStorage.setItem('fm_private_mode', 'true');
                         localStorage.setItem('fm_pin_hash', CryptoJS.MD5(newPin).toString());
                         this.updateUI();
-                        app.ui.popup.show("✅ Đã bật Private Mode.", "success");
+                        app.ui.popup.show("✅ Đã bật khóa giao diện bằng PIN.", "success");
                     } else {
                         app.ui.popup.show("❌ Mã PIN phải là 4 số.", "error");
                     }

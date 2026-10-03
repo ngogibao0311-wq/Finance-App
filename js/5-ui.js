@@ -3650,33 +3650,9 @@ ${payAllHTML}
                     brandDisplay = `<span style="background:#eef2ff; color:#4f46e5; border:1px solid #c7d2fe; padding:1px 6px; border-radius:4px; font-size:0.65rem; font-weight:700; margin-right:4px; display:inline-block; margin-bottom:2px;"><i class="fa-solid fa-copyright"></i> ${t.brand}</span>`;
                 }
 
-                let displaySource = t.source;
-                let displayDest = t.destination;
-
-                // Nếu giao dịch cũ không có trường Đích đến (destination)
-                if (!displayDest) {
-                    const tagsLower = (t.tags || '').toLowerCase();
-                    const isDebtPayment = tagsLower.includes('#thanh_toan_no') ||
-                        tagsLower.includes('#tra_gop') ||
-                        tagsLower.includes('#nop_phat') ||
-                        tagsLower.includes('#thanh_toan_phi') ||
-                        tagsLower.includes('#tat_toan_vay') ||
-                        tagsLower.includes('#tra_no_vay');
-
-                    if (t.type === 'Thu nhập') {
-                        displaySource = 'Bên ngoài';
-                        displayDest = t.source; // Tiền từ ngoài chạy VÀO ví
-                    } else if (t.type === 'Chi tiêu') {
-                        if (isDebtPayment) {
-                            displaySource = 'Tiền mặt'; // Các giao dịch trả nợ cũ thường lấy từ Tiền mặt
-                            displayDest = t.source;     // Đập VÀO ví trả sau
-                        } else {
-                            displayDest = 'Bên ngoài';  // Chi tiêu bình thường thì tiền ra ngoài
-                        }
-                    } else if (t.type === 'Chuyển tiền') {
-                        displayDest = 'N/A';
-                    }
-                }
+                const flow = app.rules.flow(t);
+                const displaySource = flow.source;
+                const displayDest = flow.destination || (isTransfer ? 'N/A' : 'Bên ngoài');
 
                 // Tạo HTML hiển thị đẹp mắt
                 let sourceDestHTML = displayDest
@@ -4100,9 +4076,12 @@ ${payAllHTML}
     toggleCancel(id) {
         const tx = app.data.transactions.find(t => t.id === id);
         if (!tx) return;
+        try { app.rules.checkCashbackEdit(tx); }
+        catch (error) { return app.ui.popup.show(error.message, 'error'); }
 
         // Hàm phụ trợ để refresh UI (Dùng chung cho cả Hủy và Khôi phục)
         const refreshUI = () => {
+            app.rules.syncCashback(tx, tx);
             app.storage.save();
             app.ui.renderAll();
 
@@ -4159,7 +4138,8 @@ ${payAllHTML}
                     // Tạo bản sao của giao dịch
                     const newTx = {
                         ...tx,
-                        id: Date.now(), // Cấp ID hoàn toàn mới
+                        id: app.rules.newTransactionId(), // Cấp ID hoàn toàn mới
+                        createdAt: now.toISOString(),
                         date: localISOTime, // Lấy thời gian lúc bấm nút
                         status: newStatus
                     };
@@ -4169,9 +4149,15 @@ ${payAllHTML}
                     delete newTx.isCancelDateFixed;
                     delete newTx.keepForZalo;
                     delete newTx.forceStatementKey;
+                    delete newTx.linkedTransferId;
+                    delete newTx.linkedExpenseId;
+                    delete newTx.assignedToMonthlyLimit;
+                    delete newTx.cashbackForId;
+                    delete newTx.loanId;
 
                     // Đẩy giao dịch mới vào mảng dữ liệu
                     app.data.transactions.push(newTx);
+                    app.rules.syncCashback(newTx);
 
                     refreshUI();
                     app.ui.popup.show("Đã tạo giao dịch MỚI thành công!", "success");
@@ -6878,7 +6864,7 @@ ${t.tempExtraFeeReason
                                     "Hành động này không thể hoàn tác.\nBạn chắc chắn muốn xóa vĩnh viễn?",
                                     () => {
                                         // 1. Xóa giao dịch khỏi dữ liệu
-                                        app.data.transactions = app.data.transactions.filter(t => t.id !== id);
+                                        app.rules.removeTransaction(id);
                                         app.storage.save();
 
                                         // 2. Cập nhật Dashboard
@@ -6925,8 +6911,8 @@ ${t.tempExtraFeeReason
                         }
                         // ---------------------------------------
 
-                        const createdTime = tx.id;
-                        const lockDuration = 3 * 24 * 60 * 60 * 1000;
+                        const createdTime = app.rules.createdTime(tx);
+                        const lockDuration = app.rules.lockDuration(tx);
                         const lockTime = createdTime + lockDuration;
 
                         const updateCountdown = () => {
@@ -7019,7 +7005,7 @@ ${t.tempExtraFeeReason
                                 document.getElementById('btn-delete-tx').classList.remove('hidden');
                                 document.getElementById('btn-delete-tx').onclick = () => {
                                     if (confirm("Xóa giao dịch này?")) {
-                                        app.data.transactions = app.data.transactions.filter(t => t.id !== id);
+                                        app.rules.removeTransaction(id);
                                         app.storage.save(); app.ui.renderAll();
                                         app.ui.init();
                                         modal.classList.remove('active');
@@ -7762,7 +7748,8 @@ ${t.tempExtraFeeReason
                     app.ui.popup.prompt(
                         `Khoản vay <b>${app.logic.formatCurrency(totalPrincipal)}</b><br>Bạn muốn trả trong bao nhiêu tháng?`,
                         (val) => {
-                            const months = parseInt(val) || 1;
+                            const months = Number(val);
+                            if (!Number.isInteger(months) || months < 1 || months > 360) return app.ui.popup.show('Số kỳ phải là số nguyên từ 1 đến 360.', 'error');
 
                             // Bước 2: Tự động tính toán (Thay vì hỏi từng tháng)
                             const avgPrincipal = Math.floor(totalPrincipal / months);
@@ -7772,8 +7759,7 @@ ${t.tempExtraFeeReason
 
                             for (let i = 1; i <= months; i++) {
                                 // Hạn là ngày 7 của tháng sau nữa (T+1)
-                                const termDate = new Date(now.getFullYear(), now.getMonth() + i + 1, 7);
-                                const termDateStr = termDate.toLocaleDateString('vi-VN');
+                                const termDateStr = app.rules.loanDueDate(now, i);
 
                                 let suggestPrincipal = avgPrincipal;
                                 if (i === months) {
@@ -7801,7 +7787,7 @@ ${t.tempExtraFeeReason
                             app.data.loans.push(newLoan);
                             app.data.transactions.push({
                                 id: Date.now() + 1, type: 'Thu nhập', place: `Vay tiền từ ${lender}`,
-                                source: 'Tiền mặt', amount: totalPrincipal, date: new Date().toISOString(),
+                                loanId: newLoan.id, source: 'Bên ngoài', destination: 'Tiền mặt', amount: totalPrincipal, date: new Date().toISOString(),
                                 tags: '#di_vay', status: 'paid', note: `Vay ${months} kỳ.`
                             });
 
@@ -7829,8 +7815,7 @@ ${t.tempExtraFeeReason
                             if (loan.status === 'active' && loan.schedule) {
                                 const loanDate = new Date(loan.date);
                                 loan.schedule.forEach(p => {
-                                    const newDueDate = new Date(loanDate.getFullYear(), loanDate.getMonth() + p.period + 1, 7);
-                                    p.dueDate = newDueDate.toLocaleDateString('vi-VN');
+                                    p.dueDate = app.rules.loanDueDate(loanDate, Number(p.period));
                                 });
                                 count++;
                             }
@@ -8768,37 +8753,20 @@ ${t.tempExtraFeeReason
                 // --- [MỚI] KIỂM TRA TRẠNG THÁI KHÓA ---
                 const isLocked = account.isLocked || false;
 
-                const CUTOFF_DATE = new Date('2026-01-28T00:00:00').getTime();
+                const CUTOFF_DATE = app.rules.balanceStart(account, 'bank');
                 const bankName = account.bankName.toLowerCase().trim();
                 const isLiobank = bankName.includes('liobank');
 
                 // Tính toán số dư dựa trên (Dư ban đầu + Giao dịch)
                 let realBalance = Number(app.logic.calculateBankBalance(account)) || 0;
 
-                // Xử lý riêng cho Liobank (trừ lãi)
-                if (isLiobank) {
-                    const ignoredTxs = app.data.transactions.filter(t => {
-                        const s = (t.source || "").toLowerCase().trim();
-                        const d = (t.destination || "").toLowerCase().trim();
-                        return (s === bankName || d === bankName) && t.isInterest === true && t.status === 'paid'; // Đảm bảo chỉ trừ lãi khi đã paid
-                    });
-
-                    ignoredTxs.forEach(t => {
-                        const amt = Number(t.amount) || 0;
-                        if (t.type === 'Thu nhập') {
-                            realBalance -= amt;
-                        } else {
-                            realBalance += amt;
-                        }
-                    });
-                }
-
                 // Lọc lịch sử
                 const history = app.data.transactions.filter(t => {
                     const tTime = new Date(t.date).getTime();
                     if (tTime < CUTOFF_DATE) return false;
-                    const s = (t.source || "").toLowerCase().trim();
-                    const d = (t.destination || "").toLowerCase().trim();
+                    const flow = app.rules.flow(t);
+                    const s = app.rules.normalizeName(flow.source);
+                    const d = app.rules.normalizeName(flow.destination);
                     return s === bankName || d === bankName;
                 }).sort((a, b) => app.logic.compareTransactions(a, b));
 
@@ -8825,7 +8793,7 @@ ${t.tempExtraFeeReason
                         listHtml += txs.map(t => {
                             const isCancelled = t.status === 'cancelled';
                             const s = (t.source || "").toLowerCase().trim();
-                            const isMoneyOut = (s === bankName);
+                            const isMoneyOut = app.rules.direction(t, bankName) < 0;
                             const isTransfer = t.type === 'Chuyển tiền';
 
                             // Cấu hình màu sắc
@@ -9026,24 +8994,6 @@ ${t.orderCode ? `<br><span style="font-size:0.75rem; color:#ea580c; font-weight:
                     const isLiobank = acc.bankName.toLowerCase().includes('liobank');
                     const isLocked = acc.isLocked || false; // --- [MỚI] ---
 
-                    if (isLiobank) {
-                        const bankName = acc.bankName.toLowerCase().trim();
-                        const ignoredTxs = app.data.transactions.filter(t => {
-                            const s = (t.source || "").toLowerCase().trim();
-                            const d = (t.destination || "").toLowerCase().trim();
-                            return (s === bankName || d === bankName) && t.isInterest === true;
-                        });
-
-                        ignoredTxs.forEach(t => {
-                            const amt = Number(t.amount) || 0;
-                            if (t.type === 'Thu nhập') {
-                                realBalance -= amt;
-                            } else {
-                                realBalance += amt;
-                            }
-                        });
-                    }
-
                     const themeIndex = (index % 5) + 1;
                     const formattedNum = acc.accountNumber.replace(/(\d{4})(?=\d)/g, '$1 ');
 
@@ -9183,29 +9133,7 @@ ${t.orderCode ? `<br><span style="font-size:0.75rem; color:#ea580c; font-weight:
 
             // 6. Tính số dư thực tế
             calculateBalance(wallet) {
-                const name = wallet.name.toLowerCase().trim();
-                // Lấy thời điểm tạo ví (Nếu ví cũ không có ngày tạo thì mặc định lấy mốc xa xưa để tính hết)
-                const walletCreatedTime = wallet.createdAt ? new Date(wallet.createdAt).getTime() : 0;
-
-                let flow = 0;
-                app.data.transactions.forEach(t => {
-                    // 1. Chỉ tính giao dịch Đã thanh toán (bỏ qua Dự kiến/Chờ xử lý)
-                    if (t.status !== 'paid') return;
-
-                    // 2. [QUAN TRỌNG] Chỉ tính các giao dịch diễn ra SAU hoặc BẰNG lúc tạo ví
-                    // (Bỏ qua các giao dịch quá khứ để không làm sai lệch số dư ban đầu vừa nhập)
-                    const txTime = new Date(t.date).getTime();
-                    if (txTime < walletCreatedTime) return;
-
-                    const s = (t.source || "").toLowerCase().trim();
-                    const d = (t.destination || "").toLowerCase().trim();
-
-                    // 3. Cộng trừ tiền
-                    if (d === name) flow += t.amount; // Tiền vào (Thu nhập hoặc nhận chuyển khoản)
-                    if (s === name) flow -= t.amount; // Tiền ra (Chi tiêu hoặc chuyển đi)
-                });
-
-                return (wallet.initialBalance || 0) + flow;
+                return app.rules.balance(wallet, 'cash');
             },
 
             // 7. Xem chi tiết lịch sử
@@ -9216,12 +9144,13 @@ ${t.orderCode ? `<br><span style="font-size:0.75rem; color:#ea580c; font-weight:
                 const currentBalance = this.calculateBalance(wallet);
                 const wName = wallet.name.toLowerCase().trim();
 
-                const walletCreatedTime = wallet.createdAt ? new Date(wallet.createdAt).getTime() : 0;
+                const walletCreatedTime = app.rules.balanceStart(wallet, 'cash');
 
                 const history = app.data.transactions.filter(t => {
                     if (new Date(t.date).getTime() < walletCreatedTime) return false;
-                    const s = (t.source || "").toLowerCase().trim();
-                    const d = (t.destination || "").toLowerCase().trim();
+                    const flow = app.rules.flow(t);
+                    const s = app.rules.normalizeName(flow.source);
+                    const d = app.rules.normalizeName(flow.destination);
                     return (s === wName || d === wName);
                 }).sort((a, b) => app.logic.compareTransactions(a, b));
 
@@ -9251,7 +9180,7 @@ ${t.orderCode ? `<br><span style="font-size:0.75rem; color:#ea580c; font-weight:
                         listHtml += txs.map(t => {
                             const isCancelled = t.status === 'cancelled';
                             const s = (t.source || "").toLowerCase().trim();
-                            const isMoneyOut = (s === wName);
+                            const isMoneyOut = app.rules.direction(t, wName) < 0;
                             const isTransfer = t.type === 'Chuyển tiền';
 
                             const sign = isMoneyOut ? '-' : '+';
@@ -9465,10 +9394,13 @@ ${t.orderCode ? `<br><span style="font-size:0.75rem; color:#ea580c; font-weight:
                 document.getElementById('wallet-name').value = '';
                 document.getElementById('wallet-owner').value = '';
                 document.getElementById('wallet-init-balance').value = '';
+                document.getElementById('wallet-credit-limit').value = '';
+                document.getElementById('wallet-limit-current').value = '';
                 document.getElementById('modal-add-wallet').classList.add('active');
             },
 
-            saveNew() {
+            async saveNew() {
+                if (!app.storage.ready || this.saving) return;
                 const name = document.getElementById('wallet-name').value.trim();
                 const owner = document.getElementById('wallet-owner').value.trim();
                 const initBal = Number(document.getElementById('wallet-init-balance').value.replace(/[^0-9]/g, ''));
@@ -9477,18 +9409,30 @@ ${t.orderCode ? `<br><span style="font-size:0.75rem; color:#ea580c; font-weight:
 
                 if (!name) return app.ui.popup.show("Vui lòng nhập tên ví!", "error");
 
+                const availableText = document.getElementById('wallet-limit-current').value.trim();
+                const initialCreditAvailable = availableText === '' ? creditLimit : Number(availableText.replace(/[^0-9]/g, ''));
+                if (!Number.isSafeInteger(initialCreditAvailable) || initialCreditAvailable > creditLimit || !Number.isSafeInteger(initBal) || !Number.isSafeInteger(creditLimit)) {
+                    return app.ui.popup.show('Hạn mức còn lại phải từ 0 đến tổng hạn mức; số tiền phải trong giới hạn an toàn.', 'error');
+                }
                 const newWallet = {
                     id: Date.now(),
                     walletName: name,
                     ownerInfo: owner,
                     initialBalance: initBal,
-                    creditLimit: creditLimit, // Lưu hạn mức vào object
+                    creditLimit: creditLimit,
+                    initialCreditAvailable,
                     createdAt: new Date().toISOString()
                 };
 
                 if (!app.data.wallets) app.data.wallets = [];
                 app.data.wallets.push(newWallet);
-                app.storage.save();
+                this.saving = true;
+                const saved = await app.storage.save();
+                this.saving = false;
+                if (!saved) {
+                    app.data.wallets = app.data.wallets.filter(wallet => wallet !== newWallet);
+                    return;
+                }
 
                 document.getElementById('modal-add-wallet').classList.remove('active');
                 this.render();
@@ -9505,15 +9449,16 @@ ${t.orderCode ? `<br><span style="font-size:0.75rem; color:#ea580c; font-weight:
 
             // Lọc lịch sử (từ 28/01/2026)
             getWalletHistory(wallet) {
-                const CUTOFF_DATE = new Date('2026-01-28T00:00:00').getTime();
+                const CUTOFF_DATE = app.rules.balanceStart(wallet, 'wallet');
                 const wName = wallet.walletName.toLowerCase().trim();
 
                 return app.data.transactions.filter(t => {
                     const tTime = new Date(t.date).getTime();
                     if (tTime < CUTOFF_DATE) return false;
 
-                    const s = t.source.toLowerCase().trim();
-                    const d = (t.destination || "").toLowerCase().trim();
+                    const flow = app.rules.flow(t);
+                    const s = app.rules.normalizeName(flow.source);
+                    const d = app.rules.normalizeName(flow.destination);
                     return s === wName || d === wName;
                 }).sort((a, b) => app.logic.compareTransactions(a, b));
             },
@@ -9539,12 +9484,12 @@ ${t.orderCode ? `<br><span style="font-size:0.75rem; color:#ea580c; font-weight:
                 const wName = wallet.walletName.toLowerCase().trim();
 
                 if (history.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:2rem; color:var(--text-muted);">Chưa có giao dịch nào từ 28/01/2026.</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:2rem; color:var(--text-muted);">Chưa có giao dịch nào từ ngày chốt số dư.</td></tr>`;
                 } else {
                     tbody.innerHTML = history.map(t => {
                         const isCancelled = t.status === 'cancelled';
-                        const s = t.source.toLowerCase().trim();
-                        const isMoneyOut = (s === wName);
+                        const s = String(t.source || '').toLowerCase().trim();
+                        const isMoneyOut = app.rules.direction(t, wName) < 0;
 
                         let color = isMoneyOut ? '#ef4444' : '#10b981';
                         const sign = isMoneyOut ? '-' : '+';
@@ -9611,7 +9556,7 @@ ${t.orderCode ? `<br><span style="font-size:0.75rem; color:#ea580c; font-weight:
 
                 // Body PDF
                 const tableBody = history.map(t => {
-                    const isMoneyOut = (t.source.toLowerCase().trim() === wName);
+                    const isMoneyOut = app.rules.direction(t, wName) < 0;
                     const sign = isMoneyOut ? '-' : '+';
                     return [
                         new Date(t.date).toLocaleDateString('vi-VN') + ' ' + new Date(t.date).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),

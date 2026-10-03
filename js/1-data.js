@@ -8,6 +8,7 @@ const app = {
         createdStatements: {},
         loans: [],
         cashWallets: [],
+        wallets: [],
         configs: {
             zaloLevel: 'standard',
 
