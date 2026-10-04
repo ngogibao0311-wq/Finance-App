@@ -1,0 +1,1 @@
+{"status":"PASS","checks":["Empty database has no fabricated transactions","Snapshot saved","Wallet persisted","Uncloneable write rejects","Abort rolls back ALL keys","Latest queued snapshot wins","Reload restores wallet","Reset deletes database data","Migration preserves settings","Migration commits before deleting source"]}

@@ -1,0 +1,30 @@
+{
+  "tests": 25,
+  "passed": [
+    "HTML script order initializes rules without a separate rules request; real render and filter work",
+    "Income, transfers, cancellations use one balance rule",
+    "Opening date and Liobank interest are consistent",
+    "Old debt-payment source is money received by creditor",
+    "Planned MoMo purchase creates no fee; pending creates exactly one",
+    "Lock age follows creation, not backdated transaction date",
+    "Editing actual form preserves exclusion and matching metadata",
+    "Cashback form creates once, updates amount, cancels and removes together",
+    "Disabling cashback removes linked refund; ambiguous legacy refunds are not deleted",
+    "Invalid discount and date do not mutate transactions",
+    "Loan form edit retains original repayment dates",
+    "Double submit creates one transaction",
+    "Retry after failed form save updates same transaction",
+    "Wallet stores current credit, resets form and survives storage round trip",
+    "Migration preserves configuration, strips only API keys, retains existing IDB",
+    "Queued saves capture snapshots in order and write every collection together",
+    "Failed save reports failure and queue recovers without losing old stored snapshot",
+    "Excel backup includes electronic wallets in sheet and backup JSON",
+    "Excel export-import round trip restores wallet and transaction amounts",
+    "Partial Excel update preserves amount, date, status and flags",
+    "Invalid Excel row rolls back all changes",
+    "Cloud payload includes wallets and excludes API keys",
+    "Old cloud backup preserves wallets that were not part of old schema",
+    "New empty cloud snapshot restores empty arrays omitted by Firebase",
+    "Failed cloud restore keeps in-memory data and persisted snapshot"
+  ]
+}

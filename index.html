@@ -41,7 +41,7 @@
     <div id="security-overlay" class="hidden">
         <div class="lock-icon-box"><i class="fa-solid fa-lock"></i></div>
         <h2 style="margin-bottom: 0.5rem;">Private Mode</h2>
-        <p style="color: #888; margin-bottom: 2rem;">Nhập PIN/Mật khẩu để giải mã dữ liệu</p>
+        <p style="color: #888; margin-bottom: 2rem;">Nhập PIN để mở khóa giao diện</p>
 
         <input type="password" id="auth-input-hidden" style="opacity: 0; position: absolute; pointer-events: none;">
 
@@ -67,7 +67,7 @@
             <div class="num-btn" onclick="app.security.submit()" style="font-size: 1.2rem; color:#10b981"><i
                     class="fa-solid fa-arrow-right"></i></div>
         </div>
-        <div style="margin-top: 2rem; font-size: 0.8rem; color: #555;">Được bảo vệ bởi AES-256 Encryption</div>
+        <div style="margin-top: 2rem; font-size: 0.8rem; color: #555;">Khóa giao diện bằng PIN • Dữ liệu lưu trên máy không được mã hóa</div>
     </div>
 
     <div id="mobile-backdrop" class="mobile-backdrop" aria-hidden="true"></div>
@@ -188,7 +188,7 @@
                     <button id="guestModeBtn" class="btn-ghost" title="Che số tiền"><i
                             class="fa-solid fa-eye-slash"></i></button>
 
-                    <button id="privateModeBtn" class="btn-ghost" title="Bật mã hóa dữ liệu">
+                    <button id="privateModeBtn" class="btn-ghost" title="Bật khóa giao diện bằng PIN">
                         <i class="fa-solid fa-shield-halved"></i>
                     </button>
                 </div>
@@ -1370,13 +1370,13 @@
     </div>
 
     <script type="module" src="./js/firebase-cloud.js"></script>
-    <script src="js/1-data.js"></script>
-    <script src="js/2-security.js"></script>
-    <script src="js/3-storage.js"></script>
-    <script src="js/4-logic.js"></script>
-    <script src="js/5-ui.js"></script>
-    <script src="js/6-main.js"></script>
-    <script src="js/7-animations.js"></script>
+    <script src="js/1-data.js?v=20261004-rules2"></script>
+    <script src="js/2-security.js?v=20261004-rules2"></script>
+    <script src="js/3-storage.js?v=20261004-rules2"></script>
+    <script src="js/4-logic.js?v=20261004-rules2"></script>
+    <script src="js/5-ui.js?v=20261004-rules2"></script>
+    <script src="js/6-main.js?v=20261004-rules2"></script>
+    <script src="js/7-animations.js?v=20261004-rules2"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             // --- 🧧 LOGIC TỰ ĐỘNG KÍCH HOẠT TẾT 🧧 ---
